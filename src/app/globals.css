@@ -1,0 +1,286 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 40 8% 95%; /* #f2f1ef */
+    --foreground: 0 0% 7%; /* #131313 */
+    --card: 40 8% 98%;
+    --card-foreground: 0 0% 7%;
+    --popover: 40 8% 95%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 14 100% 50%; /* #ff3d00 */
+    --primary-foreground: 0 0% 100%;
+    --primary-dark: 14 100% 40%;
+    --primary-light: 14 100% 95%;
+    --secondary: 40 8% 90%; /* #e8e6e3 */
+    --secondary-foreground: 0 0% 7%;
+    --muted: 40 8% 90%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 40 8% 85%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 14 100% 50%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 14 100% 50%;
+    --primary-foreground: 0 0% 98%;
+    --primary-dark: 14 100% 40%;
+    --primary-light: 14 100% 20%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 14 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Regular.woff') format('woff');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Bold.woff') format('woff');
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-SemiBold.woff') format('woff');
+  font-weight: 600;
+}
+
+/* Gradient animations */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.gradient-animation {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+/* Custom gradients */
+.gradient-primary {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-dark)));
+}
+
+.gradient-secondary {
+  background: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--muted)));
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--secondary)));
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Automation flow animations */
+@keyframes flow {
+  to {
+    background-position: 120px 0;
+  }
+}
+
+@keyframes typing {
+  0% { width: 0ch; }
+  40% { width: 24ch; }
+  80% { width: 24ch; }
+  90% { width: 0ch; }
+  100% { width: 0ch; }
+}
+
+@keyframes caret {
+  50% { border-color: transparent; }
+}
+
+@keyframes drop {
+  0% {
+    transform: translateY(20px) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  85% {
+    transform: translateY(90px) scale(1.1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(100px) scale(0.8);
+    opacity: 0.3;
+  }
+}
+
+@keyframes fly {
+  0% {
+    transform: translateX(-50px) translateY(0) rotate(-5deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(50%) translateY(-10px) rotate(3deg);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(calc(100% + 50px)) translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes grow {
+  0%, 100% {
+    height: 8px;
+    opacity: 0.4;
+  }
+  30% {
+    height: 60px;
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  50% { opacity: 0.2; }
+}
+
+@keyframes bar {
+  0%, 100% { transform: scaleX(0.4); }
+  50% { transform: scaleX(1); }
+}
+
+/* Step animations classes */
+.type-animation {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  border-right: 2px solid hsl(var(--primary));
+  animation: typing 2s steps(24) infinite, caret 0.5s step-end infinite;
+}
+
+.arrow-flow::before {
+  content: "";
+  width: 100%;
+  height: 4px;
+  background: repeating-linear-gradient(90deg, hsl(var(--primary)) 0 14px, transparent 14px 24px);
+  display: block;
+  border-radius: 999px;
+  animation: flow 2.2s linear infinite;
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.25));
+}
+
+.lead-drop {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: hsl(var(--primary));
+  border-radius: 50%;
+  opacity: 0.85;
+  animation: drop 0.5s ease-in-out infinite;
+  top: 30px;
+}
+
+.envelope-fly {
+  animation: fly 0.5s linear infinite;
+  left: 0;
+  width: auto;
+}
+
+.book-grow {
+  animation: grow 0.5s ease-in-out infinite;
+}
+
+/* Typing animations */
+@keyframes typeWriter {
+  0% {
+    width: 0;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    border-right-color: hsl(var(--primary));
+  }
+  50% {
+    border-right-color: transparent;
+  }
+}
+
+.typing-animation {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typeWriter 0.3s steps(20) forwards;
+  border-right: 2px solid hsl(var(--primary));
+  padding-right: 2px;
+}
+
+.typing-animation-delayed {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typeWriter 0.3s steps(20) 0.15s forwards;
+  border-right: 2px solid hsl(var(--primary)/70);
+  padding-right: 2px;
+  width: 0;
+}
