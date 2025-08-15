@@ -11,6 +11,24 @@ All endpoints require authentication via Supabase Auth. The user must be logged 
 
 ## API Endpoints
 
+### Emails
+
+#### Send Email
+```
+POST /api/emails/send
+Body: {
+  to: string // email
+  templateId?: 'generic' | 'welcome' | 'reset-password'
+  payload?: Record<string, any>
+}
+Response: { ok: boolean, provider: 'sendgrid', messageId?: string, error?: string }
+```
+
+환경변수
+- SENDGRID_API_KEY
+- EMAIL_FROM (optional)
+- EMAIL_PROVIDER=sendgrid (default)
+
 ### Campaigns
 
 #### List Campaigns
