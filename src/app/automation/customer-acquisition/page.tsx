@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { createClient } from '@/lib/supabase/client'
 
 type Step = 1 | 2 | 3;
 
@@ -22,6 +23,8 @@ export default function CustomerAcquisitionPage() {
   const [showGuide, setShowGuide] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false)
   const [projectId, setProjectId] = useState<string | null>(null)
+  const [gmailEmail, setGmailEmail] = useState<string>('')
+  const [gmailChecking, setGmailChecking] = useState<boolean>(false)
   const [campaignName, setCampaignName] = useState<string>("");
   const [projectData, setProjectData] = useState({
     step1: {
@@ -262,6 +265,46 @@ export default function CustomerAcquisitionPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Gmail 연결 상태 확인
+  useEffect(() => {
+    const check = async () => {
+      if (expandedStep !== 3) return
+      try {
+        setGmailChecking(true)
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setGmailEmail(''); return }
+        const { data } = await supabase.from('gmail_connections').select('*').eq('user_id', user.id).maybeSingle()
+        if (data?.email) {
+          setGmailEmail(data.email)
+          setProjectData(p => ({ ...p, step3: { ...p.step3, senderEmail: data.email } }))
+        } else {
+          setGmailEmail('')
+        }
+      } finally {
+        setGmailChecking(false)
+      }
+    }
+    check()
+  }, [expandedStep])
+
+  const connectGmail = async () => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        scopes: 'https://www.googleapis.com/auth/gmail.send email profile',
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+        redirectTo: `${window.location.origin}/oauth/callback`
+      }
+    })
+  }
+
+  const disconnectGmail = async () => {
+    await fetch('/api/oauth/google/gmail/connect', { method: 'DELETE' })
+    setGmailEmail('')
   }
 
   const handleStep2Start = () => {
@@ -623,15 +666,29 @@ export default function CustomerAcquisitionPage() {
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
             발신 이메일 (Gmail)
-            <Link href="#" className="ml-2 text-xs text-primary hover:text-primary/80">설정 방법</Link>
+            {gmailChecking ? <span className="ml-2 text-xs text-muted-foreground">확인 중...</span> : null}
           </label>
-          <input
-            type="email"
-            value={projectData.step3.senderEmail}
-            onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, senderEmail: e.target.value } })}
-            placeholder="your@gmail.com"
-            className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-          />
+          {gmailEmail ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                value={gmailEmail}
+                readOnly
+                className="w-full px-4 py-3 rounded-lg border border-border bg-muted/30 text-muted-foreground"
+              />
+              <button onClick={disconnectGmail} className="px-3 py-2 rounded border text-sm">연결 해제</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                placeholder="your@gmail.com"
+                className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                readOnly
+              />
+              <button onClick={connectGmail} className="px-3 py-2 rounded bg-primary text-white text-sm">Gmail 연결</button>
+            </div>
+          )}
         </div>
 
         {/* 이메일 제목 */}

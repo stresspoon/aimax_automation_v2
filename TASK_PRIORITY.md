@@ -69,9 +69,9 @@ Step 3: 이메일 발송
   - [x] Gmail 발송 유틸/통합
     - [x] `sendViaGmailAsUser` 구현(googleapis)
     - [x] `sendEmail`에 Gmail 경로 우선 적용(연결 없으면 폴백)
-  - [ ] UI: "Gmail 연결" 버튼/상태/해제
-    - [ ] 스코프: `gmail.send email profile` + `access_type=offline` + `prompt=consent`
-    - [ ] 리다이렉트: `/oauth/callback`
+  - [x] UI: "Gmail 연결" 버튼/상태/해제
+    - [x] 스코프: `gmail.send email profile` + `access_type=offline` + `prompt=consent`
+    - [x] 리다이렉트: `/oauth/callback`
 - [ ] 템플릿 관리(개인화 {이름} 플레이스홀더)
 - [ ] 본문 자동작성(Gemini 2.5 Pro) + 지침 템플릿/가이드
 - [ ] 선정/비선정 대상 토글, 개별 발송, 발송 로그 저장
