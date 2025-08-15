@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // Supabase의 비밀번호 재설정 기능 사용
+    const base = process.env.NEXT_PUBLIC_BASE_URL || `${request.headers.get('origin') || 'http://localhost:3001'}`
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/reset-password`,
+      redirectTo: `${base}/reset-password`,
     });
 
     if (error) {

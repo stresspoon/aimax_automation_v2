@@ -65,22 +65,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 프로필 생성
-    const { error: profileError } = await supabase
+    // 프로필 업데이트 (트리거로 기본 생성됨)
+    await supabase
       .from('profiles')
-      .insert({
-        id: data.user.id,
-        email: data.user.email,
-        full_name: name,
-        username: email.split('@')[0],
+      .update({
+        name,
         phone,
-        company_name: companyName,
-        agree_marketing: agreeMarketing || false,
-      });
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
-    }
+      })
+      .eq('id', data.user.id)
+      .throwOnError();
 
     return NextResponse.json(
       {

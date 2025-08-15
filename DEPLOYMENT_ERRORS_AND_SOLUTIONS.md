@@ -168,6 +168,8 @@ vercel.json 파일 생성
 - [x] npm/yarn 최신 버전
 - [x] 모든 의존성 설치 (`npm install`)
 - [x] 환경 변수 설정 (.env.local)
+  - NEXT_PUBLIC_BASE_URL (예: https://aimax.app)
+  - SUPABASE_SERVICE_ROLE_KEY (웹훅 서버 사이드 처리용)
 
 ### 필수 패키지
 - [x] lucide-react (아이콘)
@@ -181,6 +183,7 @@ vercel.json 파일 생성
 - [x] 환경 변수 설정
   - NEXT_PUBLIC_SUPABASE_URL
   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_ROLE_KEY
 - [x] 데이터베이스 스키마 마이그레이션
 - [x] RLS (Row Level Security) 정책 설정
 

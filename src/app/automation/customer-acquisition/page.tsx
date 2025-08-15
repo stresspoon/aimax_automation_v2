@@ -19,6 +19,9 @@ interface Candidate {
 export default function CustomerAcquisitionPage() {
   const [expandedStep, setExpandedStep] = useState<Step | null>(null);
   const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [showGuide, setShowGuide] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false)
+  const [projectId, setProjectId] = useState<string | null>(null)
   const [campaignName, setCampaignName] = useState<string>("");
   const [projectData, setProjectData] = useState({
     step1: {
@@ -56,6 +59,8 @@ export default function CustomerAcquisitionPage() {
       if (savedData) {
         setProjectData(JSON.parse(savedData));
       }
+      const savedProjectId = localStorage.getItem(`campaign_${campaign}_project_id`)
+      if (savedProjectId) setProjectId(savedProjectId)
     }
   }, []);
 
@@ -65,6 +70,24 @@ export default function CustomerAcquisitionPage() {
       localStorage.setItem(`campaign_${campaignName}_data`, JSON.stringify(projectData));
     }
   }, [projectData, campaignName]);
+
+  // Step 1 시작 시 기본 지침 자동 적용 (블로그 기본 선택)
+  useEffect(() => {
+    if (expandedStep === 1) {
+      setProjectData((prev) => {
+        if (prev.step1.instructions && prev.step1.instructions.trim().length > 0) return prev
+        const type = prev.step1.contentType
+        const defaultGuide = contentGuidelines[type]
+        return {
+          ...prev,
+          step1: {
+            ...prev.step1,
+            instructions: defaultGuide,
+          },
+        }
+      })
+    }
+  }, [expandedStep])
 
   // 콘텐츠 타입별 작성 지침
   const contentGuidelines = {
@@ -142,34 +165,104 @@ export default function CustomerAcquisitionPage() {
       alert("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.");
       return;
     }
-
-    setLoading(true);
-    // 실제로는 API 호출
-    setTimeout(() => {
+    if (!projectData.step1.keyword || !projectData.step1.instructions) {
+      showNotification('키워드와 지침을 입력해주세요', 'error')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: projectData.step1.apiKey || undefined,
+          keyword: projectData.step1.keyword,
+          contentType: projectData.step1.contentType,
+          instructions: projectData.step1.instructions,
+        })
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        showNotification(json.error || '생성 실패', 'error')
+        setLoading(false)
+        return
+      }
       setProjectData({
         ...projectData,
         step1: {
           ...projectData.step1,
-          generatedContent: `[AI 생성 콘텐츠]
-
-제목: ${projectData.step1.keyword}로 시작하는 성공적인 비즈니스 전략
-
-안녕하세요! 오늘은 ${projectData.step1.keyword}에 대해 이야기해보려고 합니다.
-
-많은 분들이 ${projectData.step1.keyword}에 관심을 가지고 계시는데요, 
-실제로 이를 통해 놀라운 성과를 만들어낸 사례들이 많습니다.
-
-[본문 내용...]
-
-지금 바로 시작해보세요!
-문의: contact@aimax.com`,
-          generatedImages: ["image1.jpg", "image2.jpg"],
+          generatedContent: json.content,
+          generatedImages: json.images || [],
         },
-      });
-      setFreeTrialsRemaining(freeTrialsRemaining - 1);
-      setLoading(false);
-    }, 2000);
+      })
+      setFreeTrialsRemaining(freeTrialsRemaining - 1)
+      showNotification('생성이 완료되었습니다', 'success')
+    } catch (e: any) {
+      showNotification(e?.message || '에러가 발생했습니다', 'error')
+    } finally {
+      setLoading(false)
+    }
   };
+
+  const handleCopyGenerated = async () => {
+    try {
+      await navigator.clipboard.writeText(projectData.step1.generatedContent || '')
+      showNotification('생성된 콘텐츠가 클립보드에 복사되었습니다', 'success')
+    } catch {
+      showNotification('복사에 실패했습니다', 'error')
+    }
+  }
+
+  const ensureCampaignId = async (): Promise<string | null> => {
+    if (!campaignName) return null
+    // 1) 목록에서 동일 이름 검색
+    const listRes = await fetch('/api/campaigns')
+    if (listRes.ok) {
+      const arr = await listRes.json()
+      const found = (arr || []).find((c: any) => (c?.name || '').trim() === campaignName.trim())
+      if (found?.id) return found.id
+    }
+    // 2) 없으면 생성
+    const createRes = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: campaignName, data: {} }) })
+    if (!createRes.ok) return null
+    const created = await createRes.json()
+    return created?.id || null
+  }
+
+  const saveSnapshot = async () => {
+    try {
+      setSaving(true)
+      const campaignId = await ensureCampaignId()
+      if (!campaignId) {
+        showNotification('캠페인 생성 실패', 'error')
+        return
+      }
+      const payload = {
+        type: 'customer_acquisition',
+        step: 1 as const,
+        data: {
+          step1: projectData.step1,
+          savedAt: new Date().toISOString(),
+        },
+      }
+      if (projectId) {
+        const res = await fetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 1, data: payload.data }) })
+        if (!res.ok) throw new Error('업데이트 실패')
+        showNotification('스냅샷이 저장되었습니다', 'success')
+        return
+      }
+      const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaign_id: campaignId, ...payload }) })
+      if (!res.ok) throw new Error('프로젝트 생성 실패')
+      const created = await res.json()
+      setProjectId(created.id)
+      if (campaignName) localStorage.setItem(`campaign_${campaignName}_project_id`, created.id)
+      showNotification('프로젝트가 생성되고 스냅샷이 저장되었습니다', 'success')
+    } catch (e: any) {
+      showNotification(e?.message || '저장 중 오류가 발생했습니다', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleStep2Start = () => {
     if (!projectData.step2.sheetUrl) {
@@ -291,6 +384,8 @@ export default function CustomerAcquisitionPage() {
             value={projectData.step1.keyword}
             onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, keyword: e.target.value } })}
             placeholder="예: AI 마케팅 자동화"
+            autoComplete="off"
+            name="aimax-keyword"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
@@ -306,6 +401,8 @@ export default function CustomerAcquisitionPage() {
             value={projectData.step1.apiKey}
             onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, apiKey: e.target.value } })}
             placeholder="AIza..."
+            autoComplete="new-password"
+            name="aimax-gemini-api-key"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
@@ -318,9 +415,7 @@ export default function CustomerAcquisitionPage() {
               <label className="block text-sm font-semibold text-foreground">
                 {projectData.step1.contentType === "blog" ? "블로그" : "스레드"} 작성 지침
               </label>
-              <button className="text-xs text-primary hover:text-primary/80 font-semibold">
-                지침 수정 가이드
-              </button>
+              <button onClick={() => setShowGuide(true)} className="text-xs text-primary hover:text-primary/80 font-semibold">지침 수정 가이드</button>
             </div>
             <textarea
               value={projectData.step1.instructions}
@@ -345,9 +440,10 @@ export default function CustomerAcquisitionPage() {
           <div className="mt-6 p-6 bg-muted/30 rounded-lg border border-border">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-foreground">생성된 콘텐츠</h3>
-              <button className="text-primary hover:text-primary/80 font-semibold">
-                복사
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handleCopyGenerated} className="text-primary hover:text-primary/80 font-semibold">복사</button>
+                <button onClick={saveSnapshot} disabled={saving} className="text-sm bg-primary hover:bg-primary/90 text-white rounded px-3 py-1 disabled:opacity-50">{saving ? '저장 중...' : '스냅샷 저장'}</button>
+              </div>
             </div>
             <pre className="whitespace-pre-wrap text-muted-foreground text-sm">
               {projectData.step1.generatedContent}
@@ -584,6 +680,23 @@ export default function CustomerAcquisitionPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* 지침 수정 가이드 모달 */}
+      {showGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-lg font-semibold mb-2">지침 수정 가이드</h3>
+            <p className="text-sm text-muted-foreground mb-4">가이드는 예시일 뿐입니다. 브랜드 톤과 타깃에 맞게 키워드, 문체, CTA를 조정하세요. 과도한 형용사보다 구체적인 이점과 실행 요소를 강조하면 전환율이 올라갑니다.</p>
+            <ul className="text-sm list-disc pl-5 space-y-1 mb-4 text-muted-foreground">
+              <li>키워드는 제목/서론/결론에 분산 배치</li>
+              <li>소제목은 문제-해결-증거-CTA 흐름</li>
+              <li>스레드는 각 항목 1~2문장, 실행 팁 포함</li>
+            </ul>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowGuide(false)} className="px-3 py-2 rounded border">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toast 알림 */}
       {showToast && (
         <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">

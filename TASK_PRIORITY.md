@@ -42,11 +42,12 @@
 #### 2. 고객모집 자동화 실제 연동 (Step 1~3)
 
 Step 1: 고객모집 글쓰기 (Gemini Only)
-- [ ] UI: 탭 전환 (블로그/스레드), 입력필드(본인 API 키, 네이버 블로그 ID, 작성 지침)
-- [ ] 지침 템플릿 + "지침 수정 가이드" 툴팁
-- [ ] 텍스트 생성(Gemini 2.5 Pro)
+- [x] UI: 탭 전환 (블로그/스레드), 입력필드(본인 API 키, 작성 지침)
+- [ ] 입력필드: 네이버 블로그 ID 추가
+- [x] 지침 템플릿 + "지침 수정 가이드" 툴팁
+- [x] 텍스트 생성(Gemini 2.5 Pro)
 - [ ] 이미지 생성(Gemini Image) — 결과 복사/저장
-- [ ] 결과 복사(텍스트/이미지), 프로젝트 카드에 결과 스냅샷 저장
+- [x] 결과 복사(텍스트) + 프로젝트 카드에 결과 스냅샷 저장
 
 Step 2: DB 관리 (시트 연동 + 자동 선별)
 - [ ] 상단 노션 매뉴얼 링크(구글폼+구글시트 셋업)
@@ -61,6 +62,16 @@ Step 2: DB 관리 (시트 연동 + 자동 선별)
 Step 3: 이메일 발송
 - [x] (임시) 이메일 발송 API/템플릿(SendGrid) — Gmail OAuth로 전환 예정
 - [ ] Gmail OAuth 연동(사용자 계정 인증) — 발신자 Gmail만 허용
+  - [x] Gmail OAuth 연결 저장
+    - [x] DB 스키마: `gmail_connections` (004 마이그레이션)
+    - [x] 콜백 페이지: `/oauth/callback`
+    - [x] 연결 저장 API: `POST /api/oauth/google/gmail/connect`
+  - [x] Gmail 발송 유틸/통합
+    - [x] `sendViaGmailAsUser` 구현(googleapis)
+    - [x] `sendEmail`에 Gmail 경로 우선 적용(연결 없으면 폴백)
+  - [ ] UI: "Gmail 연결" 버튼/상태/해제
+    - [ ] 스코프: `gmail.send email profile` + `access_type=offline` + `prompt=consent`
+    - [ ] 리다이렉트: `/oauth/callback`
 - [ ] 템플릿 관리(개인화 {이름} 플레이스홀더)
 - [ ] 본문 자동작성(Gemini 2.5 Pro) + 지침 템플릿/가이드
 - [ ] 선정/비선정 대상 토글, 개별 발송, 발송 로그 저장

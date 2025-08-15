@@ -5,7 +5,7 @@ import { sendEmail } from '@/lib/email/sender'
 const BodySchema = z.object({
   to: z.string().email(),
   templateId: z.enum(['generic', 'welcome', 'reset-password']).optional(),
-  payload: z.record(z.any()).optional()
+  payload: z.record(z.string(), z.any()).optional()
 })
 
 export async function POST(req: Request) {
@@ -24,5 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 400 })
   }
 }
+
 
 
