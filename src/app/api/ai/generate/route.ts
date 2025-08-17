@@ -6,6 +6,7 @@ const BodySchema = z.object({
   keyword: z.string().min(1),
   contentType: z.enum(['blog', 'thread']),
   instructions: z.string().min(1),
+  generateImages: z.boolean().optional(),
 })
 
 function buildPrompt({ keyword, contentType, instructions }: { keyword: string; contentType: 'blog' | 'thread'; instructions: string }) {
@@ -29,6 +30,50 @@ ${task}
 [출력 형식]
 <title>제목</title>
 <body>본문(마크다운 허용)</body>`
+}
+
+async function generateImages(apiKey: string, keyword: string, contentType: 'blog' | 'thread', count: number = 2) {
+  const imagePrompts = contentType === 'blog' 
+    ? [
+        `Professional blog header image for "${keyword}", modern minimal design, clean aesthetic`,
+        `Infographic or visual explanation about "${keyword}", simple and clear design`
+      ]
+    : [
+        `Social media thread cover image for "${keyword}", eye-catching and trendy`,
+        `Visual data or statistics about "${keyword}", modern flat design`
+      ]
+
+  const images: string[] = []
+  
+  for (let i = 0; i < Math.min(count, imagePrompts.length); i++) {
+    try {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + encodeURIComponent(apiKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contents: [{ 
+            role: 'user', 
+            parts: [{ text: imagePrompts[i] }] 
+          }],
+          generationConfig: {
+            responseMimeType: "image/png"
+          }
+        }),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        const imageData = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data
+        if (imageData) {
+          images.push(`data:image/png;base64,${imageData}`)
+        }
+      }
+    } catch (err) {
+      console.error('Image generation error:', err)
+    }
+  }
+  
+  return images
 }
 
 export async function POST(req: Request) {
@@ -67,7 +112,14 @@ export async function POST(req: Request) {
     const bodyOut = bodyMatch ? bodyMatch[1].trim() : text
 
     const combined = `제목: ${title}\n\n${bodyOut}`
-    return NextResponse.json({ content: combined, images: [] })
+    
+    // Generate images if requested and API key is provided
+    let images: string[] = []
+    if (body.generateImages && body.apiKey) {
+      images = await generateImages(body.apiKey, body.keyword, body.contentType)
+    }
+    
+    return NextResponse.json({ content: combined, images })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }

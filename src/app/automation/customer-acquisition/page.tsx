@@ -21,6 +21,11 @@ export default function CustomerAcquisitionPage() {
   const [expandedStep, setExpandedStep] = useState<Step | null>(null);
   const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showGuide, setShowGuide] = useState<boolean>(false);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailComposerType, setEmailComposerType] = useState<'selected' | 'notSelected' | 'custom'>('selected');
+  const [emailComposerInstructions, setEmailComposerInstructions] = useState('');
+  const [emailComposerProductInfo, setEmailComposerProductInfo] = useState('');
+  const [composingEmail, setComposingEmail] = useState(false);
   const [saving, setSaving] = useState<boolean>(false)
   const [projectId, setProjectId] = useState<string | null>(null)
   const [gmailEmail, setGmailEmail] = useState<string>('')
@@ -32,6 +37,7 @@ export default function CustomerAcquisitionPage() {
       contentType: "blog" as "blog" | "thread",
       apiKey: "",
       instructions: "",
+      generateImages: false,
       generatedContent: "",
       generatedImages: [] as string[],
     },
@@ -172,6 +178,10 @@ export default function CustomerAcquisitionPage() {
       showNotification('키워드와 지침을 입력해주세요', 'error')
       return
     }
+    if (projectData.step1.generateImages && !projectData.step1.apiKey) {
+      showNotification('이미지 생성을 위해서는 Gemini API 키가 필요합니다', 'error')
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/ai/generate', {
@@ -182,6 +192,7 @@ export default function CustomerAcquisitionPage() {
           keyword: projectData.step1.keyword,
           contentType: projectData.step1.contentType,
           instructions: projectData.step1.instructions,
+          generateImages: projectData.step1.generateImages,
         })
       })
       const json = await res.json()
@@ -244,14 +255,19 @@ export default function CustomerAcquisitionPage() {
         type: 'customer_acquisition',
         step: 1 as const,
         data: {
-          step1: projectData.step1,
+          step1: {
+            ...projectData.step1,
+            // 생성된 콘텐츠와 이미지 포함
+            generatedContent: projectData.step1.generatedContent,
+            generatedImages: projectData.step1.generatedImages,
+          },
           savedAt: new Date().toISOString(),
         },
       }
       if (projectId) {
         const res = await fetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 1, data: payload.data }) })
         if (!res.ok) throw new Error('업데이트 실패')
-        showNotification('스냅샷이 저장되었습니다', 'success')
+        showNotification('스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
         return
       }
       const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaign_id: campaignId, ...payload }) })
@@ -259,7 +275,7 @@ export default function CustomerAcquisitionPage() {
       const created = await res.json()
       setProjectId(created.id)
       if (campaignName) localStorage.setItem(`campaign_${campaignName}_project_id`, created.id)
-      showNotification('프로젝트가 생성되고 스냅샷이 저장되었습니다', 'success')
+      showNotification('프로젝트가 생성되고 스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
     } catch (e: any) {
       showNotification(e?.message || '저장 중 오류가 발생했습니다', 'error')
     } finally {
@@ -307,7 +323,7 @@ export default function CustomerAcquisitionPage() {
     setGmailEmail('')
   }
 
-  const handleStep2Start = () => {
+  const handleStep2Start = async () => {
     if (!projectData.step2.sheetUrl) {
       showNotification('구글시트 URL을 입력해주세요', 'error');
       return;
@@ -316,33 +332,59 @@ export default function CustomerAcquisitionPage() {
     // 자동화 시작/일시정지 토글
     const newRunningState = !projectData.step2.isRunning;
     
-    setProjectData({
-      ...projectData,
-      step2: {
-        ...projectData.step2,
-        isRunning: newRunningState,
-      },
-    });
-
-    showNotification(
-      newRunningState ? '자동화가 시작되었습니다' : '자동화가 일시정지되었습니다',
-      'info'
-    );
-
-    // 예시 데이터 생성 (실제로는 API 호출)
-    if (newRunningState && projectData.step2.candidates.length === 0) {
-      setTimeout(() => {
+    if (newRunningState) {
+      // 시작할 때 Google Sheets 데이터 가져오기
+      setLoading(true);
+      try {
+        const res = await fetch('/api/sheets/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sheetUrl: projectData.step2.sheetUrl,
+            projectId: projectId,
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          showNotification(data.error || '시트 동기화 실패', 'error');
+          setLoading(false);
+          return;
+        }
+        
+        if (!data.candidates || data.candidates.length === 0) {
+          showNotification('시트에서 데이터를 찾을 수 없습니다', 'error');
+          setLoading(false);
+          return;
+        }
+        
         setProjectData(prev => ({
           ...prev,
           step2: {
             ...prev.step2,
-            candidates: [
-              { name: "김철수", email: "kim@example.com", phone: "010-1234-5678", threads: 600, blog: 400, instagram: 1200, status: "selected" },
-              { name: "이영희", email: "lee@example.com", phone: "010-2345-6789", threads: 400, blog: 250, instagram: 800, status: "notSelected" },
-            ],
+            isRunning: true,
+            candidates: data.candidates,
           },
         }));
-      }, 2000);
+        
+        showNotification(data.message || '자동화가 시작되었습니다', 'success');
+      } catch (err) {
+        console.error('Sheet sync error:', err);
+        showNotification('시트 연동 중 오류가 발생했습니다. 시트가 공개되어 있는지 확인해주세요.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // 일시정지
+      setProjectData({
+        ...projectData,
+        step2: {
+          ...projectData.step2,
+          isRunning: false,
+        },
+      });
+      showNotification('자동화가 일시정지되었습니다', 'info');
     }
   };
 
@@ -352,17 +394,49 @@ export default function CustomerAcquisitionPage() {
     setTimeout(() => setShowToast(null), 3000);
   };
 
-  const handleStep3Send = () => {
-    if (!projectData.step3.senderEmail || !projectData.step3.emailSubject || !projectData.step3.emailBody) {
-      showNotification('모든 필드를 입력해주세요', 'error');
+  const handleStep3Send = async () => {
+    if (!projectData.step3.emailSubject || !projectData.step3.emailBody) {
+      showNotification('제목과 본문을 입력해주세요', 'error');
+      return;
+    }
+    
+    if (!gmailEmail && !projectData.step3.senderEmail) {
+      showNotification('Gmail을 연결하거나 발신 이메일을 입력해주세요', 'error');
+      return;
+    }
+    
+    if (projectData.step2.candidates.length === 0) {
+      showNotification('발송할 대상이 없습니다. Step 2에서 데이터를 가져와주세요', 'error');
       return;
     }
     
     setLoading(true);
-    setTimeout(() => {
-      showNotification('이메일이 성공적으로 발송되었습니다!', 'success');
+    try {
+      const res = await fetch('/api/emails/send-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidates: projectData.step2.candidates,
+          subject: projectData.step3.emailSubject,
+          body: projectData.step3.emailBody,
+          targetType: projectData.step3.targetType,
+          projectId: projectId,
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        showNotification(data.error || '이메일 발송 실패', 'error');
+        return;
+      }
+      
+      showNotification(data.message || '이메일이 성공적으로 발송되었습니다!', 'success');
+    } catch (err) {
+      showNotification('이메일 발송 중 오류가 발생했습니다', 'error');
+    } finally {
       setLoading(false);
-    }, 2000);
+    }
   };
 
   const stepCards = [
@@ -437,7 +511,7 @@ export default function CustomerAcquisitionPage() {
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
             Gemini API 키
-            <span className="ml-2 text-xs text-muted-foreground">(이미지 생성용)</span>
+            <span className="ml-2 text-xs text-muted-foreground">(선택사항 - 이미지 생성용)</span>
           </label>
           <input
             type="password"
@@ -448,6 +522,20 @@ export default function CustomerAcquisitionPage() {
             name="aimax-gemini-api-key"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
+        </div>
+
+        {/* 이미지 생성 옵션 */}
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="generateImages"
+            checked={projectData.step1.generateImages}
+            onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, generateImages: e.target.checked } })}
+            className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+          />
+          <label htmlFor="generateImages" className="text-sm text-foreground">
+            이미지도 함께 생성하기 (API 키 필요)
+          </label>
         </div>
 
 
@@ -494,10 +582,54 @@ export default function CustomerAcquisitionPage() {
             {projectData.step1.generatedImages.length > 0 && (
               <div className="mt-4">
                 <p className="text-sm text-muted-foreground mb-2">생성된 이미지:</p>
-                <div className="flex space-x-2">
-                  {projectData.step1.generatedImages.map((_img, idx) => (
-                    <div key={idx} className="w-20 h-20 bg-muted rounded flex items-center justify-center text-muted-foreground">
-                      이미지 {idx + 1}
+                <div className="grid grid-cols-2 gap-4">
+                  {projectData.step1.generatedImages.map((img, idx) => (
+                    <div key={idx} className="relative group">
+                      <img 
+                        src={img} 
+                        alt={`생성된 이미지 ${idx + 1}`} 
+                        className="w-full rounded-lg border border-border"
+                      />
+                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={async () => {
+                            try {
+                              // base64 이미지를 Blob으로 변환
+                              const base64Data = img.split(',')[1]
+                              const byteCharacters = atob(base64Data)
+                              const byteNumbers = new Array(byteCharacters.length)
+                              for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i)
+                              }
+                              const byteArray = new Uint8Array(byteNumbers)
+                              const blob = new Blob([byteArray], { type: 'image/png' })
+                              
+                              // 클립보드에 복사
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ 'image/png': blob })
+                              ])
+                              showNotification(`이미지 ${idx + 1}이 클립보드에 복사되었습니다`, 'success')
+                            } catch (err) {
+                              showNotification('이미지 복사에 실패했습니다', 'error')
+                            }
+                          }}
+                          className="bg-white/90 text-xs px-2 py-1 rounded shadow-sm hover:bg-white"
+                        >
+                          복사
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const link = document.createElement('a')
+                            link.href = img
+                            link.download = `aimax-image-${Date.now()}-${idx + 1}.png`
+                            link.click()
+                            showNotification(`이미지 ${idx + 1}이 다운로드되었습니다`, 'success')
+                          }}
+                          className="bg-white/90 text-xs px-2 py-1 rounded shadow-sm hover:bg-white"
+                        >
+                          저장
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -707,7 +839,9 @@ export default function CustomerAcquisitionPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="block text-sm font-medium text-foreground">이메일 본문</label>
-            <button className="text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 rounded font-semibold">
+            <button 
+              onClick={() => setShowEmailComposer(true)}
+              className="text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 rounded font-semibold">
               Gemini로 자동작성
             </button>
           </div>
@@ -737,6 +871,178 @@ export default function CustomerAcquisitionPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* 이메일 자동 작성 모달 */}
+      {showEmailComposer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">이메일 자동 작성</h3>
+            
+            {/* 이메일 타입 선택 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">이메일 타입</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEmailComposerType('selected')}
+                  className={`flex-1 py-2 px-3 rounded border ${
+                    emailComposerType === 'selected' 
+                      ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                      : 'border-gray-300'
+                  }`}
+                >
+                  선정 안내
+                </button>
+                <button
+                  onClick={() => setEmailComposerType('notSelected')}
+                  className={`flex-1 py-2 px-3 rounded border ${
+                    emailComposerType === 'notSelected' 
+                      ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                      : 'border-gray-300'
+                  }`}
+                >
+                  미선정 안내
+                </button>
+                <button
+                  onClick={() => setEmailComposerType('custom')}
+                  className={`flex-1 py-2 px-3 rounded border ${
+                    emailComposerType === 'custom' 
+                      ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                      : 'border-gray-300'
+                  }`}
+                >
+                  사용자 정의
+                </button>
+              </div>
+            </div>
+
+            {/* 제품/서비스 정보 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">제품/서비스 정보 (선택)</label>
+              <textarea
+                value={emailComposerProductInfo}
+                onChange={(e) => setEmailComposerProductInfo(e.target.value)}
+                placeholder="예: 친환경 화장품 브랜드, 민감성 피부용 스킨케어 라인..."
+                rows={3}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* 사용자 정의 지침 (custom 타입일 때만) */}
+            {emailComposerType === 'custom' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">작성 지침 *</label>
+                <textarea
+                  value={emailComposerInstructions}
+                  onChange={(e) => setEmailComposerInstructions(e.target.value)}
+                  placeholder="이메일 작성 지침을 입력하세요..."
+                  rows={4}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-primary"
+                />
+              </div>
+            )}
+
+            {/* API 키 입력 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Gemini API Key</label>
+              <input
+                type="password"
+                value={projectData.step1.apiKey}
+                onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, apiKey: e.target.value } })}
+                placeholder="AI... (Step 1에서 사용한 키)"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* 미리보기 정보 */}
+            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+              <p className="text-sm text-gray-600 mb-2">대상자 예시:</p>
+              <div className="text-xs space-y-1">
+                <p>• 이름: 김철수</p>
+                <p>• 상태: {emailComposerType === 'selected' ? '선정' : emailComposerType === 'notSelected' ? '미선정' : '사용자 정의'}</p>
+                <p>• Threads: 800 팔로워</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => {
+                  setShowEmailComposer(false);
+                  setEmailComposerInstructions('');
+                  setEmailComposerProductInfo('');
+                }}
+                className="px-4 py-2 rounded border"
+              >
+                취소
+              </button>
+              <button 
+                onClick={async () => {
+                  if (!projectData.step1.apiKey) {
+                    showNotification('API 키를 입력해주세요', 'error');
+                    return;
+                  }
+                  if (emailComposerType === 'custom' && !emailComposerInstructions) {
+                    showNotification('작성 지침을 입력해주세요', 'error');
+                    return;
+                  }
+
+                  setComposingEmail(true);
+                  try {
+                    // 샘플 후보자 정보 (실제로는 첫 번째 선정/미선정 대상 사용)
+                    const sampleCandidate = projectData.step2.candidates.find(
+                      c => emailComposerType === 'selected' ? c.status === 'selected' : 
+                           emailComposerType === 'notSelected' ? c.status === 'notSelected' : true
+                    ) || {
+                      name: '김철수',
+                      email: 'example@email.com',
+                      threads: 800,
+                      blog: 400,
+                      instagram: 1200,
+                      status: emailComposerType === 'selected' ? 'selected' : 'notSelected'
+                    };
+
+                    const res = await fetch('/api/ai/compose-email', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        apiKey: projectData.step1.apiKey,
+                        candidateInfo: sampleCandidate,
+                        emailType: emailComposerType,
+                        customInstructions: emailComposerInstructions,
+                        productInfo: emailComposerProductInfo,
+                      }),
+                    });
+
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || '생성 실패');
+
+                    setProjectData({
+                      ...projectData,
+                      step3: {
+                        ...projectData.step3,
+                        emailSubject: data.subject,
+                        emailBody: data.body,
+                      },
+                    });
+                    
+                    showNotification('이메일이 자동 작성되었습니다', 'success');
+                    setShowEmailComposer(false);
+                    setEmailComposerInstructions('');
+                    setEmailComposerProductInfo('');
+                  } catch (err) {
+                    showNotification((err as Error).message, 'error');
+                  } finally {
+                    setComposingEmail(false);
+                  }
+                }}
+                disabled={composingEmail || !projectData.step1.apiKey || (emailComposerType === 'custom' && !emailComposerInstructions)}
+                className="px-4 py-2 rounded bg-primary text-white disabled:opacity-50"
+              >
+                {composingEmail ? '생성 중...' : '이메일 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 지침 수정 가이드 모달 */}
       {showGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
