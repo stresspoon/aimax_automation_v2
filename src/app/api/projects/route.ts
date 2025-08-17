@@ -89,26 +89,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: project, error } = await supabase
+    // Check if project already exists for this campaign and type
+    const { data: existing } = await supabase
       .from('projects')
-      .insert({
-        user_id: user.id,
-        campaign_id,
-        type,
-        step,
-        data
-      })
-      .select()
+      .select('*')
+      .eq('campaign_id', campaign_id)
+      .eq('user_id', user.id)
+      .eq('type', type)
       .single()
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      )
+    let project
+    if (existing) {
+      // Update existing project
+      const { data: updated, error } = await supabase
+        .from('projects')
+        .update({
+          step,
+          data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+      project = updated
+    } else {
+      // Create new project
+      const { data: created, error } = await supabase
+        .from('projects')
+        .insert({
+          user_id: user.id,
+          campaign_id,
+          type,
+          step,
+          data
+        })
+        .select()
+        .single()
+      
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+      project = created
     }
 
-    return NextResponse.json(project, { status: 201 })
+    return NextResponse.json(project, { status: existing ? 200 : 201 })
   } catch {
     return NextResponse.json(
       { error: 'Internal server error' },

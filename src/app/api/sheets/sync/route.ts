@@ -7,6 +7,11 @@ import { createClient } from '@/lib/supabase/server'
 const BodySchema = z.object({
   sheetUrl: z.string().url(),
   projectId: z.string().optional(),
+  selectionCriteria: z.object({
+    threads: z.number().default(500),
+    blog: z.number().default(300),
+    instagram: z.number().default(1000),
+  }).optional(),
 })
 
 function toCsvUrl(sheetUrl: string): string {
@@ -30,6 +35,13 @@ export async function POST(req: Request) {
   try {
     const json = await req.json()
     const body = BodySchema.parse(json)
+    
+    // Use provided criteria or defaults
+    const criteria = body.selectionCriteria || {
+      threads: 500,
+      blog: 300,
+      instagram: 1000
+    }
 
     // Convert Google Sheets URL to CSV export URL
     const csvUrl = toCsvUrl(body.sheetUrl)
@@ -106,7 +118,7 @@ export async function POST(req: Request) {
       }
       
       // Apply selection criteria
-      const selected = (threads >= 500) || (blog >= 300) || (instagram >= 1000)
+      const selected = (threads >= criteria.threads) || (blog >= criteria.blog) || (instagram >= criteria.instagram)
       
       return {
         name,

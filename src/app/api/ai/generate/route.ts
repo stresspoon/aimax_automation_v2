@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkUsageLimit, incrementUsage } from '@/lib/usage'
 
 const BodySchema = z.object({
   apiKey: z.string().optional(),
@@ -78,6 +79,16 @@ async function generateImages(apiKey: string, keyword: string, contentType: 'blo
 
 export async function POST(req: Request) {
   try {
+    // 사용 제한 확인
+    const usage = await checkUsageLimit('content_generation')
+    if (usage.limit !== -1 && usage.remaining <= 0) {
+      return NextResponse.json({ 
+        error: '무료 체험 횟수를 모두 사용했습니다',
+        usage,
+        needsUpgrade: true 
+      }, { status: 429 })
+    }
+    
     const json = await req.json()
     const body = BodySchema.parse(json)
 
@@ -119,7 +130,17 @@ export async function POST(req: Request) {
       images = await generateImages(body.apiKey, body.keyword, body.contentType)
     }
     
-    return NextResponse.json({ content: combined, images })
+    // 사용 횟수 증가
+    await incrementUsage('content_generation')
+    
+    // 남은 사용 횟수 확인
+    const updatedUsage = await checkUsageLimit('content_generation')
+    
+    return NextResponse.json({ 
+      content: combined, 
+      images,
+      usage: updatedUsage 
+    })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }

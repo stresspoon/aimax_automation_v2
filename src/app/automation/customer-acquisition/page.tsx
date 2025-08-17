@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
+import { saveProjectData, loadProjectData, getCampaignIdByName, type ProjectData } from '@/lib/projects'
 
 type Step = 1 | 2 | 3;
 
@@ -28,6 +29,7 @@ export default function CustomerAcquisitionPage() {
   const [composingEmail, setComposingEmail] = useState(false);
   const [saving, setSaving] = useState<boolean>(false)
   const [projectId, setProjectId] = useState<string | null>(null)
+  const [campaignId, setCampaignId] = useState<string | null>(null)
   const [gmailEmail, setGmailEmail] = useState<string>('')
   const [gmailChecking, setGmailChecking] = useState<boolean>(false)
   const [campaignName, setCampaignName] = useState<string>("");
@@ -45,6 +47,11 @@ export default function CustomerAcquisitionPage() {
       sheetUrl: "",
       isRunning: false,
       candidates: [] as Candidate[],
+      selectionCriteria: {
+        threads: 500,
+        blog: 300,
+        instagram: 1000,
+      },
     },
     step3: {
       targetType: "selected" as "selected" | "notSelected",
@@ -55,30 +62,109 @@ export default function CustomerAcquisitionPage() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [freeTrialsRemaining, setFreeTrialsRemaining] = useState(3);
+  const [freeTrialsRemaining, setFreeTrialsRemaining] = useState<number | null>(null);
+  const [isUnlimited, setIsUnlimited] = useState(false);
 
-  // URL에서 캠페인 이름 가져오기
+  // 사용 제한 정보 가져오기
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const campaign = urlParams.get('campaign');
-    if (campaign) {
-      setCampaignName(campaign);
-      // 저장된 캠페인 데이터가 있으면 불러오기
-      const savedData = localStorage.getItem(`campaign_${campaign}_data`);
-      if (savedData) {
-        setProjectData(JSON.parse(savedData));
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch('/api/usage');
+        if (res.ok) {
+          const usage = await res.json();
+          if (usage.limit === -1) {
+            setIsUnlimited(true);
+            setFreeTrialsRemaining(null);
+          } else {
+            setIsUnlimited(false);
+            setFreeTrialsRemaining(usage.remaining);
+          }
+        }
+      } catch (error) {
+        console.error('사용량 확인 실패:', error);
       }
-      const savedProjectId = localStorage.getItem(`campaign_${campaign}_project_id`)
-      if (savedProjectId) setProjectId(savedProjectId)
-    }
+    };
+    fetchUsage();
   }, []);
 
-  // 데이터 변경 시 저장
+  // URL에서 캠페인 이름 가져오고 DB에서 데이터 로드
   useEffect(() => {
-    if (campaignName) {
-      localStorage.setItem(`campaign_${campaignName}_data`, JSON.stringify(projectData));
-    }
-  }, [projectData, campaignName]);
+    const loadCampaignData = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const campaign = urlParams.get('campaign');
+      
+      if (campaign) {
+        setCampaignName(campaign);
+        
+        try {
+          // 캠페인 ID 가져오기 (없으면 생성)
+          const id = await getCampaignIdByName(campaign);
+          setCampaignId(id);
+          
+          // DB에서 프로젝트 데이터 로드
+          const projectFromDb = await loadProjectData(id);
+          
+          if (projectFromDb && projectFromDb.data) {
+            // DB에 저장된 데이터가 있으면 사용
+            setProjectData(projectFromDb.data);
+            setProjectId(projectFromDb.id);
+          } else {
+            // DB에 없으면 localStorage 확인 (마이그레이션)
+            const savedData = localStorage.getItem(`campaign_${campaign}_data`);
+            if (savedData) {
+              const parsedData = JSON.parse(savedData);
+              setProjectData(parsedData);
+              
+              // localStorage 데이터를 DB로 마이그레이션
+              await saveProjectData(id, parsedData);
+              
+              // localStorage 정리
+              localStorage.removeItem(`campaign_${campaign}_data`);
+              localStorage.removeItem(`campaign_${campaign}_project_id`);
+            }
+          }
+        } catch (error) {
+          console.error('캠페인 데이터 로드 실패:', error);
+          setShowToast({ 
+            message: '캠페인 데이터를 불러오는데 실패했습니다', 
+            type: 'error' 
+          });
+        }
+      }
+    };
+    
+    loadCampaignData();
+  }, []);
+
+  // 데이터 변경 시 DB에 자동 저장
+  useEffect(() => {
+    const saveData = async () => {
+      if (campaignId && projectData) {
+        setSaving(true);
+        try {
+          // DB에 저장
+          const result = await saveProjectData(campaignId, projectData);
+          
+          // 프로젝트 ID 업데이트
+          if (result && result.id && !projectId) {
+            setProjectId(result.id);
+          }
+        } catch (err) {
+          console.error('DB 저장 오류:', err);
+          setShowToast({ 
+            message: '자동 저장에 실패했습니다', 
+            type: 'error' 
+          });
+        } finally {
+          setSaving(false);
+        }
+      }
+    };
+    
+    // Debounce: 데이터 변경 후 1초 대기
+    const timer = setTimeout(saveData, 1000);
+    return () => clearTimeout(timer);
+  }, [projectData, campaignId]);
 
   // Step 1 시작 시 기본 지침 자동 적용 (블로그 기본 선택)
   useEffect(() => {
@@ -170,10 +256,12 @@ export default function CustomerAcquisitionPage() {
   };
 
   const handleStep1Generate = async () => {
-    if (freeTrialsRemaining <= 0) {
-      alert("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.");
+    // 무료 사용자 제한 확인
+    if (!isUnlimited && freeTrialsRemaining !== null && freeTrialsRemaining <= 0) {
+      showNotification("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.", 'error');
       return;
     }
+    
     if (!projectData.step1.keyword || !projectData.step1.instructions) {
       showNotification('키워드와 지침을 입력해주세요', 'error')
       return
@@ -196,11 +284,28 @@ export default function CustomerAcquisitionPage() {
         })
       })
       const json = await res.json()
+      
       if (!res.ok) {
-        showNotification(json.error || '생성 실패', 'error')
+        if (json.needsUpgrade) {
+          showNotification("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.", 'error')
+        } else {
+          showNotification(json.error || '생성 실패', 'error')
+        }
         setLoading(false)
         return
       }
+      
+      // 사용량 정보 업데이트
+      if (json.usage) {
+        if (json.usage.limit === -1) {
+          setIsUnlimited(true)
+          setFreeTrialsRemaining(null)
+        } else {
+          setIsUnlimited(false)
+          setFreeTrialsRemaining(json.usage.remaining)
+        }
+      }
+      
       setProjectData({
         ...projectData,
         step1: {
@@ -209,7 +314,6 @@ export default function CustomerAcquisitionPage() {
           generatedImages: json.images || [],
         },
       })
-      setFreeTrialsRemaining(freeTrialsRemaining - 1)
       showNotification('생성이 완료되었습니다', 'success')
     } catch (e: any) {
       showNotification(e?.message || '에러가 발생했습니다', 'error')
@@ -342,6 +446,7 @@ export default function CustomerAcquisitionPage() {
           body: JSON.stringify({
             sheetUrl: projectData.step2.sheetUrl,
             projectId: projectId,
+            selectionCriteria: projectData.step2.selectionCriteria,
           }),
         });
         
@@ -463,7 +568,27 @@ export default function CustomerAcquisitionPage() {
       animate={{ opacity: 1, y: 0 }}
       className="bg-card border rounded-xl p-8"
     >
-      <h2 className="text-2xl font-bold text-foreground mb-6">Step 1: 고객모집 글쓰기</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-foreground">Step 1: 고객모집 글쓰기</h2>
+        {!isUnlimited && freeTrialsRemaining !== null && (
+          <div className="text-sm">
+            {freeTrialsRemaining > 0 ? (
+              <span className="text-muted-foreground">
+                무료 생성 가능: <span className="font-semibold text-primary">{freeTrialsRemaining}회</span> 남음
+              </span>
+            ) : (
+              <span className="text-destructive font-semibold">
+                무료 생성 횟수 소진 (업그레이드 필요)
+              </span>
+            )}
+          </div>
+        )}
+        {isUnlimited && (
+          <span className="text-sm text-primary font-semibold">
+            프리미엄 사용자 (무제한)
+          </span>
+        )}
+      </div>
       
       <div className="space-y-6">
         {/* 콘텐츠 타입 선택 */}
@@ -681,14 +806,88 @@ export default function CustomerAcquisitionPage() {
           />
         </div>
 
-        {/* 선정 기준 */}
+        {/* 선정 기준 커스터마이징 */}
         <div className="bg-muted/30 rounded-lg p-4 border border-border">
-          <h4 className="font-semibold text-foreground mb-3">선정 기준</h4>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>• Threads: 팔로워 500명 이상</li>
-            <li>• 네이버 블로그: 이웃 300명 이상</li>
-            <li>• 인스타그램: 팔로워 1,000명 이상</li>
-          </ul>
+          <h4 className="font-semibold text-foreground mb-3">자동 선정 기준 설정</h4>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-muted-foreground">
+                Threads 팔로워
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  value={projectData.step2.selectionCriteria.threads}
+                  onChange={(e) => setProjectData({
+                    ...projectData,
+                    step2: {
+                      ...projectData.step2,
+                      selectionCriteria: {
+                        ...projectData.step2.selectionCriteria,
+                        threads: parseInt(e.target.value) || 0
+                      }
+                    }
+                  })}
+                  className="w-24 px-2 py-1 text-sm rounded border border-border focus:outline-none focus:border-primary"
+                />
+                <span className="text-xs text-muted-foreground">명 이상</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-muted-foreground">
+                네이버 블로그 이웃
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  value={projectData.step2.selectionCriteria.blog}
+                  onChange={(e) => setProjectData({
+                    ...projectData,
+                    step2: {
+                      ...projectData.step2,
+                      selectionCriteria: {
+                        ...projectData.step2.selectionCriteria,
+                        blog: parseInt(e.target.value) || 0
+                      }
+                    }
+                  })}
+                  className="w-24 px-2 py-1 text-sm rounded border border-border focus:outline-none focus:border-primary"
+                />
+                <span className="text-xs text-muted-foreground">명 이상</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-muted-foreground">
+                인스타그램 팔로워
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  value={projectData.step2.selectionCriteria.instagram}
+                  onChange={(e) => setProjectData({
+                    ...projectData,
+                    step2: {
+                      ...projectData.step2,
+                      selectionCriteria: {
+                        ...projectData.step2.selectionCriteria,
+                        instagram: parseInt(e.target.value) || 0
+                      }
+                    }
+                  })}
+                  className="w-24 px-2 py-1 text-sm rounded border border-border focus:outline-none focus:border-primary"
+                />
+                <span className="text-xs text-muted-foreground">명 이상</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-border">
+            <p className="text-xs text-muted-foreground">
+              위 기준을 하나라도 충족하면 "선정"으로 자동 분류됩니다
+            </p>
+          </div>
         </div>
 
         {/* 자동화 시작/일시정지 버튼 */}

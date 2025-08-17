@@ -89,7 +89,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5"
+    "typescript": "^5.9.2"
   },
   "packageManager": "yarn@4.9.2"
 }

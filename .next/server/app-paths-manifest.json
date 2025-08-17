@@ -1,9 +1,7 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/auth/google/route": "app/api/auth/google/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/login/page": "app/login/page.js",
   "/signup/page": "app/signup/page.js",
   "/page": "app/page.js",
-  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/login/page": "app/login/page.js"
+  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js"
 }
