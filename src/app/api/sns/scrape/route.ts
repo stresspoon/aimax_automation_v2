@@ -161,9 +161,9 @@ export async function POST(req: NextRequest) {
       // Vercel 환경
       browser = await puppeteer.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
+        defaultViewport: { width: 1920, height: 1080 },
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
+        headless: true,
       });
     } else {
       // 로컬 환경 - puppeteer-core는 로컬에서 Chrome 경로 필요
