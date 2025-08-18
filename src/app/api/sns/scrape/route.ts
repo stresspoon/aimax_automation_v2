@@ -1,5 +1,10 @@
 // SNS 스크래핑 API - 하나의 포트에서 작동
 import { NextRequest, NextResponse } from 'next/server'
+
+// Vercel에서 브라우저 실행을 위해 Node.js 런타임을 강제하고 정적으로 묶이지 않도록 설정
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 import { chromium } from 'playwright'
 
 // auto-sns.zip script.js의 정확한 추출 로직
