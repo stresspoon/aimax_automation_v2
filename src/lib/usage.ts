@@ -41,7 +41,7 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
   
   // usage_logs 테이블에서 이번 달 사용 횟수 조회
-  const { data: logs, error: logsError } = await supabase
+  const { data: logs } = await supabase
     .from('usage_logs')
     .select('id')
     .eq('user_id', user.id)

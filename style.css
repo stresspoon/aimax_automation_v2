@@ -1,0 +1,254 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 800px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 28px;
+}
+
+.input-section {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 40px;
+}
+
+#urlInput {
+    flex: 1;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+#urlInput:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+#checkBtn {
+    padding: 15px 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+#checkBtn:hover {
+    transform: translateY(-2px);
+}
+
+#checkBtn:active {
+    transform: translateY(0);
+}
+
+.results-section {
+    display: grid;
+    gap: 20px;
+}
+
+.platform-card {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px solid #e9ecef;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.platform-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.platform-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.platform-header h3 {
+    color: #495057;
+    font-size: 20px;
+}
+
+.status {
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.status.waiting {
+    background: #e9ecef;
+    color: #868e96;
+}
+
+.status.checking {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status.fail {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.platform-info p {
+    margin: 10px 0;
+    color: #495057;
+    font-size: 16px;
+}
+
+.platform-info span {
+    font-weight: bold;
+    color: #333;
+}
+
+.check-result {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: bold;
+    display: none;
+}
+
+.check-result.show {
+    display: block;
+}
+
+.check-result.pass {
+    background: #d4edda;
+    color: #155724;
+    border: 2px solid #c3e6cb;
+}
+
+.check-result.fail {
+    background: #f8d7da;
+    color: #721c24;
+    border: 2px solid #f5c6cb;
+}
+
+.loading {
+    display: none;
+    text-align: center;
+    margin-top: 20px;
+    color: #667eea;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.loading.show {
+    display: block;
+}
+
+.loading::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0%, 20% {
+        content: '.';
+    }
+    40% {
+        content: '..';
+    }
+    60%, 100% {
+        content: '...';
+    }
+}
+
+/* 탭 스타일 */
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    color: #868e96;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.3s;
+}
+
+.tab-btn.active {
+    color: #667eea;
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #667eea;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    .input-section {
+        flex-direction: column;
+    }
+    
+    #checkBtn {
+        width: 100%;
+    }
+}

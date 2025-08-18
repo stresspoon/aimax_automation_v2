@@ -33,46 +33,128 @@ ${task}
 <body>본문(마크다운 허용)</body>`
 }
 
-async function generateImages(apiKey: string, keyword: string, contentType: 'blog' | 'thread', count: number = 2) {
+async function generateImages(keyword: string, contentType: 'blog' | 'thread', count: number = 2) {
+  const images: string[] = []
+  
   const imagePrompts = contentType === 'blog' 
     ? [
-        `Professional blog header image for "${keyword}", modern minimal design, clean aesthetic`,
-        `Infographic or visual explanation about "${keyword}", simple and clear design`
+        `Professional blog header image about ${keyword}, clean modern design, high quality, 4K`,
+        `Infographic illustration about ${keyword}, minimal flat design, professional`
       ]
     : [
-        `Social media thread cover image for "${keyword}", eye-catching and trendy`,
-        `Visual data or statistics about "${keyword}", modern flat design`
+        `Social media cover image about ${keyword}, eye-catching, trending design`,
+        `Data visualization about ${keyword}, modern chart design, colorful`
       ]
 
-  const images: string[] = []
+  // Gemini API 키 확인
+  const geminiApiKey = process.env.GEMINI_API_KEY
+  
+  if (!geminiApiKey) {
+    console.log('Gemini API 키가 없어서 플레이스홀더 이미지를 사용합니다')
+    // 플레이스홀더 이미지 사용
+    for (let i = 0; i < Math.min(count, imagePrompts.length); i++) {
+      const width = 800
+      const height = 600
+      const seed = encodeURIComponent(keyword + i)
+      const imageUrl = `https://picsum.photos/seed/${seed}/${width}/${height}`
+      images.push(imageUrl)
+    }
+    return images
+  }
+
+  // Gemini 2.0 Flash의 실제 이미지 생성 능력 테스트
+  console.log('이미지 생성 시작...')
   
   for (let i = 0; i < Math.min(count, imagePrompts.length); i++) {
     try {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + encodeURIComponent(apiKey), {
+      console.log(`이미지 ${i+1} 생성 중: ${imagePrompts[i]}`)
+      
+      // Gemini 2.0 Flash 이미지 생성 API 호출
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${encodeURIComponent(geminiApiKey)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ 
-            role: 'user', 
-            parts: [{ text: imagePrompts[i] }] 
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [{
+              text: `Create a detailed image based on this description: ${imagePrompts[i]}. Make it visually appealing and professional.`
+            }]
           }],
           generationConfig: {
-            responseMimeType: "image/png"
-          }
+            temperature: 0.4,
+            topK: 40,
+            topP: 0.95,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH", 
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
         }),
       })
+
+      console.log(`이미지 ${i+1} API 응답 상태:`, response.status)
       
-      if (res.ok) {
-        const data = await res.json()
-        const imageData = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data
-        if (imageData) {
-          images.push(`data:image/png;base64,${imageData}`)
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`이미지 ${i+1} 응답 데이터:`, JSON.stringify(data, null, 2))
+        
+        // Gemini 2.0 Flash 응답 구조 확인
+        const candidate = data?.candidates?.[0]
+        if (candidate?.content?.parts) {
+          for (const part of candidate.content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+              // Base64 이미지 데이터를 Data URL로 변환
+              const mimeType = part.inlineData.mimeType || 'image/png'
+              const imageUrl = `data:${mimeType};base64,${part.inlineData.data}`
+              images.push(imageUrl)
+              console.log(`이미지 ${i+1} 생성 성공 (${mimeType})`)
+              break
+            } else if (part.text && part.text.includes('image')) {
+              console.log(`이미지 ${i+1} 텍스트 응답:`, part.text)
+            }
+          }
         }
+        
+        // 이미지가 생성되지 않았다면 플레이스홀더 사용
+        if (images.length <= i) {
+          console.log(`이미지 ${i+1} 생성 실패, 플레이스홀더 사용`)
+          const width = 800
+          const height = 600
+          const seed = encodeURIComponent(keyword + i)
+          const fallbackUrl = `https://picsum.photos/seed/${seed}/${width}/${height}`
+          images.push(fallbackUrl)
+        }
+      } else {
+        const errorText = await response.text()
+        console.error(`이미지 ${i+1} API 오류 (${response.status}):`, errorText)
+        
+        // 실패 시 플레이스홀더 사용
+        const width = 800
+        const height = 600
+        const seed = encodeURIComponent(keyword + i)
+        const fallbackUrl = `https://picsum.photos/seed/${seed}/${width}/${height}`
+        images.push(fallbackUrl)
       }
     } catch (err) {
-      console.error('Image generation error:', err)
+      console.error(`이미지 ${i+1} 생성 오류:`, err)
+      // 실패 시 플레이스홀더 사용
+      const width = 800
+      const height = 600
+      const seed = encodeURIComponent(keyword + i)
+      const fallbackUrl = `https://picsum.photos/seed/${seed}/${width}/${height}`
+      images.push(fallbackUrl)
     }
   }
+  
+  console.log(`이미지 생성 완료. 총 ${images.length}개 이미지 생성됨`)
   
   return images
 }
@@ -99,10 +181,19 @@ export async function POST(req: Request) {
 
     const prompt = buildPrompt({ keyword: body.keyword, contentType: body.contentType, instructions: body.instructions })
 
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+    // Gemini-2.5-pro 모델을 텍스트 생성에 사용
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+      body: JSON.stringify({ 
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 32,
+          topP: 1,
+          maxOutputTokens: 8192,
+        }
+      }),
     })
 
     if (!res.ok) {
@@ -124,10 +215,10 @@ export async function POST(req: Request) {
 
     const combined = `제목: ${title}\n\n${bodyOut}`
     
-    // Generate images if requested and API key is provided
+    // Generate images if requested
     let images: string[] = []
-    if (body.generateImages && body.apiKey) {
-      images = await generateImages(body.apiKey, body.keyword, body.contentType)
+    if (body.generateImages) {
+      images = await generateImages(body.keyword, body.contentType)
     }
     
     // 사용 횟수 증가

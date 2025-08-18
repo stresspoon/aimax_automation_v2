@@ -1,0 +1,111 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    
+    // 인증 확인
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+    }
+    
+    // BASE_URL 확인 및 기본값 설정
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
+                    (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : 'https://aimax.vercel.app')
+    
+    // Gmail OAuth용 Google 로그인
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${baseUrl}/auth/gmail-callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+        scopes: 'email profile https://www.googleapis.com/auth/gmail.send',
+      },
+    })
+
+    if (error) {
+      console.error('Gmail OAuth error:', error)
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    if (!data || !data.url) {
+      return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
+    }
+
+    return NextResponse.json({ url: data.url })
+  } catch (error) {
+    console.error('Gmail OAuth URL error:', error)
+    return NextResponse.json({ error: 'Gmail OAuth URL 생성 중 오류가 발생했습니다' }, { status: 500 })
+  }
+}
+
+// Gmail 연결 상태 확인
+export async function POST(req: Request) {
+  try {
+    const supabase = await createClient()
+    
+    // 인증 확인
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+    }
+    
+    const { accessToken, refreshToken, email } = await req.json()
+    
+    // Gmail 연결 정보 저장
+    const { error } = await supabase
+      .from('gmail_connections')
+      .upsert({
+        user_id: user.id,
+        email,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        connected_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id)
+    
+    if (error) {
+      console.error('Gmail connection save error:', error)
+      return NextResponse.json({ error: '연결 정보 저장 실패' }, { status: 500 })
+    }
+    
+    return NextResponse.json({ success: true, email })
+  } catch (error) {
+    console.error('Gmail connection error:', error)
+    return NextResponse.json({ error: 'Gmail 연결 중 오류가 발생했습니다' }, { status: 500 })
+  }
+}
+
+// Gmail 연결 해제
+export async function DELETE() {
+  try {
+    const supabase = await createClient()
+    
+    // 인증 확인
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+    }
+    
+    // Gmail 연결 정보 삭제
+    const { error } = await supabase
+      .from('gmail_connections')
+      .delete()
+      .eq('user_id', user.id)
+    
+    if (error) {
+      console.error('Gmail disconnection error:', error)
+      return NextResponse.json({ error: '연결 해제 실패' }, { status: 500 })
+    }
+    
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Gmail disconnection error:', error)
+    return NextResponse.json({ error: 'Gmail 연결 해제 중 오류가 발생했습니다' }, { status: 500 })
+  }
+}

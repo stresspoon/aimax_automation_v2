@@ -16,50 +16,50 @@
       "static/chunks/main-app.js",
       "static/chunks/app/signup/page.js"
     ],
-    "/api/auth/signup/route": [
+    "/api/auth/google/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/auth/signup/route.js"
+      "static/chunks/app/api/auth/google/route.js"
     ],
-    "/login/page": [
+    "/auth/callback/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/login/page.js"
+      "static/chunks/app/auth/callback/page.js"
     ],
-    "/api/auth/login/route": [
+    "/auth/callback/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/auth/login/route.js"
+      "static/chunks/app/auth/callback/route.js"
     ],
     "/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/page.js"
     ],
-    "/automation/customer-acquisition/dashboard/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/automation/customer-acquisition/dashboard/page.js"
-    ],
     "/automation/customer-acquisition/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/automation/customer-acquisition/page.js"
     ],
-    "/api/ai/generate/route": [
+    "/api/usage/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/ai/generate/route.js"
+      "static/chunks/app/api/usage/route.js"
     ],
-    "/api/campaigns/route": [
+    "/api/projects/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/campaigns/route.js"
+      "static/chunks/app/api/projects/route.js"
     ],
-    "/api/auth/google/route": [
+    "/api/sheets/prepare/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/auth/google/route.js"
+      "static/chunks/app/api/sheets/prepare/route.js"
+    ],
+    "/api/sheets/measure/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/sheets/measure/route.js"
     ]
   }
 }

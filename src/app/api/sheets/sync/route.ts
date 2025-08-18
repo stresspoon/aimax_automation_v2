@@ -1,8 +1,95 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import Papa from 'papaparse'
-import { parseMetrics } from '@/lib/sns/scrape'
 import { createClient } from '@/lib/supabase/server'
+
+// 전역 진행상황 스토어
+declare global {
+  var progressStore: Record<string, {
+    total: number
+    current: number
+    currentName: string
+    status: 'loading' | 'processing' | 'completed' | 'error'
+    phase: 'sheet_loading' | 'sns_checking' | 'completed'
+    currentSns?: 'threads' | 'blog' | 'instagram'
+    lastUpdate: number
+  }> | undefined
+}
+
+const progressStore = globalThis.progressStore || {}
+globalThis.progressStore = progressStore
+
+function updateProgress(
+  projectId: string, 
+  total: number, 
+  current: number, 
+  currentName: string, 
+  status: 'loading' | 'processing' | 'completed' | 'error' = 'processing',
+  phase: 'sheet_loading' | 'sns_checking' | 'completed' = 'sns_checking',
+  currentSns?: 'threads' | 'blog' | 'instagram'
+) {
+  if (!projectId) return
+  
+  try {
+    progressStore[projectId] = {
+      total,
+      current,
+      currentName,
+      status,
+      phase,
+      currentSns,
+      lastUpdate: Date.now()
+    }
+    console.log(`[진행상황] ${projectId}: ${current}/${total} - ${currentName} (${status}) - Phase: ${phase}${currentSns ? ` - SNS: ${currentSns}` : ''}`)
+  } catch (err) {
+    console.error('Failed to update progress:', err)
+  }
+}
+
+// 실시간으로 후보자 개별 업데이트
+async function updateCandidateRealtime(projectId: string, candidateIndex: number, updates: any) {
+  try {
+    const supabase = await createClient()
+    
+    // 현재 프로젝트 데이터 가져오기
+    const { data: project } = await supabase
+      .from('projects')
+      .select('data')
+      .eq('id', projectId)
+      .single()
+    
+    if (project?.data?.step2?.candidates) {
+      const candidates = [...project.data.step2.candidates]
+      if (candidates[candidateIndex]) {
+        // 기존 checkStatus와 병합
+        candidates[candidateIndex] = {
+          ...candidates[candidateIndex],
+          ...updates,
+          checkStatus: {
+            ...candidates[candidateIndex].checkStatus,
+            ...updates.checkStatus
+          }
+        }
+        
+        // 업데이트
+        await supabase
+          .from('projects')
+          .update({ 
+            data: {
+              ...project.data,
+              step2: {
+                ...project.data.step2,
+                candidates
+              }
+            }
+          })
+          .eq('id', projectId)
+      }
+    }
+  } catch (err) {
+    console.error('Failed to update candidate realtime:', err)
+  }
+}
 
 const BodySchema = z.object({
   sheetUrl: z.string().url(),
@@ -12,6 +99,10 @@ const BodySchema = z.object({
     blog: z.number().default(300),
     instagram: z.number().default(1000),
   }).optional(),
+  checkNewOnly: z.boolean().optional(), // 새로운 응답만 체크하는 옵션
+  lastRowCount: z.number().optional(), // 마지막으로 체크한 행 수
+  skipSnsCheck: z.boolean().optional(), // SNS 체크 건너뛰기
+  projectData: z.any().optional(), // 프로젝트 데이터
 })
 
 function toCsvUrl(sheetUrl: string): string {
@@ -43,8 +134,18 @@ export async function POST(req: Request) {
       instagram: 1000
     }
 
+    // 구글 시트 불러오기 시작 알림
+    if (body.projectId) {
+      updateProgress(body.projectId, 100, 10, '구글 시트 연결 중...', 'loading', 'sheet_loading')
+    }
+    
     // Convert Google Sheets URL to CSV export URL
     const csvUrl = toCsvUrl(body.sheetUrl)
+    
+    // 구글 시트 다운로드 시작
+    if (body.projectId) {
+      updateProgress(body.projectId, 100, 30, '구글 시트 데이터 다운로드 중...', 'loading', 'sheet_loading')
+    }
     
     // Fetch CSV data
     const res = await fetch(csvUrl, { 
@@ -61,6 +162,12 @@ export async function POST(req: Request) {
     }
     
     const csv = await res.text()
+    
+    // CSV 파싱 중
+    if (body.projectId) {
+      updateProgress(body.projectId, 100, 60, 'CSV 데이터 분석 중...', 'loading', 'sheet_loading')
+    }
+    
     const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true })
     
     if (parsed.errors?.length) {
@@ -70,7 +177,7 @@ export async function POST(req: Request) {
     }
 
     type Row = Record<string, string>
-    const rows = (parsed.data as Row[]).filter(Boolean)
+    let rows = (parsed.data as Row[]).filter(Boolean)
     
     if (rows.length === 0) {
       return NextResponse.json({ 
@@ -78,8 +185,64 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
 
-    // Process each row and calculate metrics
-    const candidates = await Promise.all(rows.map(async (row) => {
+    // 새로운 응답만 체크하는 경우
+    let isNewCheck = false
+    if (body.checkNewOnly && body.projectId) {
+      try {
+        const supabase = await createClient()
+        const { data: project } = await supabase
+          .from('projects')
+          .select('data')
+          .eq('id', body.projectId)
+          .single()
+        
+        if (project?.data?.step2?.lastRowCount) {
+          const lastRowCount = project.data.step2.lastRowCount
+          const newRowCount = rows.length
+          
+          if (newRowCount > lastRowCount) {
+            // 새로운 행들만 처리
+            rows = rows.slice(lastRowCount)
+            isNewCheck = true
+            console.log(`Processing ${rows.length} new rows (total: ${newRowCount}, last: ${lastRowCount})`)
+          } else {
+            // 새로운 데이터가 없음
+            return NextResponse.json({ 
+              success: true,
+              newCandidates: [],
+              message: '새로운 응답이 없습니다'
+            })
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check existing data:', err)
+      }
+    }
+
+    // skipSnsCheck 옵션 확인
+    const skipSnsCheck = body.skipSnsCheck === true
+    
+    // 구글 시트 불러오기 완료, SNS 체크 준비
+    if (body.projectId && !isNewCheck && !skipSnsCheck) {
+      updateProgress(body.projectId, 100, 100, '구글 시트 불러오기 완료!', 'completed', 'sheet_loading')
+      // 잠시 대기 후 SNS 체크 시작
+      await new Promise(resolve => setTimeout(resolve, 500))
+      updateProgress(body.projectId, rows.length, 0, 'SNS 체크 준비 중...', 'processing', 'sns_checking')
+    }
+    
+    // Process each row and calculate metrics sequentially
+    const candidates = []
+    
+    console.log(`순차적으로 ${rows.length}명의 후보자를 처리합니다...`)
+    
+    // 진행상황 초기화 (skipSnsCheck가 아닐 때만)
+    if (body.projectId && !skipSnsCheck) {
+      updateProgress(body.projectId, rows.length, 0, '처리 시작...', 'processing', 'sns_checking')
+    }
+    
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index]
+      
       // Common column names
       const name = row['성함'] || row['이름'] || row['name'] || row['Name'] || ''
       const email = row['메일주소'] || row['이메일'] || row['email'] || row['Email'] || ''
@@ -95,32 +258,144 @@ export async function POST(req: Request) {
       let instagram = parseInt(row['instagram_followers'] || row['인스타그램 팔로워'] || '0')
       let blog = parseInt(row['blog_neighbors'] || row['블로그 이웃'] || '0')
       
-      // If URLs are provided but not metrics, try to scrape
-      if (!threads && threadsUrl) {
-        try {
-          const metrics = await parseMetrics(threadsUrl)
-          threads = metrics.followers || 0
-        } catch {}
+      console.log(`\n=== ${name} 처리 중 (${index + 1}/${rows.length}) ===`)
+      
+      // 체크 상태를 미리 초기화
+      let checkStatus: any = {}
+      
+      // 진행상황 업데이트 (skipSnsCheck가 아닐 때만)
+      if (body.projectId && !skipSnsCheck) {
+        updateProgress(body.projectId, rows.length * 3, index * 3, `${name} 체크 준비 중...`, 'processing', 'sns_checking')
       }
       
-      if (!instagram && instagramUrl) {
+      // 순차적 SNS 메트릭 체크 (skipSnsCheck가 아닐 때만)
+      if (threadsUrl && !skipSnsCheck) {
+        checkStatus.threads = 'checking'
+        if (body.projectId) {
+          updateProgress(body.projectId, rows.length * 3, index * 3, `${name} - Threads 체크 중...`, 'processing', 'sns_checking', 'threads')
+          // 실시간 업데이트: 체크 중 상태
+          await updateCandidateRealtime(body.projectId, index, { checkStatus })
+        }
         try {
-          const metrics = await parseMetrics(instagramUrl)
-          instagram = metrics.followers || 0
-        } catch {}
+          console.log(`[${name}] Threads 팔로워 수 체크 시작: ${threadsUrl}`)
+          
+          // 단일 포트 SNS 스크래핑 API 사용
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/api/sns/scrape`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: threadsUrl })
+          })
+          
+          if (!response.ok) {
+            throw new Error(`API 오류: ${response.status}`)
+          }
+          
+          const result = await response.json()
+          
+          if (result.followers > 0) {
+            threads = result.followers
+            checkStatus.threads = 'completed'
+            console.log(`[${name}] ✅ Threads 팔로워: ${threads}`)
+          } else {
+            checkStatus.threads = 'error'
+            checkStatus.threadsError = '팔로워 수를 가져올 수 없음'
+            console.log(`[${name}] ❌ Threads 팔로워 수를 찾을 수 없음`)
+          }
+        } catch (error) {
+          checkStatus.threads = 'error'
+          checkStatus.threadsError = (error as Error).message
+          console.error(`[${name}] ❌ Threads 스크래핑 실패:`, error)
+        }
+      } else if (!threadsUrl) {
+        checkStatus.threads = 'no_url'
       }
       
-      if (!blog && blogUrl) {
+      if (instagramUrl && !skipSnsCheck) {
+        checkStatus.instagram = 'checking'
+        if (body.projectId) {
+          updateProgress(body.projectId, rows.length * 3, index * 3 + 2, `${name} - Instagram 체크 중...`, 'processing', 'sns_checking', 'instagram')
+          // 실시간 업데이트: 체크 중 상태
+          await updateCandidateRealtime(body.projectId, index, { checkStatus })
+        }
         try {
-          const metrics = await parseMetrics(blogUrl)
-          blog = metrics.neighbors || 0
-        } catch {}
+          console.log(`[${name}] Instagram 팔로워 수 체크 시작: ${instagramUrl}`)
+          
+          // 단일 포트 SNS 스크래핑 API 사용
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/api/sns/scrape`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: instagramUrl })
+          })
+          
+          if (!response.ok) {
+            throw new Error(`API 오류: ${response.status}`)
+          }
+          
+          const result = await response.json()
+          
+          if (result.followers > 0) {
+            instagram = result.followers
+            checkStatus.instagram = 'completed'
+            console.log(`[${name}] ✅ Instagram 팔로워: ${instagram}`)
+          } else {
+            checkStatus.instagram = 'error'
+            checkStatus.instagramError = '팔로워 수를 가져올 수 없음'
+            console.log(`[${name}] ❌ Instagram 팔로워 수를 찾을 수 없음`)
+          }
+        } catch (error) {
+          checkStatus.instagram = 'error'
+          checkStatus.instagramError = (error as Error).message
+          console.error(`[${name}] ❌ Instagram 스크래핑 실패:`, error)
+        }
+      } else if (!instagramUrl) {
+        checkStatus.instagram = 'no_url'
+      }
+      
+      if (blogUrl && !skipSnsCheck) {
+        checkStatus.blog = 'checking'
+        if (body.projectId) {
+          updateProgress(body.projectId, rows.length * 3, index * 3 + 1, `${name} - 블로그 체크 중...`, 'processing', 'sns_checking', 'blog')
+          // 실시간 업데이트: 체크 중 상태
+          await updateCandidateRealtime(body.projectId, index, { checkStatus })
+        }
+        try {
+          console.log(`[${name}] 네이버 블로그 이웃 수 체크 시작: ${blogUrl}`)
+          
+          // 단일 포트 SNS 스크래핑 API 사용
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/api/sns/scrape`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: blogUrl })
+          })
+          
+          if (!response.ok) {
+            throw new Error(`API 오류: ${response.status}`)
+          }
+          
+          const result = await response.json()
+          
+          if (result.followers > 0) {
+            blog = result.followers
+            checkStatus.blog = 'completed'
+            console.log(`[${name}] ✅ 블로그 이웃: ${blog}`)
+          } else {
+            checkStatus.blog = 'error'
+            checkStatus.blogError = '이웃 수를 가져올 수 없음'
+            console.log(`[${name}] ❌ 블로그 이웃 수를 찾을 수 없음`)
+          }
+        } catch (error) {
+          checkStatus.blog = 'error'
+          checkStatus.blogError = (error as Error).message
+          console.error(`[${name}] ❌ 블로그 스크래핑 실패:`, error)
+        }
+      } else if (!blogUrl) {
+        checkStatus.blog = 'no_url'
       }
       
       // Apply selection criteria
       const selected = (threads >= criteria.threads) || (blog >= criteria.blog) || (instagram >= criteria.instagram)
       
-      return {
+      const candidate = {
         name,
         email,
         phone,
@@ -128,8 +403,75 @@ export async function POST(req: Request) {
         blog,
         instagram,
         status: selected ? 'selected' as const : 'notSelected' as const,
+        checkStatus,
       }
-    }))
+      
+      candidates.push(candidate)
+      
+      const statusEmoji = selected ? '🎉' : '❌'
+      console.log(`[${name}] ${statusEmoji} 최종 결과: Threads(${threads}), Instagram(${instagram}), Blog(${blog}) - ${selected ? '선정' : '미달'}`)
+      
+      // 진행상황 업데이트 (완료)
+      if (body.projectId && !skipSnsCheck) {
+        updateProgress(body.projectId, rows.length * 3, (index + 1) * 3, `${name} 완료`, 'processing', 'sns_checking')
+        
+        // 실시간으로 프로젝트 데이터 업데이트 (SNS 체크 시에만)
+        if (!skipSnsCheck) {
+          try {
+            const supabase = await createClient()
+            
+            // 현재 프로젝트 데이터 가져오기
+            const { data: currentProject } = await supabase
+              .from('projects')
+              .select('data')
+              .eq('id', body.projectId)
+              .single()
+            
+            // 현재까지의 candidates 저장
+            const currentStats = {
+              total: candidates.length,
+              selected: candidates.filter(c => c.status === 'selected').length,
+              notSelected: candidates.filter(c => c.status === 'notSelected').length,
+              lastSync: new Date().toISOString(),
+            }
+            
+            await supabase
+              .from('projects')
+              .update({ 
+                data: {
+                  ...currentProject?.data || {},
+                  step2: {
+                    ...currentProject?.data?.step2 || {},
+                    candidates: candidates,
+                    stats: currentStats,
+                    sheetUrl: body.sheetUrl,
+                    selectionCriteria: body.selectionCriteria || {},
+                    lastRowCount: rows.length,
+                  }
+                },
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', body.projectId)
+            
+            console.log(`[DB 업데이트] ${index + 1}/${rows.length} - ${name} 저장 완료`)
+          } catch (err) {
+            console.error('실시간 업데이트 실패:', err)
+          }
+        }
+      }
+      
+      // 각 후보자 처리 완료 후 잠깐 대기 (서버 부하 방지)
+      if (index < rows.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000)) // 1초 대기
+      }
+    }
+    
+    console.log(`\n🏁 전체 처리 완료: ${candidates.length}명 중 ${candidates.filter(c => c.status === 'selected').length}명 선정`)
+    
+    // 최종 완료 상태 업데이트
+    if (body.projectId) {
+      updateProgress(body.projectId, rows.length * 3, rows.length * 3, '모든 처리 완료', 'completed', 'completed')
+    }
 
     // Calculate statistics
     const stats = {
@@ -143,30 +485,84 @@ export async function POST(req: Request) {
     if (body.projectId) {
       try {
         const supabase = await createClient()
-        await supabase
-          .from('projects')
-          .update({ 
-            data: { 
-              step2: { 
-                candidates,
-                stats,
-                sheetUrl: body.sheetUrl,
-                lastSyncedAt: new Date().toISOString() 
+        
+        if (isNewCheck) {
+          // 새로운 데이터만 처리한 경우, 기존 데이터에 추가
+          const { data: existingProject } = await supabase
+            .from('projects')
+            .select('data')
+            .eq('id', body.projectId)
+            .single()
+          
+          const existingCandidates = existingProject?.data?.step2?.candidates || []
+          const allCandidates = [...existingCandidates, ...candidates]
+          
+          // 전체 통계 재계산
+          const allStats = {
+            total: allCandidates.length,
+            selected: allCandidates.filter(c => c.status === 'selected').length,
+            notSelected: allCandidates.filter(c => c.status === 'notSelected').length,
+            lastSync: new Date().toISOString(),
+          }
+          
+          await supabase
+            .from('projects')
+            .update({ 
+              data: { 
+                ...existingProject?.data,
+                step2: { 
+                  ...existingProject?.data?.step2,
+                  candidates: allCandidates,
+                  stats: allStats,
+                  lastRowCount: (parsed.data as Row[]).filter(Boolean).length, // 전체 행 수 저장
+                  lastSyncedAt: new Date().toISOString() 
+                } 
               } 
-            } 
-          })
-          .eq('id', body.projectId)
+            })
+            .eq('id', body.projectId)
+        } else {
+          // 전체 데이터 처리한 경우
+          await supabase
+            .from('projects')
+            .update({ 
+              data: { 
+                step2: { 
+                  candidates,
+                  stats,
+                  sheetUrl: body.sheetUrl,
+                  lastRowCount: (parsed.data as Row[]).filter(Boolean).length, // 전체 행 수 저장
+                  lastSyncedAt: new Date().toISOString() 
+                } 
+              } 
+            })
+            .eq('id', body.projectId)
+        }
       } catch (err) {
         console.error('Failed to save to project:', err)
       }
     }
 
-    return NextResponse.json({ 
-      success: true,
-      candidates,
-      stats,
-      message: `${stats.total}명의 후보자를 처리했습니다. (선정: ${stats.selected}명, 미달: ${stats.notSelected}명)`
-    })
+    // 진행상황 완료 업데이트 (skipSnsCheck가 아닐 때만)
+    if (body.projectId && !skipSnsCheck) {
+      updateProgress(body.projectId, rows.length, rows.length, '완료', 'completed')
+    }
+    
+    // 새로운 응답 체크인 경우와 전체 체크인 경우 다른 응답 형식
+    if (isNewCheck) {
+      return NextResponse.json({ 
+        success: true,
+        newCandidates: candidates,
+        stats,
+        message: `${candidates.length}명의 새로운 후보자를 처리했습니다. (선정: ${stats.selected}명, 미달: ${stats.notSelected}명)`
+      })
+    } else {
+      return NextResponse.json({ 
+        success: true,
+        candidates,
+        stats,
+        message: `${stats.total}명의 후보자를 처리했습니다. (선정: ${stats.selected}명, 미달: ${stats.notSelected}명)`
+      })
+    }
   } catch (err) {
     console.error('Sheet sync error:', err)
     return NextResponse.json({ 

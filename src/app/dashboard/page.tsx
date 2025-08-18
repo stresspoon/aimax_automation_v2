@@ -4,26 +4,45 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/stores/cartStore";
+import { createClient } from '@/lib/supabase/client';
+import ProjectCard from '@/components/projects/ProjectCard';
 
 export default function DashboardPage() {
   const { addItem, getTotalItems } = useCartStore();
   const [mounted, setMounted] = useState(false);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignName, setCampaignName] = useState("");
+  const [userProjects, setUserProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
+    fetchProjects();
   }, []);
-  const [userProjects] = useState([
-    // 임시 프로젝트 데이터 (실제로는 DB에서 가져옴)
-    {
-      id: 1,
-      name: "2024년 12월 캠페인",
-      status: "step2",
-      createdAt: "2024-12-01",
-      lastModified: "2024-12-15",
-    },
-  ]);
+  
+  const fetchProjects = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // 사용자의 프로젝트 가져오기
+        const { data: projects, error } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false });
+        
+        if (!error && projects) {
+          setUserProjects(projects);
+        }
+      }
+    } catch (error) {
+      console.error('프로젝트 로드 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const automationCards = [
     {
@@ -194,35 +213,38 @@ export default function DashboardPage() {
         </div>
 
         {/* 내 프로젝트 (있을 경우만 표시) */}
-        {userProjects.length > 0 && (
+        {!loading && userProjects.length > 0 && (
           <section className="mb-12">
-            <h3 className="text-xl font-bold text-foreground mb-4">진행 중인 프로젝트</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-foreground">진행 중인 프로젝트</h3>
+              <button
+                onClick={() => setShowCampaignModal(true)}
+                className="text-sm text-primary hover:text-primary/80 font-semibold"
+              >
+                + 새 프로젝트
+              </button>
+            </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {userProjects.map((project) => (
-                <motion.div
-                  key={project.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-card border rounded-xl p-6 hover:shadow-lg transition"
-                >
-                  <h4 className="font-semibold text-foreground mb-2">{project.name}</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    상태: Step {project.status.replace("step", "")} 진행 중
-                  </p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">
-                      수정: {project.lastModified}
-                    </span>
-                    <Link
-                      href={`/automation/customer-acquisition/dashboard`}
-                      className="text-primary hover:text-primary/80 text-sm font-semibold"
-                    >
-                      계속하기 →
-                    </Link>
-                  </div>
-                </motion.div>
+                <ProjectCard key={project.id} project={project} />
               ))}
             </div>
+          </section>
+        )}
+        
+        {/* 프로젝트가 없을 때 */}
+        {!loading && userProjects.length === 0 && (
+          <section className="mb-12 bg-muted/30 rounded-xl p-8 text-center">
+            <h3 className="text-xl font-bold text-foreground mb-2">아직 프로젝트가 없습니다</h3>
+            <p className="text-muted-foreground mb-6">
+              첫 번째 고객모집 자동화 프로젝트를 시작해보세요
+            </p>
+            <button
+              onClick={() => setShowCampaignModal(true)}
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
+            >
+              프로젝트 시작하기
+            </button>
           </section>
         )}
 

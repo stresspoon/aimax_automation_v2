@@ -60,7 +60,7 @@ module.exports = require("react/jsx-runtime");
 var __webpack_require__ = require("../webpack-runtime.js");
 __webpack_require__.C(exports);
 var __webpack_exec__ = (moduleId) => (__webpack_require__(__webpack_require__.s = moduleId))
-var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next","vendor-chunks/@swc"], () => (__webpack_exec__("(pages-dir-node)/./.yarn/__virtual__/next-virtual-b991f14ac6/3/.yarn/berry/cache/next-npm-15.4.6-dff7ba185f-10c0.zip/node_modules/next/dist/pages/_document.js")));
+var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next","vendor-chunks/@swc"], () => (__webpack_exec__("(pages-dir-node)/./node_modules/next/dist/pages/_document.js")));
 module.exports = __webpack_exports__;
 
 })();

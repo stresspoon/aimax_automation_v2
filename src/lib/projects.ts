@@ -94,6 +94,34 @@ export async function loadProjectData(campaignId: string) {
   return null
 }
 
+export async function loadProjectById(projectId: string) {
+  const supabase = createClient()
+  
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    throw new Error('인증이 필요합니다')
+  }
+
+  // Load project by ID directly
+  const { data: project, error } = await supabase
+    .from('projects')
+    .select('*, campaigns(id, name)')
+    .eq('id', projectId)
+    .eq('user_id', user.id)
+    .single()
+  
+  if (error || !project) {
+    throw new Error('프로젝트를 찾을 수 없습니다')
+  }
+  
+  return {
+    ...project,
+    campaign_id: project.campaigns?.id,
+    campaign_name: project.campaigns?.name
+  }
+}
+
 export async function getCampaignIdByName(campaignName: string) {
   const supabase = createClient()
   

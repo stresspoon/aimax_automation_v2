@@ -4,7 +4,7 @@ import { parseMetrics } from '@/lib/sns/scrape'
 import { evaluateSelection } from '@/lib/selection/policy'
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: { id: string } }
 ) {
   try {

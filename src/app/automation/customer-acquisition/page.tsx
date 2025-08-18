@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
-import { saveProjectData, loadProjectData, getCampaignIdByName, type ProjectData } from '@/lib/projects'
+import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
+import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
 
 type Step = 1 | 2 | 3;
 
@@ -16,6 +17,14 @@ interface Candidate {
   blog: number;
   instagram: number;
   status: "selected" | "notSelected";
+  checkStatus?: {
+    threads?: 'checking' | 'completed' | 'error' | 'no_url';
+    threadsError?: string;
+    blog?: 'checking' | 'completed' | 'error' | 'no_url';
+    blogError?: string;
+    instagram?: 'checking' | 'completed' | 'error' | 'no_url';
+    instagramError?: string;
+  };
 }
 
 export default function CustomerAcquisitionPage() {
@@ -27,11 +36,16 @@ export default function CustomerAcquisitionPage() {
   const [emailComposerInstructions, setEmailComposerInstructions] = useState('');
   const [emailComposerProductInfo, setEmailComposerProductInfo] = useState('');
   const [composingEmail, setComposingEmail] = useState(false);
-  const [saving, setSaving] = useState<boolean>(false)
-  const [projectId, setProjectId] = useState<string | null>(null)
-  const [campaignId, setCampaignId] = useState<string | null>(null)
-  const [gmailEmail, setGmailEmail] = useState<string>('')
-  const [gmailChecking, setGmailChecking] = useState<boolean>(false)
+  const [saving, setSaving] = useState<boolean>(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [gmailEmail, setGmailEmail] = useState<string>('');
+  const [gmailChecking, setGmailChecking] = useState<boolean>(false);
+  // Typing effect for Step 1 content
+  const [typingEnabled, setTypingEnabled] = useState<boolean>(true);
+  const [typingIndex, setTypingIndex] = useState<number>(0);
+  const [typingContent, setTypingContent] = useState<string>('');
+  const [typingActive, setTypingActive] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("");
   const [projectData, setProjectData] = useState({
     step1: {
@@ -58,12 +72,14 @@ export default function CustomerAcquisitionPage() {
       emailSubject: "",
       emailBody: "",
       senderEmail: "",
+      emailsSent: 0,
     },
   });
 
   const [loading, setLoading] = useState(false);
   const [freeTrialsRemaining, setFreeTrialsRemaining] = useState<number | null>(null);
   const [isUnlimited, setIsUnlimited] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // 사용 제한 정보 가져오기
   useEffect(() => {
@@ -87,14 +103,94 @@ export default function CustomerAcquisitionPage() {
     fetchUsage();
   }, []);
 
-  // URL에서 캠페인 이름 가져오고 DB에서 데이터 로드
+  // Gmail 연결 상태 확인 및 콜백 처리
+  useEffect(() => {
+    const checkGmailConnection = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // Gmail 연결 콜백 처리
+      const gmailStatus = urlParams.get('gmail');
+      const error = urlParams.get('error');
+      
+      if (gmailStatus === 'connected') {
+        showNotification('Gmail이 성공적으로 연결되었습니다!', 'success');
+        // URL에서 파라미터 제거
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('gmail');
+        window.history.replaceState({}, '', newUrl);
+        
+        // Gmail 연결 상태 확인
+        checkGmailStatus();
+      } else if (error) {
+        const errorMessages: Record<string, string> = {
+          'gmail_auth_failed': 'Gmail 인증에 실패했습니다',
+          'gmail_save_failed': 'Gmail 연결 정보 저장에 실패했습니다',
+          'no_provider_token': 'Gmail 액세스 토큰을 받지 못했습니다',
+          'gmail_oauth_failed': 'Gmail OAuth 인증에 실패했습니다',
+          'gmail_callback_failed': 'Gmail 콜백 처리 중 오류가 발생했습니다',
+        };
+        
+        showNotification(errorMessages[error] || 'Gmail 연결 중 오류가 발생했습니다', 'error');
+        
+        // URL에서 에러 파라미터 제거
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('error');
+        window.history.replaceState({}, '', newUrl);
+      }
+    };
+    
+    const checkGmailStatus = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          // Gmail 연결 상태 확인
+          const { data: gmailConnection } = await supabase
+            .from('gmail_connections')
+            .select('email')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (gmailConnection?.email) {
+            setGmailEmail(gmailConnection.email);
+          }
+        }
+      } catch (error) {
+        console.error('Gmail status check error:', error);
+      }
+    };
+    
+    checkGmailConnection();
+  }, []);
+  
+  // URL에서 캠페인 이름 또는 프로젝트 ID 가져오고 DB에서 데이터 로드
   useEffect(() => {
     const loadCampaignData = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const campaign = urlParams.get('campaign');
+    const urlParams = new URLSearchParams(window.location.search);
+    const campaign = urlParams.get('campaign');
+      const projectIdParam = urlParams.get('projectId');
       
-      if (campaign) {
-        setCampaignName(campaign);
+      if (projectIdParam) {
+        // projectId로 직접 로드
+        try {
+          // ID로 프로젝트 데이터 로드
+          const projectFromDb = await loadProjectById(projectIdParam);
+          
+          if (projectFromDb) {
+            setProjectId(projectFromDb.id);
+            setCampaignId(projectFromDb.campaign_id);
+            setCampaignName(projectFromDb.campaign_name);
+            if (projectFromDb.data) {
+              setProjectData(projectFromDb.data);
+            }
+          }
+        } catch (error) {
+          console.error('프로젝트 로딩 오류:', error);
+        }
+      } else if (campaign) {
+        // 기존 캠페인 이름으로 로드
+      setCampaignName(campaign);
         
         try {
           // 캠페인 ID 가져오기 (없으면 생성)
@@ -110,8 +206,8 @@ export default function CustomerAcquisitionPage() {
             setProjectId(projectFromDb.id);
           } else {
             // DB에 없으면 localStorage 확인 (마이그레이션)
-            const savedData = localStorage.getItem(`campaign_${campaign}_data`);
-            if (savedData) {
+      const savedData = localStorage.getItem(`campaign_${campaign}_data`);
+      if (savedData) {
               const parsedData = JSON.parse(savedData);
               setProjectData(parsedData);
               
@@ -124,12 +220,12 @@ export default function CustomerAcquisitionPage() {
             }
           }
         } catch (error) {
-          console.error('캠페인 데이터 로드 실패:', error);
-          setShowToast({ 
-            message: '캠페인 데이터를 불러오는데 실패했습니다', 
-            type: 'error' 
-          });
-        }
+            console.error('캠페인 데이터 로드 실패:', error);
+            setShowToast({ 
+              message: '캠페인 데이터를 불러오는데 실패했습니다', 
+              type: 'error' 
+            });
+          }
       }
     };
     
@@ -261,15 +357,12 @@ export default function CustomerAcquisitionPage() {
       showNotification("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.", 'error');
       return;
     }
-    
+
     if (!projectData.step1.keyword || !projectData.step1.instructions) {
       showNotification('키워드와 지침을 입력해주세요', 'error')
       return
     }
-    if (projectData.step1.generateImages && !projectData.step1.apiKey) {
-      showNotification('이미지 생성을 위해서는 Gemini API 키가 필요합니다', 'error')
-      return
-    }
+    // 이미지 생성은 이제 API 키 없이도 가능합니다
     setLoading(true)
     try {
       const res = await fetch('/api/ai/generate', {
@@ -330,6 +423,39 @@ export default function CustomerAcquisitionPage() {
       showNotification('복사에 실패했습니다', 'error')
     }
   }
+
+  // Typewriter effect for Step 1 generated content
+  useEffect(() => {
+    const full = projectData.step1.generatedContent || ''
+    if (!full) {
+      setTypingContent('')
+      setTypingActive(false)
+      setTypingIndex(0)
+      return
+    }
+    if (!typingEnabled) {
+      setTypingContent(full)
+      setTypingActive(false)
+      setTypingIndex(full.length)
+      return
+    }
+    setTypingContent('')
+    setTypingIndex(0)
+    setTypingActive(true)
+    const charsPerTick = 2
+    const interval = setInterval(() => {
+      setTypingIndex(prev => {
+        const next = Math.min(prev + charsPerTick, full.length)
+        setTypingContent(full.slice(0, next))
+        if (next >= full.length) {
+          clearInterval(interval)
+          setTypingActive(false)
+        }
+        return next
+      })
+    }, 33)
+    return () => clearInterval(interval)
+  }, [projectData.step1.generatedContent, typingEnabled])
 
   const ensureCampaignId = async (): Promise<string | null> => {
     if (!campaignName) return null
@@ -411,20 +537,44 @@ export default function CustomerAcquisitionPage() {
   }, [expandedStep])
 
   const connectGmail = async () => {
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: 'https://www.googleapis.com/auth/gmail.send email profile',
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-        redirectTo: `${window.location.origin}/oauth/callback`
+    try {
+      // 새로운 Gmail OAuth 엔드포인트 호출
+      const res = await fetch('/api/auth/gmail', {
+        method: 'GET',
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        showNotification(data.error || 'Gmail 연결 실패', 'error');
+        return;
       }
-    })
+      
+      if (data.url) {
+        // OAuth URL로 리다이렉트
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Gmail connection error:', error);
+      showNotification('Gmail 연결 중 오류가 발생했습니다', 'error');
+    }
   }
 
   const disconnectGmail = async () => {
-    await fetch('/api/oauth/google/gmail/connect', { method: 'DELETE' })
-    setGmailEmail('')
+    try {
+      const res = await fetch('/api/auth/gmail', { method: 'DELETE' });
+      
+      if (res.ok) {
+        setGmailEmail('');
+        showNotification('Gmail 연결이 해제되었습니다', 'info');
+      } else {
+        const data = await res.json();
+        showNotification(data.error || 'Gmail 연결 해제 실패', 'error');
+      }
+    } catch (error) {
+      console.error('Gmail disconnection error:', error);
+      showNotification('Gmail 연결 해제 중 오류가 발생했습니다', 'error');
+    }
   }
 
   const handleStep2Start = async () => {
@@ -437,66 +587,384 @@ export default function CustomerAcquisitionPage() {
     const newRunningState = !projectData.step2.isRunning;
     
     if (newRunningState) {
-      // 시작할 때 Google Sheets 데이터 가져오기
-      setLoading(true);
+      // 시작: 준비 단계
+      setLoading(true)
+      setProgress({ total: 100, current: 0, currentName: '구글 시트 연결 준비 중...', status: 'loading', phase: 'sheet_loading' })
+
       try {
-        const res = await fetch('/api/sheets/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sheetUrl: projectData.step2.sheetUrl,
-            projectId: projectId,
-            selectionCriteria: projectData.step2.selectionCriteria,
-          }),
-        });
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-          showNotification(data.error || '시트 동기화 실패', 'error');
-          setLoading(false);
-          return;
+        // 1) 시트 준비: 후보 목록만 가져오기
+        const prep = await fetch('/api/sheets/prepare', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sheetUrl: projectData.step2.sheetUrl })
+        })
+        const prepJson = await prep.json()
+        if (!prep.ok || !Array.isArray(prepJson.candidates) || prepJson.candidates.length === 0) {
+          showNotification(prepJson.error || '시트에서 후보를 찾을 수 없습니다', 'error')
+          setLoading(false)
+          return
         }
-        
-        if (!data.candidates || data.candidates.length === 0) {
-          showNotification('시트에서 데이터를 찾을 수 없습니다', 'error');
-          setLoading(false);
-          return;
+
+        setProjectData(prev => ({
+          ...prev,
+          step2: { ...prev.step2, isRunning: true, candidates: prepJson.candidates }
+        }))
+        setProgress(p => ({ ...p, total: prepJson.candidates.length * 3, current: 0, currentName: `후보 ${prepJson.candidates.length}명 로드됨`, status: 'processing', phase: 'sns_checking' }))
+
+        // 2) 후보별 순차 측정
+        const total = prepJson.candidates.length
+        for (let i = 0; i < total; i++) {
+          const c = prepJson.candidates[i]
+          // threads → blog → instagram 순서
+          setProjectData(prev => {
+            const copy = { ...prev }
+            const prevC = copy.step2.candidates[i]
+            copy.step2.candidates[i] = {
+              ...prevC,
+              checkStatus: { ...(prevC as any).checkStatus, threads: (c as any).threadsUrl ? 'checking' : 'no_url' }
+            }
+            return copy
+          })
+          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) Threads 측정 중...`, currentSns: 'threads', current: i * 3 + 0 }))
+          let tJson: any = { threads: 0 }
+          if ((c as any).threadsUrl) {
+            try {
+              const tRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'threads' }) })
+              tJson = await tRes.json()
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                copy.step2.candidates[i] = { ...prevC, threads: tJson.threads || 0, checkStatus: { ...(prevC as any).checkStatus, threads: 'completed' } }
+                return copy
+              })
+            } catch (err: any) {
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, threads: 'error', threadsError: err?.message || 'threads 오류' } }
+                return copy
+              })
+            }
+          }
+          setProgress(p => ({ ...p, current: i * 3 + 1 }))
+
+          setProjectData(prev => {
+            const copy = { ...prev }
+            const prevC = copy.step2.candidates[i]
+            copy.step2.candidates[i] = {
+              ...prevC,
+              checkStatus: { ...(prevC as any).checkStatus, blog: (c as any).blogUrl ? 'checking' : 'no_url' }
+            }
+            return copy
+          })
+          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 블로그 측정 중...`, currentSns: 'blog', current: i * 3 + 1 }))
+          let bJson: any = { blog: 0 }
+          if ((c as any).blogUrl) {
+            try {
+              const bRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'blog' }) })
+              bJson = await bRes.json()
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                copy.step2.candidates[i] = { ...prevC, blog: bJson.blog || 0, checkStatus: { ...(prevC as any).checkStatus, blog: 'completed' } }
+                return copy
+              })
+            } catch (err: any) {
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, blog: 'error', blogError: err?.message || 'blog 오류' } }
+                return copy
+              })
+            }
+          }
+          setProgress(p => ({ ...p, current: i * 3 + 2 }))
+
+          setProjectData(prev => {
+            const copy = { ...prev }
+            const prevC = copy.step2.candidates[i]
+            copy.step2.candidates[i] = {
+              ...prevC,
+              checkStatus: { ...(prevC as any).checkStatus, instagram: (c as any).instagramUrl ? 'checking' : 'no_url' }
+            }
+            return copy
+          })
+          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 인스타그램 측정 중...`, currentSns: 'instagram', current: i * 3 + 2 }))
+          let iJson: any = { instagram: 0 }
+          if ((c as any).instagramUrl) {
+            try {
+              const iRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'instagram' }) })
+              iJson = await iRes.json()
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                const selected = (tJson.threads||0) >= copy.step2.selectionCriteria.threads || (bJson.blog||0) >= copy.step2.selectionCriteria.blog || (iJson.instagram||0) >= copy.step2.selectionCriteria.instagram
+                copy.step2.candidates[i] = { ...prevC, instagram: iJson.instagram || 0, status: selected ? 'selected' : 'notSelected', checkStatus: { ...(prevC as any).checkStatus, instagram: 'completed' } }
+                return copy
+              })
+            } catch (err: any) {
+              setProjectData(prev => {
+                const copy = { ...prev }
+                const prevC = copy.step2.candidates[i]
+                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, instagram: 'error', instagramError: err?.message || 'instagram 오류' } }
+                return copy
+              })
+            }
+          } else {
+            // URL이 없을 때도 선정 로직은 평가
+            setProjectData(prev => {
+              const copy = { ...prev }
+              const prevC = copy.step2.candidates[i]
+              const selected = (tJson.threads||0) >= copy.step2.selectionCriteria.threads || (bJson.blog||0) >= copy.step2.selectionCriteria.blog
+              copy.step2.candidates[i] = { ...prevC, status: selected ? 'selected' : 'notSelected' }
+              return copy
+            })
+          }
+          setProgress(p => ({ ...p, current: i * 3 + 3 }))
+
+          // 후보당 3단계 측정이 끝났을 때 current는 i*3+3
         }
+
+        setProgress(p => ({ ...p, currentName: '완료', status: 'completed', phase: 'completed', current: (total * 3), currentSns: undefined }))
+        showNotification('후보별 SNS 체크가 완료되었습니다', 'success')
+
+      } catch (err) {
+        console.error(err)
+        showNotification('시트 준비 또는 측정 중 오류가 발생했습니다', 'error')
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // 일시정지
+    setProjectData({
+      ...projectData,
+      step2: {
+        ...projectData.step2,
+          isRunning: false,
+      },
+    });
+      showNotification('자동화가 일시정지되었습니다', 'info');
+      
+      // 주기적 체크 중지
+      stopPeriodicCheck();
+    }
+  };
+
+  // 주기적 체크를 위한 interval 관리
+  const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // 진행상황 추적 상태
+  const [progress, setProgress] = useState<{
+    total: number
+    current: number
+    currentName: string
+    status: 'loading' | 'processing' | 'completed' | 'error'
+    phase: 'sheet_loading' | 'sns_checking' | 'completed'
+    currentSns?: 'threads' | 'blog' | 'instagram'
+  }>({
+    total: 0,
+    current: 0,
+    currentName: '',
+    status: 'completed',
+    phase: 'completed'
+  });
+  
+  // 진행상황 체크 interval
+  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
+
+  const startPeriodicCheck = () => {
+    // 기존 interval이 있으면 정리
+    if (checkInterval) {
+      clearInterval(checkInterval);
+    }
+    
+    // 30초마다 새로운 응답 확인
+    const interval = setInterval(async () => {
+      if (projectData.step2.isRunning && projectData.step2.sheetUrl) {
+        await checkForNewResponses();
+      }
+    }, 30000); // 30초마다 체크
+    
+    setCheckInterval(interval);
+    
+    // 진행상황 체크 시작
+    startProgressCheck();
+  };
+
+  const stopPeriodicCheck = () => {
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      setCheckInterval(null);
+    }
+    
+    // 진행상황 체크 중지
+    stopProgressCheck();
+  };
+
+  const startProgressCheck = () => {
+    // 기존 interval이 있으면 정리
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+    
+    // 2초마다 진행상황 확인
+    const interval = setInterval(async () => {
+      if (projectData.step2.isRunning && projectId) {
+        await checkProgress();
+      }
+    }, 2000); // 2초마다 체크
+    
+    setProgressInterval(interval);
+  };
+
+  const stopProgressCheck = () => {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      setProgressInterval(null);
+    }
+    
+    // 진행상황 초기화
+    setProgress({
+      total: 0,
+      current: 0,
+      currentName: '',
+      status: 'completed',
+      phase: 'completed'
+    });
+  };
+
+  const checkProgress = async () => {
+    try {
+      const res = await fetch(`/api/sheets/progress?projectId=${projectId}`);
+      const data = await res.json();
+      
+      if (res.ok) {
+        console.log('진행상황 업데이트:', data);
+        setProgress(data);
         
+        // 완료되면 주기적 체크 중지
+        if (data.status === 'completed' && data.current === data.total && data.total > 0) {
+          console.log('체크 완료, 진행상황 추적 중지');
+          stopProgressCheck();
+        }
+      } else {
+        console.error('Progress API 오류:', data);
+      }
+    } catch (err) {
+      console.error('Progress check error:', err);
+    }
+  };
+
+  const checkForNewResponses = async () => {
+    try {
+      const res = await fetch('/api/sheets/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sheetUrl: projectData.step2.sheetUrl,
+          projectId: projectId,
+          selectionCriteria: projectData.step2.selectionCriteria,
+          checkNewOnly: true, // 새로운 응답만 체크하는 옵션
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
+        // 새로운 후보자가 있으면 기존 후보자 목록에 추가
         setProjectData(prev => ({
           ...prev,
           step2: {
             ...prev.step2,
-            isRunning: true,
-            candidates: data.candidates,
+            candidates: [...prev.step2.candidates, ...data.newCandidates],
           },
         }));
         
-        showNotification(data.message || '자동화가 시작되었습니다', 'success');
-      } catch (err) {
-        console.error('Sheet sync error:', err);
-        showNotification('시트 연동 중 오류가 발생했습니다. 시트가 공개되어 있는지 확인해주세요.', 'error');
-      } finally {
-        setLoading(false);
+        showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
       }
-    } else {
-      // 일시정지
-      setProjectData({
-        ...projectData,
-        step2: {
-          ...projectData.step2,
-          isRunning: false,
-        },
-      });
-      showNotification('자동화가 일시정지되었습니다', 'info');
+    } catch (err) {
+      console.error('New responses check error:', err);
     }
   };
+
+  // 컴포넌트 언마운트 시 interval 정리
+  useEffect(() => {
+    return () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    };
+  }, [checkInterval, progressInterval]);
 
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
     setShowToast({ message, type });
     setTimeout(() => setShowToast(null), 3000);
+  };
+
+  // 다운로드 핸들러 함수들
+  const handleDownloadText = () => {
+    if (!projectData.step1.generatedContent) {
+      showNotification('다운로드할 콘텐츠가 없습니다', 'error');
+      return;
+    }
+    
+    const filename = `${campaignName || '콘텐츠'}_${projectData.step1.contentType}_${new Date().toISOString().split('T')[0]}.txt`;
+    downloadText(projectData.step1.generatedContent, filename);
+    showNotification('텍스트 파일이 다운로드되었습니다', 'success');
+  };
+
+  const handleDownloadMarkdown = () => {
+    if (!projectData.step1.generatedContent) {
+      showNotification('다운로드할 콘텐츠가 없습니다', 'error');
+      return;
+    }
+    
+    const title = `${campaignName || '콘텐츠'} - ${projectData.step1.contentType === 'blog' ? '블로그글' : '스레드'}`;
+    downloadContentAsMarkdown(projectData.step1.generatedContent, title, campaignName || '콘텐츠');
+    showNotification('마크다운 파일이 다운로드되었습니다', 'success');
+  };
+
+  const handleDownloadComplete = async () => {
+    if (!projectData.step1.generatedContent) {
+      showNotification('다운로드할 콘텐츠가 없습니다', 'error');
+      return;
+    }
+
+    try {
+    setLoading(true);
+      await downloadCompleteProject(
+        projectData.step1.generatedContent,
+        projectData.step1.generatedImages,
+        campaignName || '프로젝트',
+        projectData.step1.contentType
+      );
+      showNotification('전체 프로젝트가 ZIP 파일로 다운로드되었습니다', 'success');
+    } catch (error) {
+      showNotification('다운로드 중 오류가 발생했습니다', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadAllImages = async () => {
+    if (projectData.step1.generatedImages.length === 0) {
+      showNotification('다운로드할 이미지가 없습니다', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const zipFilename = `${campaignName || '프로젝트'}_이미지_${new Date().toISOString().split('T')[0]}.zip`;
+      await downloadImagesAsZip(projectData.step1.generatedImages, zipFilename, `${campaignName || '프로젝트'}_이미지`);
+      showNotification('모든 이미지가 ZIP 파일로 다운로드되었습니다', 'success');
+    } catch (error) {
+      showNotification('이미지 다운로드 중 오류가 발생했습니다', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStep3Send = async () => {
@@ -517,13 +985,26 @@ export default function CustomerAcquisitionPage() {
     
     setLoading(true);
     try {
-      const res = await fetch('/api/emails/send-batch', {
+      // Gmail이 연결되어 있으면 Gmail API 사용, 아니면 기존 방식 사용
+      const endpoint = gmailEmail ? '/api/emails/send-gmail' : '/api/emails/send-batch';
+      
+      // 대상 필터링
+      const recipients = projectData.step2.candidates.filter(c => {
+        if (projectData.step3.targetType === 'selected') return c.status === 'selected';
+        if (projectData.step3.targetType === 'notSelected') return c.status === 'notSelected';
+        return true; // 'all'인 경우
+      });
+      
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          candidates: projectData.step2.candidates,
+          recipients: recipients,
           subject: projectData.step3.emailSubject,
           body: projectData.step3.emailBody,
+          replyTo: projectData.step3.senderEmail,
+          // 기존 API와의 호환성을 위해
+          candidates: recipients,
           targetType: projectData.step3.targetType,
           projectId: projectId,
         }),
@@ -536,7 +1017,33 @@ export default function CustomerAcquisitionPage() {
         return;
       }
       
-      showNotification(data.message || '이메일이 성공적으로 발송되었습니다!', 'success');
+      // Gmail API 응답 처리
+      let emailsSent = 0;
+      if (data.sent !== undefined && data.failed !== undefined) {
+        emailsSent = data.sent;
+        if (data.sent > 0 && data.failed === 0) {
+          showNotification(`${data.sent}명에게 이메일이 성공적으로 발송되었습니다!`, 'success');
+        } else if (data.sent > 0 && data.failed > 0) {
+          showNotification(`${data.sent}명 발송 성공, ${data.failed}명 발송 실패`, 'info');
+        } else {
+          showNotification('이메일 발송에 실패했습니다', 'error');
+        }
+      } else {
+        // 기존 API 응답 처리 (recipients 수를 발송 수로 간주)
+        emailsSent = recipients.length;
+        showNotification(data.message || '이메일이 성공적으로 발송되었습니다!', 'success');
+      }
+      
+      // 발송 수 저장
+      if (emailsSent > 0) {
+        setProjectData(prev => ({
+          ...prev,
+          step3: {
+            ...prev.step3,
+            emailsSent: (prev.step3.emailsSent || 0) + emailsSent,
+          },
+        }));
+      }
     } catch (err) {
       showNotification('이메일 발송 중 오류가 발생했습니다', 'error');
     } finally {
@@ -659,7 +1166,7 @@ export default function CustomerAcquisitionPage() {
             className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
           />
           <label htmlFor="generateImages" className="text-sm text-foreground">
-            이미지도 함께 생성하기 (API 키 필요)
+            이미지도 함께 생성하기
           </label>
         </div>
 
@@ -696,13 +1203,18 @@ export default function CustomerAcquisitionPage() {
           <div className="mt-6 p-6 bg-muted/30 rounded-lg border border-border">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-foreground">생성된 콘텐츠</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={handleCopyGenerated} className="text-primary hover:text-primary/80 font-semibold">복사</button>
-                <button onClick={saveSnapshot} disabled={saving} className="text-sm bg-primary hover:bg-primary/90 text-white rounded px-3 py-1 disabled:opacity-50">{saving ? '저장 중...' : '스냅샷 저장'}</button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={typingEnabled} onChange={(e)=>setTypingEnabled(e.target.checked)} />
+                  타이핑 효과
+                </label>
+                <button onClick={handleCopyGenerated} className="text-primary hover:text-primary/80 font-semibold">
+                복사
+              </button>
               </div>
             </div>
             <pre className="whitespace-pre-wrap text-muted-foreground text-sm">
-              {projectData.step1.generatedContent}
+              {typingEnabled ? typingContent : projectData.step1.generatedContent}
             </pre>
             {projectData.step1.generatedImages.length > 0 && (
               <div className="mt-4">
@@ -710,50 +1222,9 @@ export default function CustomerAcquisitionPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {projectData.step1.generatedImages.map((img, idx) => (
                     <div key={idx} className="relative group">
-                      <img 
-                        src={img} 
-                        alt={`생성된 이미지 ${idx + 1}`} 
-                        className="w-full rounded-lg border border-border"
-                      />
-                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={async () => {
-                            try {
-                              // base64 이미지를 Blob으로 변환
-                              const base64Data = img.split(',')[1]
-                              const byteCharacters = atob(base64Data)
-                              const byteNumbers = new Array(byteCharacters.length)
-                              for (let i = 0; i < byteCharacters.length; i++) {
-                                byteNumbers[i] = byteCharacters.charCodeAt(i)
-                              }
-                              const byteArray = new Uint8Array(byteNumbers)
-                              const blob = new Blob([byteArray], { type: 'image/png' })
-                              
-                              // 클립보드에 복사
-                              await navigator.clipboard.write([
-                                new ClipboardItem({ 'image/png': blob })
-                              ])
-                              showNotification(`이미지 ${idx + 1}이 클립보드에 복사되었습니다`, 'success')
-                            } catch (err) {
-                              showNotification('이미지 복사에 실패했습니다', 'error')
-                            }
-                          }}
-                          className="bg-white/90 text-xs px-2 py-1 rounded shadow-sm hover:bg-white"
-                        >
-                          복사
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const link = document.createElement('a')
-                            link.href = img
-                            link.download = `aimax-image-${Date.now()}-${idx + 1}.png`
-                            link.click()
-                            showNotification(`이미지 ${idx + 1}이 다운로드되었습니다`, 'success')
-                          }}
-                          className="bg-white/90 text-xs px-2 py-1 rounded shadow-sm hover:bg-white"
-                        >
-                          저장
-                        </button>
+                      <img src={img} alt={`생성된 이미지 ${idx + 1}`} className="w-full rounded-lg border border-border" />
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={async ()=>{const a=document.createElement('a');a.href=img;a.download=`image-${idx+1}.png`;a.click();}} className="bg-white/90 text-xs px-2 py-1 rounded shadow-sm">다운로드</button>
                       </div>
                     </div>
                   ))}
@@ -903,10 +1374,140 @@ export default function CustomerAcquisitionPage() {
           {projectData.step2.isRunning ? '일시정지' : '자동화 시작'}
         </button>
 
+        {/* 자동화 상태 표시 */}
+        {(projectData.step2.isRunning || loading || progress.status === 'loading' || progress.status === 'processing') && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2 mb-3">
+              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-blue-700">
+                {progress.phase === 'sheet_loading' ? '구글 시트 데이터를 불러오는 중...' : 
+                 progress.phase === 'sns_checking' ? 'SNS 팔로워/이웃수를 체크하는 중...' :
+                 '자동화 실행 중 - 30초마다 새로운 응답을 확인합니다'}
+              </span>
+            </div>
+            
+            {/* 진행상황 표시 */}
+            {(progress.status === 'loading' || progress.status === 'processing' || progress.currentName) && (
+              <div className="mt-3 space-y-2">
+                {/* 구글 시트 로딩 단계 */}
+                {progress.phase === 'sheet_loading' && (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">
+                        {progress.currentName || '구글 시트 연결 준비 중...'}
+                      </span>
+                      <span className="text-gray-600">
+                        {progress.current}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${progress.current}%` }}
+                      ></div>
+                    </div>
+                  </>
+                )}
+                
+                {/* SNS 체크 단계 */}
+                {progress.phase === 'sns_checking' && (
+                  <>
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-gray-600 font-medium">
+                        {progress.currentName || '준비 중...'}
+                      </span>
+                      <span className="text-gray-600">
+                        {Math.floor(progress.current / 3) + 1}/{Math.floor(progress.total / 3)}명
+                      </span>
+                    </div>
+                    
+                    {/* 개별 SNS 체크 진행률 */}
+                    {progress.currentSns && (
+                      <div className="space-y-1 mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs w-16 ${progress.currentSns === 'threads' ? 'font-bold text-blue-700' : 'text-gray-500'}`}>
+                            Threads
+                          </span>
+                          <div className="flex-1 h-1 bg-gray-200 rounded-full">
+                            <div 
+                              className={`h-1 rounded-full transition-all duration-300 ${
+                                progress.currentSns === 'threads' ? 'bg-blue-500 animate-pulse' : 
+                                progress.current % 3 >= 1 ? 'bg-green-500' : 'bg-gray-200'
+                              }`}
+                              style={{ 
+                                width: progress.currentSns === 'threads' ? '50%' : 
+                                       progress.current % 3 >= 1 ? '100%' : '0%' 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs w-16 ${progress.currentSns === 'blog' ? 'font-bold text-blue-700' : 'text-gray-500'}`}>
+                            블로그
+                          </span>
+                          <div className="flex-1 h-1 bg-gray-200 rounded-full">
+                            <div 
+                              className={`h-1 rounded-full transition-all duration-300 ${
+                                progress.currentSns === 'blog' ? 'bg-blue-500 animate-pulse' : 
+                                progress.current % 3 >= 2 ? 'bg-green-500' : 'bg-gray-200'
+                              }`}
+                              style={{ 
+                                width: progress.currentSns === 'blog' ? '50%' : 
+                                       progress.current % 3 >= 2 ? '100%' : '0%' 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs w-16 ${progress.currentSns === 'instagram' ? 'font-bold text-blue-700' : 'text-gray-500'}`}>
+                            인스타
+                          </span>
+                          <div className="flex-1 h-1 bg-gray-200 rounded-full">
+                            <div 
+                              className={`h-1 rounded-full transition-all duration-300 ${
+                                progress.currentSns === 'instagram' ? 'bg-blue-500 animate-pulse' : 
+                                progress.current % 3 === 0 && progress.current > 0 ? 'bg-green-500' : 'bg-gray-200'
+                              }`}
+                              style={{ 
+                                width: progress.currentSns === 'instagram' ? '50%' : 
+                                       progress.current % 3 === 0 && progress.current > 0 ? '100%' : '0%' 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 전체 진행률 */}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${(progress.current / progress.total) * 100}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 text-center">
+                      전체 진행률: {Math.round((progress.current / progress.total) * 100)}%
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 수집된 데이터 */}
         {projectData.step2.candidates.length > 0 && (
           <div className="mt-6">
-            <h4 className="font-semibold text-text mb-3">수집된 후보</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-text">수집된 후보</h4>
+              {projectData.step2.isRunning && (
+                <span className="text-xs text-gray-500">
+                  실시간 업데이트 중...
+                </span>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -924,9 +1525,66 @@ export default function CustomerAcquisitionPage() {
                     <tr key={idx} className="border-b border-text/5">
                       <td className="py-2">{candidate.name}</td>
                       <td className="py-2">{candidate.email}</td>
-                      <td className="text-center py-2">{candidate.threads}</td>
-                      <td className="text-center py-2">{candidate.blog}</td>
-                      <td className="text-center py-2">{candidate.instagram}</td>
+                      <td className="text-center py-2">
+                        {candidate.checkStatus?.threads === 'checking' ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs text-blue-500">체크중...</span>
+                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                            </div>
+                          </div>
+                        ) : candidate.checkStatus?.threads === 'error' ? (
+                          <span className="text-xs text-red-500" title={candidate.checkStatus?.threadsError}>오류</span>
+                        ) : candidate.checkStatus?.threads === 'no_url' ? (
+                          <span className="text-xs text-gray-400">-</span>
+                        ) : typeof candidate.threads === 'number' ? (
+                          <span className={candidate.threads >= projectData.step2.selectionCriteria.threads ? "text-green-600 font-semibold" : ""}>
+                            {candidate.threads}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="text-center py-2">
+                        {candidate.checkStatus?.blog === 'checking' ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs text-blue-500">체크중...</span>
+                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                            </div>
+                          </div>
+                        ) : candidate.checkStatus?.blog === 'error' ? (
+                          <span className="text-xs text-red-500" title={candidate.checkStatus?.blogError}>오류</span>
+                        ) : candidate.checkStatus?.blog === 'no_url' ? (
+                          <span className="text-xs text-gray-400">-</span>
+                        ) : typeof candidate.blog === 'number' ? (
+                          <span className={candidate.blog >= projectData.step2.selectionCriteria.blog ? "text-green-600 font-semibold" : ""}>
+                            {candidate.blog}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="text-center py-2">
+                        {candidate.checkStatus?.instagram === 'checking' ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs text-blue-500">체크중...</span>
+                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                            </div>
+                          </div>
+                        ) : candidate.checkStatus?.instagram === 'error' ? (
+                          <span className="text-xs text-red-500" title={candidate.checkStatus?.instagramError}>오류</span>
+                        ) : candidate.checkStatus?.instagram === 'no_url' ? (
+                          <span className="text-xs text-gray-400">-</span>
+                        ) : typeof candidate.instagram === 'number' ? (
+                          <span className={candidate.instagram >= projectData.step2.selectionCriteria.instagram ? "text-green-600 font-semibold" : ""}>
+                            {candidate.instagram}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="text-center py-2">
                         <span className={`px-2 py-1 rounded text-xs ${
                           candidate.status === "selected" 
@@ -1001,8 +1659,8 @@ export default function CustomerAcquisitionPage() {
           </label>
           {gmailEmail ? (
             <div className="flex items-center gap-2">
-              <input
-                type="email"
+          <input
+            type="email"
                 value={gmailEmail}
                 readOnly
                 className="w-full px-4 py-3 rounded-lg border border-border bg-muted/30 text-muted-foreground"
@@ -1013,10 +1671,10 @@ export default function CustomerAcquisitionPage() {
             <div className="flex items-center gap-2">
               <input
                 type="email"
-                placeholder="your@gmail.com"
-                className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+            placeholder="your@gmail.com"
+            className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                 readOnly
-              />
+          />
               <button onClick={connectGmail} className="px-3 py-2 rounded bg-primary text-white text-sm">Gmail 연결</button>
             </div>
           )}
@@ -1290,9 +1948,15 @@ export default function CustomerAcquisitionPage() {
               >
                 대시보드 보기
               </Link>
-              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
-                메인으로
-              </Link>
+              {projectId && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-red-600 hover:text-red-700 border border-red-200 px-3 py-2 rounded"
+                >
+                  프로젝트 삭제
+                </button>
+              )}
+              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">메인으로</Link>
             </div>
           </div>
         </div>
@@ -1342,6 +2006,44 @@ export default function CustomerAcquisitionPage() {
         {expandedStep === 2 && renderStep2()}
         {expandedStep === 3 && renderStep3()}
       </main>
+      {showDeleteConfirm && projectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-2">프로젝트 삭제</h3>
+            <p className="text-sm text-muted-foreground mb-4">정말로 이 프로젝트를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={()=>setShowDeleteConfirm(false)} className="px-3 py-2 rounded border">취소</button>
+              <button
+                onClick={async ()=>{
+                  try {
+                    const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
+                    const data = await res.json().catch(()=>({}))
+                    if (!res.ok) {
+                      showNotification(data.error || '삭제 실패', 'error')
+                      return
+                    }
+                    setShowDeleteConfirm(false)
+                    showNotification('프로젝트가 삭제되었습니다', 'success')
+                    // 완전 삭제: 상태 초기화 후 대시보드로 이동
+                    setProjectId(null)
+                    setProjectData({
+                      step1: { keyword:'', contentType:'blog', apiKey:'', instructions:'', generateImages:false, generatedContent:'', generatedImages:[] },
+                      step2: { sheetUrl:'', isRunning:false, candidates:[], selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
+                      step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
+                    })
+                    window.location.href = '/automation/customer-acquisition/dashboard'
+                  } catch (e:any) {
+                    showNotification(e?.message || '삭제 중 오류가 발생했습니다', 'error')
+                  }
+                }}
+                className="px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                삭제하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

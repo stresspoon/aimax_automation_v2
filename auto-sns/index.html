@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNS 팔로워 체크</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>SNS 팔로워 체크 도구</h1>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="single">개별 확인</button>
+            <button class="tab-btn" data-tab="batch">일괄 처리</button>
+        </div>
+        
+        <!-- 개별 확인 탭 -->
+        <div class="tab-content active" id="single-tab">
+            <div class="input-section">
+                <input type="text" id="urlInput" placeholder="URL 또는 아이디 입력 (예: username, @username, https://...)">
+                <button id="checkBtn">팔로워 확인</button>
+                <button id="debugBtn" style="background: #6c757d; margin-left: 10px;">디버그 모드</button>
+            </div>
+        </div>
+        
+        <!-- 일괄 처리 탭 -->
+        <div class="tab-content" id="batch-tab" style="display: none;">
+            <div class="batch-section">
+                <div class="batch-input">
+                    <h3>구글 시트 연동 또는 직접 입력</h3>
+                    
+                    <!-- 구글 시트 연동 섹션 -->
+                    <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; color: #1a73e8;">🔗 구글 시트 직접 연동</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
+                            구글 폼 응답 시트 링크를 입력하세요. (읽기 권한 필요)<br>
+                            <small>자동으로 F열(Threads), G열(Instagram), H열(Blog) URL을 감지합니다.</small>
+                        </p>
+                        <input type="text" id="googleSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/..." style="width: 100%; padding: 10px; border: 2px solid #1a73e8; border-radius: 5px; margin-bottom: 10px;">
+                        <button id="loadSheetBtn" style="background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">구글 시트 불러오기</button>
+                        <div id="sheetStatus" style="margin-top: 10px; display: none;">
+                            <span style="color: #28a745;">✓ 시트 로드 완료!</span>
+                            <span id="rowCount"></span>
+                        </div>
+                    </div>
+                    
+                    <p style="text-align: center; margin: 10px 0; color: #999;">━━━ 또는 ━━━</p>
+                    
+                    <!-- 기존 CSV/텍스트 입력 -->
+                    <div>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
+                            CSV 파일 업로드 또는 URL 직접 입력
+                        </p>
+                        <input type="file" id="csvFile" accept=".csv" style="margin-bottom: 15px;">
+                        <textarea id="batchUrls" placeholder="URL 또는 아이디를 한 줄에 하나씩 입력하세요&#10;예:&#10;username1&#10;@username2&#10;blogid&#10;https://www.instagram.com/username/" style="width: 100%; height: 150px; padding: 10px; border: 2px solid #ddd; border-radius: 10px; font-family: monospace; resize: vertical;"></textarea>
+                    </div>
+                </div>
+                <button id="batchCheckBtn" style="width: 100%; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">일괄 확인 시작</button>
+                
+                <div id="batchProgress" style="display: none; margin-top: 20px;">
+                    <div style="background: #f0f0f0; border-radius: 10px; height: 30px; overflow: hidden;">
+                        <div id="progressBar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                            <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    <p id="currentProcessing" style="text-align: center; margin-top: 10px; color: #666;"></p>
+                </div>
+                
+                <div id="batchResults" style="display: none; margin-top: 20px;">
+                    <h3>처리 결과</h3>
+                    <table id="resultsTable" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">URL</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">플랫폼</th>
+                                <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">팔로워/이웃</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                    <button id="downloadCsvBtn" style="margin-top: 15px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">결과 CSV 다운로드</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="debugSection" style="display: none; margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <h3>디버그 정보</h3>
+            <button id="saveHtmlBtn" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">HTML 저장</button>
+            <pre id="debugInfo" style="margin-top: 10px; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 5px; max-height: 300px; overflow-y: auto;"></pre>
+        </div>
+
+        <div class="results-section">
+            <div class="platform-card">
+                <div class="platform-header">
+                    <h3>네이버 블로그</h3>
+                    <span class="status" id="blogStatus">대기중</span>
+                </div>
+                <div class="platform-info">
+                    <p>이웃 수: <span id="blogFollowers">-</span></p>
+                    <p>최소 기준: 300명</p>
+                    <div class="check-result" id="blogResult"></div>
+                </div>
+            </div>
+
+            <div class="platform-card">
+                <div class="platform-header">
+                    <h3>인스타그램</h3>
+                    <span class="status" id="instaStatus">대기중</span>
+                </div>
+                <div class="platform-info">
+                    <p>팔로워 수: <span id="instaFollowers">-</span></p>
+                    <p>최소 기준: 1,000명</p>
+                    <div class="check-result" id="instaResult"></div>
+                </div>
+            </div>
+
+            <div class="platform-card">
+                <div class="platform-header">
+                    <h3>Threads</h3>
+                    <span class="status" id="threadsStatus">대기중</span>
+                </div>
+                <div class="platform-info">
+                    <p>팔로워 수: <span id="threadsFollowers">-</span></p>
+                    <p>최소 기준: 500명</p>
+                    <div class="check-result" id="threadsResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">처리 중...</div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

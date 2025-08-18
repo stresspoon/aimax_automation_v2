@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     // 사용자 프로필 확인 및 생성
     if (data.user) {
-      const { data: profile, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
@@ -56,14 +56,34 @@ export async function POST(req: Request) {
 }
 
 // Google OAuth URL 생성
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Supabase 환경변수 확인
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Supabase environment variables are missing')
+      return NextResponse.json({ 
+        error: 'Supabase 설정이 누락되었습니다. 환경 변수를 확인해주세요.' 
+      }, { status: 500 })
+    }
+    
     const supabase = await createClient()
+
+    // BASE_URL 계산 (env → 요청 origin → 로컬 기본값)
+    const envBase = process.env.NEXT_PUBLIC_BASE_URL || ''
+    const origin = req.headers.get('origin') || ''
+    let baseUrl = envBase || origin || (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '')
+    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
+      // 프로토콜 누락 시 보정 (Supabase가 path로 해석하는 문제 방지)
+      baseUrl = `https://${baseUrl}`
+    }
+    if (!baseUrl) {
+      baseUrl = 'http://localhost:3001'
+    }
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`,
+        redirectTo: `${baseUrl}/auth/callback`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -72,12 +92,19 @@ export async function GET() {
     })
 
     if (error) {
+      console.error('Supabase OAuth error:', error)
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    if (!data || !data.url) {
+      console.error('No OAuth URL returned from Supabase')
+      return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
     }
 
     return NextResponse.json({ url: data.url })
   } catch (error) {
     console.error('Google OAuth URL error:', error)
-    return NextResponse.json({ error: 'OAuth URL 생성 중 오류가 발생했습니다' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'OAuth URL 생성 중 오류가 발생했습니다'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
