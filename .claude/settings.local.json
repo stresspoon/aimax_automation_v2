@@ -26,7 +26,13 @@
       "Bash(npm run build:*)",
       "Bash(rm:*)",
       "Bash(grep:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(node test-sns.js)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(brew install:*)",
+      "Bash(ngrok http 3001)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
