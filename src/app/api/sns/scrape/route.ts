@@ -101,7 +101,7 @@ function extractThreadsFollowers(html: string): number {
   const exactPatterns = [
     /팔로워\s*<span[^>]*title="([\d,]+)"[^>]*>[\d.]+[만천]?<\/span>/,
     /<span[^>]*title="([\d,]+)"[^>]*>[\d.]+[만천]?<\/span>\s*명/,
-    /팔로워.*?<span[^>]*title="([\d,]+)"[^>]*>[^<]+<\/span>\s*명/s
+    /팔로워[\s\S]*?<span[^>]*title="([\d,]+)"[^>]*>[^<]+<\/span>\s*명/
   ];
   
   for (const pattern of exactPatterns) {
@@ -356,9 +356,10 @@ export async function POST(req: NextRequest) {
       console.log('[Threads] 팔로워 정보 빠른 추출 시작...');
       try {
         // 팔로워 정보만 빠르게 찾기 (최대 3초)
-        const followerData = await Promise.race([
+        type ThreadsFollowerData = { followers: string; method: string } | null
+        const followerData: ThreadsFollowerData = await Promise.race([
           // 메인 추출 로직
-          (async () => {
+          (async (): Promise<ThreadsFollowerData> => {
             // span[title] 요소가 나타날 때까지 최대 3초 대기
             await page.waitForSelector('span[title]', { timeout: 3000 }).catch(() => {});
             
@@ -378,7 +379,7 @@ export async function POST(req: NextRequest) {
                     const parent = span.parentElement;
                     if (parent && (parent.textContent?.includes('팔로워') || parent.textContent?.includes('Follower'))) {
                       console.log(`[정확한 셀렉터] 팔로워 발견: ${title}`);
-                      return { followers: title, method: 'exact-selector' };
+                      return { followers: title, method: 'exact-selector' } as const;
                     }
                   }
                 }
@@ -392,7 +393,7 @@ export async function POST(req: NextRequest) {
                 const title = span.getAttribute('title');
                 if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
                   console.log(`[XPath] 팔로워 발견: ${title}`);
-                  return { followers: title, method: 'xpath' };
+                  return { followers: title, method: 'xpath' } as const;
                 }
               }
               
@@ -407,17 +408,17 @@ export async function POST(req: NextRequest) {
                   if (parent && parent.tagName === 'SPAN' && 
                       (parent.textContent?.includes('팔로워') || parent.textContent?.includes('Follower'))) {
                     console.log(`[Fallback] 팔로워 발견: ${title}`);
-                    return { followers: title, method: 'fallback' };
+                    return { followers: title, method: 'fallback' } as const;
                   }
                 }
               }
               
               return null;
-            });
+            }) as unknown as ThreadsFollowerData;
           })(),
           
           // 3초 타임아웃
-          new Promise(resolve => setTimeout(() => resolve(null), 3000))
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 3000))
         ]);
         
         if (followerData) {
