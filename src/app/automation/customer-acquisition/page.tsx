@@ -36,16 +36,16 @@ export default function CustomerAcquisitionPage() {
   const [emailComposerInstructions, setEmailComposerInstructions] = useState('');
   const [emailComposerProductInfo, setEmailComposerProductInfo] = useState('');
   const [composingEmail, setComposingEmail] = useState(false);
-  const [saving, setSaving] = useState<boolean>(false);
+  const [_saving, setSaving] = useState<boolean>(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [gmailEmail, setGmailEmail] = useState<string>('');
   const [gmailChecking, setGmailChecking] = useState<boolean>(false);
   // Typing effect for Step 1 content
   const [typingEnabled, setTypingEnabled] = useState<boolean>(true);
-  const [typingIndex, setTypingIndex] = useState<number>(0);
+  const [_typingIndex, setTypingIndex] = useState<number>(0);
   const [typingContent, setTypingContent] = useState<string>('');
-  const [typingActive, setTypingActive] = useState<boolean>(false);
+  const [_typingActive, setTypingActive] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("");
   const [projectData, setProjectData] = useState({
     step1: {
@@ -473,45 +473,46 @@ export default function CustomerAcquisitionPage() {
     return created?.id || null
   }
 
-  const saveSnapshot = async () => {
-    try {
-      setSaving(true)
-      const campaignId = await ensureCampaignId()
-      if (!campaignId) {
-        showNotification('캠페인 생성 실패', 'error')
-        return
-      }
-      const payload = {
-        type: 'customer_acquisition',
-        step: 1 as const,
-        data: {
-          step1: {
-            ...projectData.step1,
-            // 생성된 콘텐츠와 이미지 포함
-            generatedContent: projectData.step1.generatedContent,
-            generatedImages: projectData.step1.generatedImages,
-          },
-          savedAt: new Date().toISOString(),
-        },
-      }
-      if (projectId) {
-        const res = await fetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 1, data: payload.data }) })
-        if (!res.ok) throw new Error('업데이트 실패')
-        showNotification('스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
-        return
-      }
-      const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaign_id: campaignId, ...payload }) })
-      if (!res.ok) throw new Error('프로젝트 생성 실패')
-      const created = await res.json()
-      setProjectId(created.id)
-      if (campaignName) localStorage.setItem(`campaign_${campaignName}_project_id`, created.id)
-      showNotification('프로젝트가 생성되고 스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
-    } catch (e: any) {
-      showNotification(e?.message || '저장 중 오류가 발생했습니다', 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
+  // saveSnapshot 함수는 현재 사용되지 않음 - 필요시 주석 해제
+  // const saveSnapshot = async () => {
+  //   try {
+  //     setSaving(true)
+  //     const campaignId = await ensureCampaignId()
+  //     if (!campaignId) {
+  //       showNotification('캠페인 생성 실패', 'error')
+  //       return
+  //     }
+  //     const payload = {
+  //       type: 'customer_acquisition',
+  //       step: 1 as const,
+  //       data: {
+  //         step1: {
+  //           ...projectData.step1,
+  //           // 생성된 콘텐츠와 이미지 포함
+  //           generatedContent: projectData.step1.generatedContent,
+  //           generatedImages: projectData.step1.generatedImages,
+  //         },
+  //         savedAt: new Date().toISOString(),
+  //       },
+  //     }
+  //     if (projectId) {
+  //       const res = await fetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 1, data: payload.data }) })
+  //       if (!res.ok) throw new Error('업데이트 실패')
+  //       showNotification('스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
+  //       return
+  //     }
+  //     const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaign_id: campaignId, ...payload }) })
+  //     if (!res.ok) throw new Error('프로젝트 생성 실패')
+  //     const created = await res.json()
+  //     setProjectId(created.id)
+  //     if (campaignName) localStorage.setItem(`campaign_${campaignName}_project_id`, created.id)
+  //     showNotification('프로젝트가 생성되고 스냅샷이 저장되었습니다 (텍스트 및 이미지 포함)', 'success')
+  //   } catch (e: any) {
+  //     showNotification(e?.message || '저장 중 오류가 발생했습니다', 'error')
+  //   } finally {
+  //     setSaving(false)
+  //   }
+  // }
 
   // Gmail 연결 상태 확인
   useEffect(() => {

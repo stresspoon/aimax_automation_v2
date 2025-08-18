@@ -56,7 +56,7 @@ export async function fetchHtml(url: string): Promise<string> {
 }
 
 // auto-sns.zip에서 검증된 추출 함수들 (적응됨)
-function extractInstagramFollowers($: cheerio.CheerioAPI | cheerio.Root): number | null {
+function extractInstagramFollowers($: cheerio.CheerioAPI): number | null {
   console.log('인스타그램 팔로워 수 추출 시작...')
   
   // 방법 1: 메타 태그에서 추출
@@ -138,7 +138,7 @@ function extractInstagramFollowers($: cheerio.CheerioAPI | cheerio.Root): number
   return null
 }
 
-function extractThreadsFollowers($: cheerio.CheerioAPI | cheerio.Root): number | null {
+function extractThreadsFollowers($: cheerio.CheerioAPI): number | null {
   console.log('Threads 팔로워 수 추출 시작...')
   
   // 방법 1: 메타 태그에서 추출
@@ -195,7 +195,7 @@ function extractThreadsFollowers($: cheerio.CheerioAPI | cheerio.Root): number |
   return null
 }
 
-function extractBlogFollowers($: cheerio.CheerioAPI | cheerio.Root): number | null {
+function extractBlogFollowers($: cheerio.CheerioAPI): number | null {
   console.log('네이버 블로그 이웃 수 추출 시작...')
   
   // 방법 1: 특정 클래스나 ID에서 추출

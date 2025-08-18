@@ -5,9 +5,10 @@ import { evaluateSelection } from '@/lib/selection/policy'
 
 export async function POST(
   _req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params
     const admin = createAdminClient()
     const { data: applicant, error } = await admin
       .from('applicants')
