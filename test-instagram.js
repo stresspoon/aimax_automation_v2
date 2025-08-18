@@ -1,9 +1,17 @@
 // Instagram 스크래핑 테스트 스크립트
 async function testInstagramScraping() {
   const testUrls = [
+    // 전체 URL 테스트
     'https://www.instagram.com/cristiano',  // Cristiano Ronaldo - 많은 팔로워
-    'https://www.instagram.com/ramiyule',  // 실제 DB에 있는 URL
-    'https://www.instagram.com/bichu1004',  // 실제 DB에 있는 URL
+    'https://www.instagram.com/nike',       // Nike 공식 계정
+    
+    // 아이디만 입력 테스트 
+    '@cristiano',                           // @포함 아이디
+    'nike',                                  // 아이디만
+    
+    // Instagram 명시 테스트
+    'instagram.com/cristiano',              // 도메인 포함
+    'ig.nike',                              // ig. 접두사
   ];
 
   console.log('🧪 Instagram 스크래핑 테스트 시작\n');

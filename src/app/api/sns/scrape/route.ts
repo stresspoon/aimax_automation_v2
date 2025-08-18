@@ -6,6 +6,15 @@ import { chromium } from 'playwright'
 function extractInstagramFollowers(html: string): number {
   console.log('인스타그램 팔로워 추출 시작...');
   
+  // 0. JavaScript로 추출된 팔로워 수 확인 (가장 정확)
+  const extractedPattern = /<!-- INSTAGRAM_FOLLOWERS_EXTRACTED: ([\d,]+) -->/;
+  const extractedMatch = html.match(extractedPattern);
+  if (extractedMatch) {
+    const number = parseInt(extractedMatch[1].replace(/,/g, ''));
+    console.log(`✅ 인스타그램 팔로워 수 (JS 추출): ${number}`);
+    return number;
+  }
+  
   // 1. Meta 태그에서 찾기 (가장 정확)
   const metaPatterns = [
     /<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i,
@@ -309,18 +318,54 @@ function extractBlogFollowers(html: string): number {
   return 0;
 }
 
+// URL 정규화 함수
+function normalizeUrl(input: string): string {
+  if (!input) return input;
+  
+  const trimmed = input.trim();
+  
+  // 이미 완전한 URL인 경우
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  
+  // @로 시작하는 경우 제거
+  const username = trimmed.startsWith('@') ? trimmed.substring(1) : trimmed;
+  
+  // 플랫폼 추측 (threads, instagram, blog)
+  // 기본적으로 threads로 가정 (가장 많이 사용)
+  // 추후 필요시 플랫폼 힌트를 받을 수 있도록 확장 가능
+  
+  // 네이버 블로그 패턴 체크 (점이나 특수문자 없는 짧은 ID)
+  if (username.includes('blog') || username.includes('naver')) {
+    return `https://blog.naver.com/${username.replace('blog.naver.com/', '').replace('https://', '')}`;
+  }
+  
+  // Instagram 패턴 체크 (ig, insta 포함)
+  if (username.toLowerCase().includes('instagram') || username.toLowerCase().includes('ig.')) {
+    return `https://www.instagram.com/${username.replace('instagram.com/', '').replace('https://', '')}`;
+  }
+  
+  // 기본값: Threads (가장 흔한 케이스)
+  return `https://www.threads.net/@${username}`;
+}
+
 export async function POST(req: NextRequest) {
-  const { url } = await req.json();
+  const { url: rawUrl } = await req.json();
   
   console.log('\n========================================');
   console.log('[SNS Scrape API] 요청 받음');
-  console.log('URL:', url);
-  console.log('시간:', new Date().toISOString());
-  console.log('========================================\n');
+  console.log('원본 입력:', rawUrl);
   
-  if (!url) {
+  if (!rawUrl) {
     return NextResponse.json({ error: 'URL is required' }, { status: 400 });
   }
+  
+  // URL 정규화
+  const url = normalizeUrl(rawUrl);
+  console.log('정규화된 URL:', url);
+  console.log('시간:', new Date().toISOString());
+  console.log('========================================\n');
   
   let browser = null;
   
@@ -351,8 +396,83 @@ export async function POST(req: NextRequest) {
     
     let finalHtml = null;
     
+    // Instagram 특별 처리 - 동적 추출
+    if (url.includes('instagram.com')) {
+      console.log('[Instagram] 팔로워 정보 추출 시작...');
+      try {
+        // 팔로워 정보 빠르게 찾기
+        await page.waitForSelector('span[title]', { timeout: 5000 }).catch(() => {});
+        
+        const followerData = await page.evaluate(() => {
+          // 1. 제공된 정확한 셀렉터로 찾기
+          const exactSelector = 'section > main > div > div > header > section > ul > li:nth-child(2) > div > a > span';
+          const exactElement = document.querySelector(exactSelector);
+          if (exactElement) {
+            // span 내부의 span[title] 찾기
+            const titleSpan = exactElement.querySelector('span[title]') as HTMLSpanElement | null;
+            if (titleSpan) {
+              const title = titleSpan.getAttribute('title');
+              if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
+                console.log(`[정확한 셀렉터] 팔로워 발견: ${title}`);
+                return { followers: title, method: 'exact-selector' };
+              }
+            }
+            // title이 없는 경우 숫자 텍스트 직접 찾기
+            const text = exactElement.textContent?.trim() || '';
+            const match = text.match(/(\d{1,3}(?:,\d{3})*)/);
+            if (match) {
+              console.log(`[정확한 셀렉터 텍스트] 팔로워 발견: ${match[1]}`);
+              return { followers: match[1], method: 'exact-selector-text' };
+            }
+          }
+          
+          // 2. 팔로워 텍스트가 있는 링크에서 찾기
+          const links = document.querySelectorAll('a[href*="/followers"]');
+          for (const link of links) {
+            const titleSpan = link.querySelector('span[title]') as HTMLSpanElement | null;
+            if (titleSpan) {
+              const title = titleSpan.getAttribute('title');
+              if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
+                console.log(`[followers 링크] 팔로워 발견: ${title}`);
+                return { followers: title, method: 'followers-link' };
+              }
+            }
+          }
+          
+          // 3. 모든 span[title] 검색
+          const spans = document.querySelectorAll('span[title]');
+          for (const span of spans) {
+            const title = span.getAttribute('title');
+            if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
+              const parent = span.parentElement;
+              if (parent && (parent.textContent?.includes('팔로워') || parent.textContent?.toLowerCase().includes('follower'))) {
+                console.log(`[일반 span] 팔로워 발견: ${title}`);
+                return { followers: title, method: 'general-span' };
+              }
+            }
+          }
+          
+          return null;
+        });
+        
+        if (followerData) {
+          console.log(`[Instagram] 동적 추출 성공:`, followerData);
+          const partialHtml = await page.evaluate(() => {
+            const head = document.head?.outerHTML || '';
+            const bodyText = document.body?.innerText?.substring(0, 5000) || '';
+            return head + bodyText;
+          });
+          finalHtml = partialHtml + `\n<!-- INSTAGRAM_FOLLOWERS_EXTRACTED: ${followerData.followers} -->`;
+        } else {
+          console.log('[Instagram] 동적 추출 실패, 전체 HTML 사용');
+        }
+      } catch (e) {
+        console.log('[Instagram] 추출 오류:', e);
+      }
+    }
+    
     // Threads 특별 처리 - 빠른 추출
-    if (url.includes('threads.net') || url.includes('threads.com')) {
+    else if (url.includes('threads.net') || url.includes('threads.com')) {
       console.log('[Threads] 팔로워 정보 빠른 추출 시작...');
       try {
         // 팔로워 정보만 빠르게 찾기 (최대 3초)
@@ -381,6 +501,40 @@ export async function POST(req: NextRequest) {
                       console.log(`[정확한 셀렉터] 팔로워 발견: ${title}`);
                       return { followers: title, method: 'exact-selector' } as const;
                     }
+                  }
+                }
+              }
+
+              // 1-보강: 제공된 정확한 셀렉터로 찾기
+              // #barcelona-page-layout > div > div > div.xb57i2i... > div.x78zum5... > div.x1a8lsjc... > div.x6s0dn4... > div.x78zum5.x2lah0s > div > div > span
+              const layoutRoot = document.querySelector('#barcelona-page-layout');
+              if (layoutRoot) {
+                // 제공된 셀렉터 패턴으로 직접 찾기
+                const followerSpan = layoutRoot.querySelector('div.x78zum5.x2lah0s > div > div > span') as HTMLSpanElement | null;
+                if (followerSpan) {
+                  // span 내부의 span[title] 찾기
+                  const titleSpan = followerSpan.querySelector('span[title]') as HTMLSpanElement | null;
+                  if (titleSpan) {
+                    const titleAttr = titleSpan.getAttribute('title');
+                    if (titleAttr && /^\d{1,3}(,\d{3})*$/.test(titleAttr)) {
+                      // 팔로워 텍스트 확인
+                      const parentText = followerSpan.textContent || '';
+                      if (parentText.includes('팔로워') || parentText.toLowerCase().includes('follower')) {
+                        console.log(`[정확한 레이아웃 셀렉터] 팔로워 발견: ${titleAttr}`);
+                        return { followers: titleAttr, method: 'exact-layout-selector' } as const;
+                      }
+                    }
+                  }
+                }
+                
+                // 폴백: 더 간단한 경로로 시도
+                const candidate = layoutRoot.querySelector('div.x2lah0s span[title]') as HTMLSpanElement | null;
+                const titleAttr = candidate ? candidate.getAttribute('title') : '';
+                if (titleAttr && /^\d{1,3}(,\d{3})*$/.test(titleAttr)) {
+                  const parentText = candidate?.parentElement?.textContent || '';
+                  if (parentText.includes('팔로워') || parentText.toLowerCase().includes('follower')) {
+                    console.log(`[레이아웃 폴백] 팔로워 발견: ${titleAttr}`);
+                    return { followers: titleAttr, method: 'layout-fallback' } as const;
                   }
                 }
               }
@@ -445,6 +599,8 @@ export async function POST(req: NextRequest) {
       if (url.includes('m.blog.naver.com')) {
         // 모바일 블로그 처리 (iframe 없음): 고정 셀렉터 기반 단순화
         try {
+          // 네트워크 안정화 대기 (요청 스펙 반영)
+          await page.waitForLoadState('networkidle').catch(() => {})
           await page.waitForSelector('.buddy__fw6Uo', { timeout: 10000 });
           await page.waitForTimeout(500);
 
@@ -475,6 +631,8 @@ export async function POST(req: NextRequest) {
         // 데스크톱 블로그 iframe 처리
         try {
           console.log('[데스크톱 블로그] iframe 대기 중...');
+          // 네트워크 안정화 대기 (요청 스펙 반영)
+          await page.waitForLoadState('networkidle').catch(() => {})
           
           // iframe이 로드될 때까지 대기
           await page.waitForSelector('#mainFrame', { timeout: 10000 });
