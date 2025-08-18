@@ -68,10 +68,16 @@ export async function GET(req: NextRequest) {
     
     const supabase = await createClient()
 
-    // BASE_URL 계산 (env → 요청 origin → 로컬 기본값)
+    // BASE_URL 계산 (env → 요청 URL origin → 로컬 기본값)
     const envBase = process.env.NEXT_PUBLIC_BASE_URL || ''
-    const origin = req.headers.get('origin') || ''
-    let baseUrl = envBase || origin || (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '')
+    const reqOrigin = (() => {
+      try {
+        return new URL(req.url).origin
+      } catch {
+        return ''
+      }
+    })()
+    let baseUrl = envBase || reqOrigin || (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '')
     if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
       // 프로토콜 누락 시 보정 (Supabase가 path로 해석하는 문제 방지)
       baseUrl = `https://${baseUrl}`
@@ -83,7 +89,8 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${baseUrl}/auth/callback`,
+        // next 파라미터로 로그인 후 이동 위치를 명시 (기본: /dashboard)
+        redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent('/dashboard')}`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -101,6 +108,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
     }
 
+    // 프론트에서 그대로 window.location.href로 이동시키기 위해 URL만 반환
     return NextResponse.json({ url: data.url })
   } catch (error) {
     console.error('Google OAuth URL error:', error)
