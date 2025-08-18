@@ -15,6 +15,19 @@ function extractInstagramFollowers(html: string): number {
     return number;
   }
   
+  // 0-1. HTML에 직접 숫자가 있는 경우 (새로운 Instagram 형식)
+  // <span title="9,706">9,706</span> 형식
+  const spanTitlePattern = /<span[^>]*title="([\d,]+)"[^>]*>[\d,\.]+[KMk만천]?<\/span>/g;
+  let spanMatch;
+  while ((spanMatch = spanTitlePattern.exec(html)) !== null) {
+    const text = html.substring(Math.max(0, spanMatch.index - 100), spanMatch.index + 200);
+    if (text.includes('팔로워') || text.toLowerCase().includes('follower')) {
+      const number = parseInt(spanMatch[1].replace(/,/g, ''));
+      console.log(`✅ 인스타그램 팔로워 수 (span title): ${number}`);
+      return number;
+    }
+  }
+  
   // 1. Meta 태그에서 찾기 (가장 정확)
   const metaPatterns = [
     /<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i,
@@ -346,8 +359,8 @@ function normalizeUrl(input: string): string {
     return `https://www.instagram.com/${username.replace('instagram.com/', '').replace('https://', '')}`;
   }
   
-  // 기본값: Threads (가장 흔한 케이스)
-  return `https://www.threads.net/@${username}`;
+  // 기본값: Threads (가장 흔한 케이스) - threads.com 도메인 사용
+  return `https://www.threads.com/@${username}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -400,21 +413,31 @@ export async function POST(req: NextRequest) {
     if (url.includes('instagram.com')) {
       console.log('[Instagram] 팔로워 정보 추출 시작...');
       try {
-        // 팔로워 정보 빠르게 찾기
-        await page.waitForSelector('span[title]', { timeout: 5000 }).catch(() => {});
+        // 페이지 완전 로드 대기
+        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+        await page.waitForTimeout(2000); // 추가 대기
         
         const followerData = await page.evaluate(() => {
+          // 디버그: 페이지 URL 확인
+          console.log('[Instagram Debug] Current URL:', window.location.href);
+          
           // 1. 제공된 정확한 셀렉터로 찾기
           const exactSelector = 'section > main > div > div > header > section > ul > li:nth-child(2) > div > a > span';
           const exactElement = document.querySelector(exactSelector);
+          console.log('[Instagram Debug] Exact selector element found:', !!exactElement);
+          
           if (exactElement) {
+            console.log('[Instagram Debug] Exact element text:', exactElement.textContent);
+            console.log('[Instagram Debug] Exact element HTML:', exactElement.innerHTML);
+            
             // span 내부의 span[title] 찾기
             const titleSpan = exactElement.querySelector('span[title]') as HTMLSpanElement | null;
             if (titleSpan) {
               const title = titleSpan.getAttribute('title');
+              console.log('[Instagram Debug] Title attribute:', title);
               if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
                 console.log(`[정확한 셀렉터] 팔로워 발견: ${title}`);
-                return { followers: title, method: 'exact-selector' };
+                return { followers: title, method: 'exact-selector', debug: { elementText: exactElement.textContent } };
               }
             }
             // title이 없는 경우 숫자 텍스트 직접 찾기
@@ -422,49 +445,61 @@ export async function POST(req: NextRequest) {
             const match = text.match(/(\d{1,3}(?:,\d{3})*)/);
             if (match) {
               console.log(`[정확한 셀렉터 텍스트] 팔로워 발견: ${match[1]}`);
-              return { followers: match[1], method: 'exact-selector-text' };
+              return { followers: match[1], method: 'exact-selector-text', debug: { elementText: text } };
             }
           }
           
           // 2. 팔로워 텍스트가 있는 링크에서 찾기
           const links = document.querySelectorAll('a[href*="/followers"]');
+          console.log('[Instagram Debug] Followers links found:', links.length);
           for (const link of links) {
+            console.log('[Instagram Debug] Link text:', link.textContent);
             const titleSpan = link.querySelector('span[title]') as HTMLSpanElement | null;
             if (titleSpan) {
               const title = titleSpan.getAttribute('title');
+              console.log('[Instagram Debug] Link title attribute:', title);
               if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
                 console.log(`[followers 링크] 팔로워 발견: ${title}`);
-                return { followers: title, method: 'followers-link' };
+                return { followers: title, method: 'followers-link', debug: { linkText: link.textContent } };
               }
             }
           }
           
           // 3. 모든 span[title] 검색
           const spans = document.querySelectorAll('span[title]');
-          for (const span of spans) {
+          console.log('[Instagram Debug] Total span[title] elements:', spans.length);
+          
+          // 처음 10개만 디버그 출력
+          for (let i = 0; i < Math.min(10, spans.length); i++) {
+            const span = spans[i];
             const title = span.getAttribute('title');
+            console.log(`[Instagram Debug] Span ${i} title:`, title, 'text:', span.textContent);
+            
             if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
               const parent = span.parentElement;
               if (parent && (parent.textContent?.includes('팔로워') || parent.textContent?.toLowerCase().includes('follower'))) {
                 console.log(`[일반 span] 팔로워 발견: ${title}`);
-                return { followers: title, method: 'general-span' };
+                return { followers: title, method: 'general-span', debug: { parentText: parent.textContent } };
               }
             }
           }
+          
+          // 디버그: 페이지에 "팔로워" 또는 "follower" 텍스트가 있는지 확인
+          const bodyText = document.body.innerText || '';
+          const hasFollowerText = bodyText.includes('팔로워') || bodyText.toLowerCase().includes('follower');
+          console.log('[Instagram Debug] Page has follower text:', hasFollowerText);
           
           return null;
         });
         
         if (followerData) {
           console.log(`[Instagram] 동적 추출 성공:`, followerData);
-          const partialHtml = await page.evaluate(() => {
-            const head = document.head?.outerHTML || '';
-            const bodyText = document.body?.innerText?.substring(0, 5000) || '';
-            return head + bodyText;
-          });
+          const partialHtml = await page.content();
           finalHtml = partialHtml + `\n<!-- INSTAGRAM_FOLLOWERS_EXTRACTED: ${followerData.followers} -->`;
         } else {
           console.log('[Instagram] 동적 추출 실패, 전체 HTML 사용');
+          // 전체 HTML 가져오기
+          finalHtml = await page.content();
         }
       } catch (e) {
         console.log('[Instagram] 추출 오류:', e);
@@ -746,15 +781,37 @@ export async function POST(req: NextRequest) {
     console.log(`팔로워: ${followers}`);
     console.log('========================================\n');
     
+    // 상세 디버그 정보 추가
+    const debugInfo: any = {
+      htmlLength: html.length,
+      hasFollowerText: html.includes('follower') || html.includes('Follower') || html.includes('팔로워'),
+      timestamp: new Date().toISOString(),
+      normalizedUrl: url,
+      originalUrl: rawUrl
+    };
+    
+    // Instagram 특별 디버그
+    if (platform === 'instagram') {
+      // HTML에서 title 속성 찾기
+      const titleMatches = html.match(/title="([\d,]+)"/g);
+      debugInfo.titleAttributesFound = titleMatches ? titleMatches.slice(0, 5) : [];
+      
+      // meta 태그 확인
+      const metaMatch = html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i);
+      debugInfo.metaDescription = metaMatch ? metaMatch[1].substring(0, 200) : null;
+      
+      // 추출 방법 확인
+      if (html.includes('INSTAGRAM_FOLLOWERS_EXTRACTED')) {
+        const extractMatch = html.match(/INSTAGRAM_FOLLOWERS_EXTRACTED: ([\d,]+)/);
+        debugInfo.extractedValue = extractMatch ? extractMatch[1] : null;
+      }
+    }
+    
     return NextResponse.json({
       platform,
       followers,
       html: html.substring(0, 1000), // 디버그용
-      debug: {
-        htmlLength: html.length,
-        hasFollowerText: html.includes('follower') || html.includes('Follower') || html.includes('팔로워'),
-        timestamp: new Date().toISOString()
-      }
+      debug: debugInfo
     });
     
   } catch (error) {

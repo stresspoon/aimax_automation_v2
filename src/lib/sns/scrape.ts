@@ -42,7 +42,7 @@ export function normalizeUrl(input: string, platform?: 'threads' | 'instagram' |
 
 export function detectPlatform(url: string): Metrics['platform'] {
   const u = url.toLowerCase()
-  if (u.includes('threads.net') || u.includes('threads.com') || u.includes('threads.net')) return 'threads'
+  if (u.includes('threads.net') || u.includes('threads.com')) return 'threads'
   if (u.includes('instagram.com')) return 'instagram'
   if (u.includes('blog.naver.com') || u.includes('m.blog.naver.com')) return 'naver_blog'
   return 'unknown'
