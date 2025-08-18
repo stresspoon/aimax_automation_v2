@@ -6,25 +6,27 @@ import { chromium } from 'playwright'
 function extractInstagramFollowers(html: string): number {
   console.log('인스타그램 팔로워 추출 시작...');
   
-  // 0. JavaScript로 추출된 팔로워 수 확인 (가장 정확)
+  // 0. JavaScript로 추출된 팔로워 수 후보 (최우선 후보지만 메타 값과 비교해 품질 보정)
+  let jsExtracted: number | null = null;
   const extractedPattern = /<!-- INSTAGRAM_FOLLOWERS_EXTRACTED: ([\d,]+) -->/;
   const extractedMatch = html.match(extractedPattern);
   if (extractedMatch) {
-    const number = parseInt(extractedMatch[1].replace(/,/g, ''));
-    console.log(`✅ 인스타그램 팔로워 수 (JS 추출): ${number}`);
-    return number;
+    jsExtracted = parseInt(extractedMatch[1].replace(/,/g, '')) || null;
+    console.log(`✅ 인스타그램 팔로워 수 (JS 추출 후보): ${jsExtracted ?? 'null'}`);
   }
   
   // 0-1. HTML에 직접 숫자가 있는 경우 (새로운 Instagram 형식)
   // <span title="9,706">9,706</span> 형식
   const spanTitlePattern = /<span[^>]*title="([\d,]+)"[^>]*>[\d,\.]+[KMk만천]?<\/span>/g;
   let spanMatch;
+  let spanTitleCandidate: number | null = null;
   while ((spanMatch = spanTitlePattern.exec(html)) !== null) {
     const text = html.substring(Math.max(0, spanMatch.index - 100), spanMatch.index + 200);
     if (text.includes('팔로워') || text.toLowerCase().includes('follower')) {
       const number = parseInt(spanMatch[1].replace(/,/g, ''));
       console.log(`✅ 인스타그램 팔로워 수 (span title): ${number}`);
-      return number;
+      spanTitleCandidate = number;
+      break;
     }
   }
   
@@ -74,8 +76,15 @@ function extractInstagramFollowers(html: string): number {
             }
           }
           
-          console.log(`인스타그램 팔로워 수 (meta): ${number}`);
-          return parseInt(number) || 0;
+          const metaNum = parseInt(number) || 0;
+          console.log(`인스타그램 팔로워 수 (meta): ${metaNum}`);
+          // 메타가 유효하면 즉시 반환하지 말고 최종 비교에 사용
+          // 아래에서 jsExtracted, spanTitleCandidate와 함께 최대값 선택
+          const candidates = [jsExtracted, spanTitleCandidate, metaNum].filter((v): v is number => typeof v === 'number' && !isNaN(v));
+          if (candidates.length > 0) {
+            return Math.max(...candidates);
+          }
+          return metaNum;
         }
       }
     }
@@ -93,10 +102,11 @@ function extractInstagramFollowers(html: string): number {
     }
   }
   
-  if (titleMatches.length > 0) {
-    const maxNum = Math.max(...titleMatches);
-    console.log(`인스타그램 팔로워 수 (최대 title 값): ${maxNum}`);
-    return maxNum;
+  const candidates = [jsExtracted, spanTitleCandidate, ...(titleMatches.length ? [Math.max(...titleMatches)] : [])].filter((v): v is number => typeof v === 'number' && !isNaN(v));
+  if (candidates.length > 0) {
+    const best = Math.max(...candidates);
+    console.log(`인스타그램 팔로워 수 (최종 선택): ${best}`);
+    return best;
   }
   
   return 0;
@@ -448,6 +458,26 @@ export async function POST(req: NextRequest) {
               return { followers: match[1], method: 'exact-selector-text', debug: { elementText: text } };
             }
           }
+
+          // 1-보강: 사용자가 제공한 긴 경로 셀렉터 시도 (가장 깊은 span)
+          const providedPath = '#mount_0_0_4S > div > div > div.x9f619.x1n2onr6.x1ja2u2z > div > div > div.x78zum5.xdt5ytf.x1t2pt76.x1n2onr6.x1ja2u2z.x10cihs4 > div.html-div.xdj266r.x14z9mp.xat24cr.x1lziwak.xexx8yu.xyri2b.x18d9i69.x1c1uobl.x9f619.x16ye13r.xvbhtw8.x78zum5.x15mokao.x1ga7v0g.x16uus16.xbiv7yw.x1uhb9sk.x1plvlek.xryxfnj.x1c4vz4f.x2lah0s.x1q0g3np.xqjyukv.x1qjc9v5.x1oa3qoh.x1qughib > div.xvc5jky.xh8yej3.x10o80wk.x14k21rp.x17snn68.x6osk4m.x1porb0y.x8vgawa > section > main > div > div > header > section.xc3tme8.x1xdureb.x18wylqe.x13vxnyz.xvxrpd7 > ul > li:nth-child(2) > div > a > span > span > span';
+          const providedEl = document.querySelector(providedPath) as HTMLElement | null;
+          if (providedEl) {
+            const titleAttr = providedEl.getAttribute('title');
+            if (titleAttr && /^\d{1,3}(,\d{3})*$/.test(titleAttr)) {
+              return { followers: titleAttr, method: 'provided-selector-title' } as const;
+            }
+            const innerTitle = providedEl.querySelector('span[title]') as HTMLSpanElement | null;
+            const inner = innerTitle?.getAttribute('title') || '';
+            if (inner && /^\d{1,3}(,\d{3})*$/.test(inner)) {
+              return { followers: inner, method: 'provided-selector-inner-title' } as const;
+            }
+            const t = (providedEl.textContent || '').trim();
+            const m = t.match(/(\d{1,3}(?:,\d{3})*)/);
+            if (m) {
+              return { followers: m[1], method: 'provided-selector-text' } as const;
+            }
+          }
           
           // 2. 팔로워 텍스트가 있는 링크에서 찾기
           const links = document.querySelectorAll('a[href*="/followers"]');
@@ -516,7 +546,11 @@ export async function POST(req: NextRequest) {
           // 메인 추출 로직
           (async (): Promise<ThreadsFollowerData> => {
             // span[title] 요소가 나타날 때까지 최대 3초 대기
+            await page.waitForLoadState('domcontentloaded').catch(() => {});
+            await page.waitForTimeout(400);
             await page.waitForSelector('span[title]', { timeout: 3000 }).catch(() => {});
+            // 상단으로 스크롤(안전)
+            await page.evaluate(() => window.scrollTo(0, 0));
             
             // JavaScript로 직접 팔로워 수 추출
             return await page.evaluate(() => {
