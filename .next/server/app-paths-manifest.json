@@ -1,9 +1,6 @@
 {
-  "/api/projects/route": "app/api/projects/route.js",
-  "/api/sheets/prepare/route": "app/api/sheets/prepare/route.js",
-  "/api/sheets/measure/route": "app/api/sheets/measure/route.js",
   "/page": "app/page.js",
-  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
   "/signup/page": "app/signup/page.js"
 }

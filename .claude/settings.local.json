@@ -17,7 +17,12 @@
       "Bash(kill:*)",
       "Bash(npx playwright:*)",
       "Bash(npx next dev:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(git rm:*)",
+      "Bash(touch:*)",
+      "Bash(git reset:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

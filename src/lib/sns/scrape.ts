@@ -342,29 +342,32 @@ export async function parseMetrics(url: string): Promise<Metrics> {
 
 // Proxy helpers (optional): use when dynamic rendering blocks static scraping
 async function fetchViaDynamicProxy(targetUrl: string): Promise<string | null> {
-  // Playwright 서버 (포트 3002) 사용
-  const base = 'http://localhost:3002/dynamic-proxy?url='
+  // 단일 포트 SNS 스크래핑 API 사용
+  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'
   try {
-    console.log(`[Proxy] Playwright 서버로 요청: ${targetUrl}`)
-    const res = await fetch(`${base}${encodeURIComponent(targetUrl)}`, {
+    console.log(`[Proxy] SNS API로 요청: ${targetUrl}`)
+    const res = await fetch(`${base}/api/sns/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl }),
       signal: AbortSignal.timeout(30000) // 30초 타임아웃
     })
     if (!res.ok) {
-      console.log(`[Proxy] Playwright 서버 응답 실패: ${res.status}`)
+      console.log(`[Proxy] SNS API 응답 실패: ${res.status}`)
       return null
     }
-    const html = await res.text()
-    console.log(`[Proxy] Playwright 서버 응답 성공, HTML 길이: ${html.length}`)
-    return html
+    const data = await res.json()
+    console.log(`[Proxy] SNS API 응답 성공, 팔로워: ${data.followers}`)
+    return data.html || null
   } catch (err) {
-    console.error('[Proxy] Playwright 서버 오류:', err)
+    console.error('[Proxy] SNS API 오류:', err)
     return null
   }
 }
 
 async function fetchViaProxy(targetUrl: string): Promise<string | null> {
-  // 기본 프록시는 사용하지 않음 (Playwright 서버만 사용)
-  return null
+  // fetchViaDynamicProxy를 사용
+  return fetchViaDynamicProxy(targetUrl)
 }
 
 
