@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
-import { chromium } from 'playwright'
+import { chromium } from 'playwright-chromium'
 
 // auto-sns.zip script.js의 정확한 추출 로직
 function extractInstagramFollowers(html: string): number {
@@ -400,10 +400,17 @@ export async function POST(req: NextRequest) {
   try {
     console.log(`[SNS Scrape API] Playwright로 동적 콘텐츠 가져오기 시작...`);
     
-    // 브라우저 실행
+    // 브라우저 실행 (Vercel 환경 대응)
     browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote'
+      ]
     });
     
     const context = await browser.newContext({
