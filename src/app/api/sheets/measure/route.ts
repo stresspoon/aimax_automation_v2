@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { parseMetrics } from '@/lib/sns/scrape'
+import { parseMetrics, normalizeUrl } from '@/lib/sns/scrape'
 
 const BodySchema = z.object({
   candidate: z.object({
     name: z.string().optional(),
     email: z.string().optional(),
     phone: z.string().optional(),
-    threadsUrl: z.string().url().optional().or(z.literal('')).default(''),
-    instagramUrl: z.string().url().optional().or(z.literal('')).default(''),
-    blogUrl: z.string().url().optional().or(z.literal('')).default(''),
+    // URL 또는 아이디만 허용
+    threadsUrl: z.string().optional().default(''),
+    instagramUrl: z.string().optional().default(''),
+    blogUrl: z.string().optional().default(''),
   }),
   criteria: z.object({
     threads: z.number().default(500),
@@ -25,30 +26,45 @@ export async function POST(req: Request) {
     const body = BodySchema.parse(json)
     let threads = 0, blog = 0, instagram = 0
     const ch = body.channel
+    
+    // Threads 처리
     if (ch === 'threads' || ch === 'all') {
       if (body.candidate.threadsUrl) {
         try {
-          const m = await parseMetrics(body.candidate.threadsUrl)
+          // URL 정규화 (아이디만 입력한 경우 처리)
+          const normalizedUrl = normalizeUrl(body.candidate.threadsUrl, 'threads')
+          console.log(`[measure] Threads URL 정규화: "${body.candidate.threadsUrl}" → "${normalizedUrl}"`)
+          const m = await parseMetrics(normalizedUrl)
           threads = m.followers || 0
         } catch (e) {
           console.error('threads parse error:', e)
         }
       }
     }
+    
+    // Blog 처리
     if (ch === 'blog' || ch === 'all') {
       if (body.candidate.blogUrl) {
         try {
-          const m = await parseMetrics(body.candidate.blogUrl)
+          // URL 정규화 (아이디만 입력한 경우 처리)
+          const normalizedUrl = normalizeUrl(body.candidate.blogUrl, 'blog')
+          console.log(`[measure] Blog URL 정규화: "${body.candidate.blogUrl}" → "${normalizedUrl}"`)
+          const m = await parseMetrics(normalizedUrl)
           blog = m.neighbors || 0
         } catch (e) {
           console.error('blog parse error:', e)
         }
       }
     }
+    
+    // Instagram 처리
     if (ch === 'instagram' || ch === 'all') {
       if (body.candidate.instagramUrl) {
         try {
-          const m = await parseMetrics(body.candidate.instagramUrl)
+          // URL 정규화 (아이디만 입력한 경우 처리)
+          const normalizedUrl = normalizeUrl(body.candidate.instagramUrl, 'instagram')
+          console.log(`[measure] Instagram URL 정규화: "${body.candidate.instagramUrl}" → "${normalizedUrl}"`)
+          const m = await parseMetrics(normalizedUrl)
           instagram = m.followers || 0
         } catch (e) {
           console.error('instagram parse error:', e)

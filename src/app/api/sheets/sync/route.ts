@@ -291,6 +291,11 @@ export async function POST(req: Request) {
           }
           
           const result = await response.json()
+          console.log(`[${name}] API 응답:`, {
+            platform: result.platform,
+            followers: result.followers,
+            debug: result.debug
+          })
           
           if (result.followers > 0) {
             threads = result.followers
@@ -299,7 +304,8 @@ export async function POST(req: Request) {
           } else {
             checkStatus.threads = 'error'
             checkStatus.threadsError = '팔로워 수를 가져올 수 없음'
-            console.log(`[${name}] ❌ Threads 팔로워 수를 찾을 수 없음`)
+            console.log(`[${name}] ❌ Threads 팔로워 수를 찾을 수 없음 (0 반환)`)
+            console.log(`[${name}] HTML 샘플:`, result.html?.substring(0, 200))
           }
         } catch (error) {
           checkStatus.threads = 'error'
@@ -332,6 +338,11 @@ export async function POST(req: Request) {
           }
           
           const result = await response.json()
+          console.log(`[${name}] Instagram API 응답:`, {
+            platform: result.platform,
+            followers: result.followers,
+            debug: result.debug
+          })
           
           if (result.followers > 0) {
             instagram = result.followers
@@ -340,7 +351,8 @@ export async function POST(req: Request) {
           } else {
             checkStatus.instagram = 'error'
             checkStatus.instagramError = '팔로워 수를 가져올 수 없음'
-            console.log(`[${name}] ❌ Instagram 팔로워 수를 찾을 수 없음`)
+            console.log(`[${name}] ❌ Instagram 팔로워 수를 찾을 수 없음 (0 반환)`)
+            console.log(`[${name}] HTML 샘플:`, result.html?.substring(0, 200))
           }
         } catch (error) {
           checkStatus.instagram = 'error'
@@ -373,6 +385,11 @@ export async function POST(req: Request) {
           }
           
           const result = await response.json()
+          console.log(`[${name}] 블로그 API 응답:`, {
+            platform: result.platform,
+            followers: result.followers,
+            debug: result.debug
+          })
           
           if (result.followers > 0) {
             blog = result.followers
@@ -381,7 +398,8 @@ export async function POST(req: Request) {
           } else {
             checkStatus.blog = 'error'
             checkStatus.blogError = '이웃 수를 가져올 수 없음'
-            console.log(`[${name}] ❌ 블로그 이웃 수를 찾을 수 없음`)
+            console.log(`[${name}] ❌ 블로그 이웃 수를 찾을 수 없음 (0 반환)`)
+            console.log(`[${name}] HTML 샘플:`, result.html?.substring(0, 200))
           }
         } catch (error) {
           checkStatus.blog = 'error'
