@@ -781,13 +781,103 @@ export async function POST(req: NextRequest) {
     console.log(`팔로워: ${followers}`);
     console.log('========================================\n');
     
+    // 실패 원인 분석
+    let failureReason = null;
+    let extractionAttempts: any[] = [];
+    
+    if (followers === 0) {
+      // 실패 원인 분석
+      if (platform === 'instagram') {
+        // Instagram 실패 원인
+        const hasMetaTag = html.includes('og:description');
+        const hasFollowerText = html.includes('follower') || html.includes('Follower') || html.includes('팔로워');
+        const hasTitleAttribute = html.includes('title="');
+        
+        extractionAttempts.push({
+          method: 'meta_tag',
+          found: hasMetaTag,
+          detail: hasMetaTag ? 'Meta 태그는 있지만 팔로워 수를 추출할 수 없음' : 'Meta 태그 없음'
+        });
+        
+        extractionAttempts.push({
+          method: 'title_attribute',
+          found: hasTitleAttribute,
+          detail: hasTitleAttribute ? 'title 속성은 있지만 유효한 숫자를 찾을 수 없음' : 'title 속성 없음'
+        });
+        
+        extractionAttempts.push({
+          method: 'follower_text',
+          found: hasFollowerText,
+          detail: hasFollowerText ? '팔로워 텍스트는 있지만 숫자와 매칭되지 않음' : '팔로워 텍스트 없음'
+        });
+        
+        if (!hasMetaTag && !hasFollowerText) {
+          failureReason = '페이지가 정상적으로 로드되지 않았거나 비공개 계정일 수 있습니다';
+        } else if (hasFollowerText && !hasTitleAttribute) {
+          failureReason = '페이지 구조가 변경되었을 수 있습니다';
+        } else {
+          failureReason = '팔로워 수 추출 패턴이 일치하지 않습니다';
+        }
+      } else if (platform === 'threads') {
+        // Threads 실패 원인
+        const hasBarcelona = html.includes('barcelona-page-layout');
+        const hasFollowerText = html.includes('팔로워') || html.includes('follower');
+        const hasTitleAttribute = html.includes('title="');
+        
+        extractionAttempts.push({
+          method: 'barcelona_layout',
+          found: hasBarcelona,
+          detail: hasBarcelona ? 'Barcelona 레이아웃은 있지만 팔로워 요소를 찾을 수 없음' : 'Barcelona 레이아웃 없음'
+        });
+        
+        extractionAttempts.push({
+          method: 'title_attribute',
+          found: hasTitleAttribute,
+          detail: hasTitleAttribute ? 'title 속성은 있지만 팔로워 수가 아님' : 'title 속성 없음'
+        });
+        
+        if (!hasBarcelona && !hasFollowerText) {
+          failureReason = '페이지가 정상적으로 로드되지 않았거나 계정이 존재하지 않을 수 있습니다';
+        } else if (html.length < 50000) {
+          failureReason = '페이지가 부분적으로만 로드되었습니다';
+        } else {
+          failureReason = 'Threads 페이지 구조가 변경되었을 수 있습니다';
+        }
+      } else if (platform === 'naver_blog') {
+        // 네이버 블로그 실패 원인
+        const hasIframe = html.includes('mainFrame');
+        const hasBuddy = html.includes('이웃') || html.includes('buddy');
+        
+        extractionAttempts.push({
+          method: 'iframe',
+          found: hasIframe,
+          detail: hasIframe ? 'iframe은 있지만 이웃 수를 찾을 수 없음' : 'iframe 없음 (모바일 버전일 수 있음)'
+        });
+        
+        extractionAttempts.push({
+          method: 'buddy_text',
+          found: hasBuddy,
+          detail: hasBuddy ? '이웃 텍스트는 있지만 숫자를 추출할 수 없음' : '이웃 관련 텍스트 없음'
+        });
+        
+        if (!hasBuddy) {
+          failureReason = '블로그가 존재하지 않거나 비공개일 수 있습니다';
+        } else {
+          failureReason = '블로그 이웃 수가 표시되지 않거나 페이지 구조가 변경되었습니다';
+        }
+      }
+    }
+    
     // 상세 디버그 정보 추가
     const debugInfo: any = {
       htmlLength: html.length,
       hasFollowerText: html.includes('follower') || html.includes('Follower') || html.includes('팔로워'),
       timestamp: new Date().toISOString(),
       normalizedUrl: url,
-      originalUrl: rawUrl
+      originalUrl: rawUrl,
+      success: followers > 0,
+      failureReason,
+      extractionAttempts
     };
     
     // Instagram 특별 디버그
