@@ -57,17 +57,22 @@ export async function POST(req: Request) {
     
     const { accessToken, refreshToken, email } = await req.json()
     
-    // Gmail 연결 정보 저장
+    // Gmail 연결 정보 저장 (먼저 기존 연결 삭제)
+    await supabase
+      .from('gmail_connections')
+      .delete()
+      .eq('user_id', user.id)
+    
+    // 새로운 연결 정보 저장
     const { error } = await supabase
       .from('gmail_connections')
-      .upsert({
+      .insert({
         user_id: user.id,
         email,
         access_token: accessToken,
         refresh_token: refreshToken,
         connected_at: new Date().toISOString(),
       })
-      .eq('user_id', user.id)
     
     if (error) {
       console.error('Gmail connection save error:', error)
