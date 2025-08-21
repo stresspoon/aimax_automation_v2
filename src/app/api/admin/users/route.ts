@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { verifyAdmin } from '@/lib/admin-auth'
 
@@ -10,17 +10,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
-  // Service Role 키를 사용하여 RLS 우회
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
+  // Service Role 키로 순수 서버 클라이언트 생성 (세션/쿠키 비사용)
+  const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
+      auth: { persistSession: false, autoRefreshToken: false },
     }
   )
   const searchParams = request.nextUrl.searchParams
@@ -125,17 +120,12 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
-  // Service Role 키를 사용하여 RLS 우회
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
+  // Service Role 키로 순수 서버 클라이언트 생성 (세션/쿠키 비사용)
+  const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
+      auth: { persistSession: false, autoRefreshToken: false },
     }
   )
   
@@ -224,17 +214,12 @@ export async function DELETE(request: NextRequest) {
     )
   }
 
-  // Service Role 키를 사용하여 RLS 우회
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
+  // Service Role 키로 순수 서버 클라이언트 생성 (세션/쿠키 비사용)
+  const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
+      auth: { persistSession: false, autoRefreshToken: false },
     }
   )
 
