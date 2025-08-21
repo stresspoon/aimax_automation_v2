@@ -1,423 +1,572 @@
 'use client'
 
-import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { 
-  Settings, 
-  Bell, 
-  Shield, 
-  Database,
-  Mail,
-  Globe,
-  Key,
-  Save,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  Server,
-  Zap
-} from 'lucide-react'
-import { toast } from "sonner"
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/hooks/use-toast'
+import { Save, RefreshCw, Globe, Mail, Shield, Database, Bell } from 'lucide-react'
+
+interface SystemSettings {
+  // 일반 설정
+  site_name?: string
+  site_url?: string
+  maintenance_mode?: boolean
+  maintenance_message?: string
+  
+  // 이메일 설정
+  smtp_host?: string
+  smtp_port?: number
+  smtp_user?: string
+  smtp_from?: string
+  email_notifications?: boolean
+  
+  // 보안 설정
+  session_timeout?: number
+  max_login_attempts?: number
+  password_min_length?: number
+  require_2fa?: boolean
+  
+  // 알림 설정
+  slack_webhook?: string
+  discord_webhook?: string
+  notification_email?: string
+  
+  // API 설정
+  api_rate_limit?: number
+  api_timeout?: number
+  max_file_size?: number
+}
 
 export default function SettingsPage() {
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [pushNotifications, setPushNotifications] = useState(false)
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [autoBackup, setAutoBackup] = useState(true)
-  const [apiRateLimit, setApiRateLimit] = useState('1000')
-  const [sessionTimeout, setSessionTimeout] = useState('30')
+  const [settings, setSettings] = useState<SystemSettings>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
 
-  const handleSave = () => {
-    toast.success("설정이 저장되었습니다")
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/settings')
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings')
+      }
+
+      const data = await response.json()
+      
+      // JSON 문자열로 저장된 값들을 파싱
+      const parsedSettings: SystemSettings = {}
+      for (const key in data) {
+        try {
+          parsedSettings[key as keyof SystemSettings] = JSON.parse(data[key])
+        } catch {
+          parsedSettings[key as keyof SystemSettings] = data[key]
+        }
+      }
+      
+      setSettings(parsedSettings)
+    } catch (error) {
+      console.error('Error fetching settings:', error)
+      toast({
+        title: '오류',
+        description: '설정을 불러오는 중 오류가 발생했습니다.',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const saveSetting = async (key: string, value: any) => {
+    setSaving(true)
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key, value })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save setting')
+      }
+
+      setSettings(prev => ({ ...prev, [key]: value }))
+      
+      toast({
+        title: '저장 완료',
+        description: '설정이 성공적으로 저장되었습니다.',
+      })
+    } catch (error) {
+      console.error('Error saving setting:', error)
+      toast({
+        title: '오류',
+        description: '설정 저장 중 오류가 발생했습니다.',
+        variant: 'destructive'
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleInputChange = (key: keyof SystemSettings, value: any) => {
+    setSettings(prev => ({ ...prev, [key]: value }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <p className="mt-2 text-gray-500">설정을 불러오는 중...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* 페이지 헤더 */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">시스템 설정</h1>
-        <p className="text-gray-500 mt-2">플랫폼 전체 설정을 관리합니다</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">시스템 설정</h1>
+          <p className="text-gray-500 mt-1">시스템 전반의 설정을 관리합니다</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchSettings()}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          새로고침
+        </Button>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto">
-          <TabsTrigger value="general">일반</TabsTrigger>
-          <TabsTrigger value="notifications">알림</TabsTrigger>
-          <TabsTrigger value="security">보안</TabsTrigger>
-          <TabsTrigger value="database">데이터베이스</TabsTrigger>
-          <TabsTrigger value="api">API</TabsTrigger>
-          <TabsTrigger value="maintenance">유지보수</TabsTrigger>
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">
+            <Globe className="w-4 h-4 mr-2" />
+            일반
+          </TabsTrigger>
+          <TabsTrigger value="email">
+            <Mail className="w-4 h-4 mr-2" />
+            이메일
+          </TabsTrigger>
+          <TabsTrigger value="security">
+            <Shield className="w-4 h-4 mr-2" />
+            보안
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="w-4 h-4 mr-2" />
+            알림
+          </TabsTrigger>
+          <TabsTrigger value="api">
+            <Database className="w-4 h-4 mr-2" />
+            API
+          </TabsTrigger>
         </TabsList>
 
-        {/* 일반 설정 */}
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="general">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                일반 설정
-              </CardTitle>
-              <CardDescription>
-                기본 시스템 설정을 구성합니다
-              </CardDescription>
+              <CardTitle>일반 설정</CardTitle>
+              <CardDescription>사이트 기본 정보 및 유지보수 설정</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="site-name">사이트 이름</Label>
-                  <Input id="site-name" defaultValue="AIMAX" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="site-url">사이트 URL</Label>
-                  <Input id="site-url" defaultValue="https://aimax.co.kr" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-email">관리자 이메일</Label>
-                  <Input id="admin-email" type="email" defaultValue="admin@aimax.co.kr" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="support-email">지원 이메일</Label>
-                  <Input id="support-email" type="email" defaultValue="support@aimax.co.kr" />
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="site_name">사이트 이름</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="site_name"
+                    value={settings.site_name || ''}
+                    onChange={(e) => handleInputChange('site_name', e.target.value)}
+                    placeholder="AIMAX v2"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('site_name', settings.site_name)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="site-description">사이트 설명</Label>
-                <Textarea 
-                  id="site-description" 
-                  defaultValue="AI 기반 마케팅 자동화 플랫폼"
-                  rows={3}
+                <Label htmlFor="site_url">사이트 URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="site_url"
+                    value={settings.site_url || ''}
+                    onChange={(e) => handleInputChange('site_url', e.target.value)}
+                    placeholder="https://aimax.kr"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('site_url', settings.site_url)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="maintenance_mode">유지보수 모드</Label>
+                  <p className="text-sm text-gray-500">사이트를 유지보수 모드로 전환합니다</p>
+                </div>
+                <Switch
+                  id="maintenance_mode"
+                  checked={settings.maintenance_mode || false}
+                  onCheckedChange={(checked) => {
+                    handleInputChange('maintenance_mode', checked)
+                    saveSetting('maintenance_mode', checked)
+                  }}
                 />
               </div>
+
+              {settings.maintenance_mode && (
+                <div className="space-y-2">
+                  <Label htmlFor="maintenance_message">유지보수 메시지</Label>
+                  <div className="flex gap-2">
+                    <Textarea
+                      id="maintenance_message"
+                      value={settings.maintenance_message || ''}
+                      onChange={(e) => handleInputChange('maintenance_message', e.target.value)}
+                      placeholder="시스템 점검 중입니다. 잠시 후 다시 이용해 주세요."
+                      rows={3}
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => saveSetting('maintenance_message', settings.maintenance_message)}
+                      disabled={saving}
+                    >
+                      <Save className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email">
+          <Card>
+            <CardHeader>
+              <CardTitle>이메일 설정</CardTitle>
+              <CardDescription>이메일 발송 관련 설정</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="timezone">시간대</Label>
-                <Select defaultValue="asia-seoul">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asia-seoul">Asia/Seoul (UTC+9)</SelectItem>
-                    <SelectItem value="asia-tokyo">Asia/Tokyo (UTC+9)</SelectItem>
-                    <SelectItem value="us-eastern">US/Eastern (UTC-5)</SelectItem>
-                    <SelectItem value="us-pacific">US/Pacific (UTC-8)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 알림 설정 */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5" />
-                알림 설정
-              </CardTitle>
-              <CardDescription>
-                시스템 알림 방식을 설정합니다
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>이메일 알림</Label>
-                    <p className="text-sm text-gray-500">중요한 시스템 이벤트를 이메일로 받습니다</p>
-                  </div>
-                  <Switch 
-                    checked={emailNotifications}
-                    onCheckedChange={setEmailNotifications}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>푸시 알림</Label>
-                    <p className="text-sm text-gray-500">브라우저 푸시 알림을 활성화합니다</p>
-                  </div>
-                  <Switch 
-                    checked={pushNotifications}
-                    onCheckedChange={setPushNotifications}
-                  />
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label>알림 받을 이벤트</Label>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" defaultChecked className="rounded" />
-                      <span className="text-sm">새 사용자 가입</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" defaultChecked className="rounded" />
-                      <span className="text-sm">캠페인 완료</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" defaultChecked className="rounded" />
-                      <span className="text-sm">시스템 오류</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded" />
-                      <span className="text-sm">일일 리포트</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 보안 설정 */}
-        <TabsContent value="security" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                보안 설정
-              </CardTitle>
-              <CardDescription>
-                시스템 보안 정책을 관리합니다
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="session-timeout">세션 타임아웃 (분)</Label>
-                  <Input 
-                    id="session-timeout" 
-                    type="number" 
-                    value={sessionTimeout}
-                    onChange={(e) => setSessionTimeout(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max-login-attempts">최대 로그인 시도 횟수</Label>
-                  <Input id="max-login-attempts" type="number" defaultValue="5" />
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>2단계 인증 필수</Label>
-                    <p className="text-sm text-gray-500">모든 관리자 계정에 2FA를 강제합니다</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>IP 화이트리스트</Label>
-                    <p className="text-sm text-gray-500">특정 IP만 관리자 페이지 접근 허용</p>
-                  </div>
-                  <Switch />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 데이터베이스 설정 */}
-        <TabsContent value="database" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="w-5 h-5" />
-                데이터베이스 설정
-              </CardTitle>
-              <CardDescription>
-                데이터베이스 백업 및 최적화 설정
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>자동 백업</Label>
-                    <p className="text-sm text-gray-500">매일 자동으로 데이터베이스를 백업합니다</p>
-                  </div>
-                  <Switch 
-                    checked={autoBackup}
-                    onCheckedChange={setAutoBackup}
-                  />
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label>백업 주기</Label>
-                  <Select defaultValue="daily">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hourly">매시간</SelectItem>
-                      <SelectItem value="daily">매일</SelectItem>
-                      <SelectItem value="weekly">매주</SelectItem>
-                      <SelectItem value="monthly">매월</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>백업 보관 기간</Label>
-                  <Select defaultValue="30">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">7일</SelectItem>
-                      <SelectItem value="14">14일</SelectItem>
-                      <SelectItem value="30">30일</SelectItem>
-                      <SelectItem value="90">90일</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  수동 백업 실행
-                </Button>
-                <Button variant="outline">
-                  데이터베이스 최적화
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* API 설정 */}
-        <TabsContent value="api" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5" />
-                API 설정
-              </CardTitle>
-              <CardDescription>
-                API 사용량 제한 및 인증 설정
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="rate-limit">API Rate Limit (요청/시간)</Label>
-                  <Input 
-                    id="rate-limit" 
-                    type="number" 
-                    value={apiRateLimit}
-                    onChange={(e) => setApiRateLimit(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="api-timeout">API 타임아웃 (초)</Label>
-                  <Input id="api-timeout" type="number" defaultValue="30" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>API 키</Label>
+                <Label htmlFor="smtp_host">SMTP 호스트</Label>
                 <div className="flex gap-2">
-                  <Input 
-                    type="password" 
-                    defaultValue="sk_live_xxxxxxxxxxxxxxxxxxx" 
-                    readOnly
+                  <Input
+                    id="smtp_host"
+                    value={settings.smtp_host || ''}
+                    onChange={(e) => handleInputChange('smtp_host', e.target.value)}
+                    placeholder="smtp.gmail.com"
                   />
-                  <Button variant="outline">재생성</Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('smtp_host', settings.smtp_host)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>API 로깅</Label>
-                    <p className="text-sm text-gray-500">모든 API 요청을 로깅합니다</p>
-                  </div>
-                  <Switch defaultChecked />
+
+              <div className="space-y-2">
+                <Label htmlFor="smtp_port">SMTP 포트</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="smtp_port"
+                    type="number"
+                    value={settings.smtp_port || ''}
+                    onChange={(e) => handleInputChange('smtp_port', parseInt(e.target.value))}
+                    placeholder="587"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('smtp_port', settings.smtp_port)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="smtp_from">발신자 이메일</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="smtp_from"
+                    type="email"
+                    value={settings.smtp_from || ''}
+                    onChange={(e) => handleInputChange('smtp_from', e.target.value)}
+                    placeholder="noreply@aimax.kr"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('smtp_from', settings.smtp_from)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="email_notifications">이메일 알림</Label>
+                  <p className="text-sm text-gray-500">시스템 알림을 이메일로 발송합니다</p>
+                </div>
+                <Switch
+                  id="email_notifications"
+                  checked={settings.email_notifications || false}
+                  onCheckedChange={(checked) => {
+                    handleInputChange('email_notifications', checked)
+                    saveSetting('email_notifications', checked)
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle>보안 설정</CardTitle>
+              <CardDescription>시스템 보안 관련 설정</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="session_timeout">세션 타임아웃 (분)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="session_timeout"
+                    type="number"
+                    value={settings.session_timeout || ''}
+                    onChange={(e) => handleInputChange('session_timeout', parseInt(e.target.value))}
+                    placeholder="30"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('session_timeout', settings.session_timeout)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_login_attempts">최대 로그인 시도 횟수</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="max_login_attempts"
+                    type="number"
+                    value={settings.max_login_attempts || ''}
+                    onChange={(e) => handleInputChange('max_login_attempts', parseInt(e.target.value))}
+                    placeholder="5"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('max_login_attempts', settings.max_login_attempts)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password_min_length">최소 비밀번호 길이</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="password_min_length"
+                    type="number"
+                    value={settings.password_min_length || ''}
+                    onChange={(e) => handleInputChange('password_min_length', parseInt(e.target.value))}
+                    placeholder="8"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('password_min_length', settings.password_min_length)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="require_2fa">2단계 인증 필수</Label>
+                  <p className="text-sm text-gray-500">모든 관리자에게 2단계 인증을 요구합니다</p>
+                </div>
+                <Switch
+                  id="require_2fa"
+                  checked={settings.require_2fa || false}
+                  onCheckedChange={(checked) => {
+                    handleInputChange('require_2fa', checked)
+                    saveSetting('require_2fa', checked)
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle>알림 설정</CardTitle>
+              <CardDescription>외부 알림 서비스 연동 설정</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="slack_webhook">Slack Webhook URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="slack_webhook"
+                    value={settings.slack_webhook || ''}
+                    onChange={(e) => handleInputChange('slack_webhook', e.target.value)}
+                    placeholder="https://hooks.slack.com/services/..."
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('slack_webhook', settings.slack_webhook)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="discord_webhook">Discord Webhook URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="discord_webhook"
+                    value={settings.discord_webhook || ''}
+                    onChange={(e) => handleInputChange('discord_webhook', e.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('discord_webhook', settings.discord_webhook)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notification_email">알림 수신 이메일</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="notification_email"
+                    type="email"
+                    value={settings.notification_email || ''}
+                    onChange={(e) => handleInputChange('notification_email', e.target.value)}
+                    placeholder="admin@aimax.kr"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('notification_email', settings.notification_email)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* 유지보수 설정 */}
-        <TabsContent value="maintenance" className="space-y-6">
+        <TabsContent value="api">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Server className="w-5 h-5" />
-                유지보수 모드
-              </CardTitle>
-              <CardDescription>
-                시스템 유지보수 모드를 관리합니다
-              </CardDescription>
+              <CardTitle>API 설정</CardTitle>
+              <CardDescription>API 제한 및 성능 관련 설정</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label>유지보수 모드 활성화</Label>
-                    <p className="text-sm text-gray-500">사용자의 서비스 접근을 일시적으로 차단합니다</p>
-                  </div>
-                  <Switch 
-                    checked={maintenanceMode}
-                    onCheckedChange={setMaintenanceMode}
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="api_rate_limit">API Rate Limit (요청/분)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="api_rate_limit"
+                    type="number"
+                    value={settings.api_rate_limit || ''}
+                    onChange={(e) => handleInputChange('api_rate_limit', parseInt(e.target.value))}
+                    placeholder="60"
                   />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('api_rate_limit', settings.api_rate_limit)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
-                {maintenanceMode && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-yellow-800">
-                      <AlertTriangle className="w-5 h-5" />
-                      <p className="font-medium">유지보수 모드 활성화됨</p>
-                    </div>
-                    <p className="text-sm text-yellow-700 mt-2">
-                      현재 관리자를 제외한 모든 사용자의 접근이 차단되어 있습니다.
-                    </p>
-                  </div>
-                )}
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="maintenance-message">유지보수 안내 메시지</Label>
-                  <Textarea 
-                    id="maintenance-message"
-                    defaultValue="시스템 점검 중입니다. 잠시 후 다시 이용해 주세요."
-                    rows={3}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="api_timeout">API 타임아웃 (초)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="api_timeout"
+                    type="number"
+                    value={settings.api_timeout || ''}
+                    onChange={(e) => handleInputChange('api_timeout', parseInt(e.target.value))}
+                    placeholder="30"
                   />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('api_timeout', settings.api_timeout)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="maintenance-start">시작 시간</Label>
-                    <Input id="maintenance-start" type="datetime-local" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="maintenance-end">종료 시간</Label>
-                    <Input id="maintenance-end" type="datetime-local" />
-                  </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_file_size">최대 파일 크기 (MB)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="max_file_size"
+                    type="number"
+                    value={settings.max_file_size || ''}
+                    onChange={(e) => handleInputChange('max_file_size', parseInt(e.target.value))}
+                    placeholder="10"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('max_file_size', settings.max_file_size)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* 저장 버튼 */}
-      <div className="flex justify-end gap-2">
-        <Button variant="outline">취소</Button>
-        <Button onClick={handleSave}>
-          <Save className="w-4 h-4 mr-2" />
-          설정 저장
-        </Button>
-      </div>
     </div>
   )
 }
