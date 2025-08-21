@@ -1,4 +1,8 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { 
   Users, 
   Megaphone, 
@@ -7,87 +11,170 @@ import {
   Activity,
   Download,
   Eye,
-  UserPlus
+  UserPlus,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
+import { toast } from "sonner"
 
-const stats = [
-  {
-    title: '전체 사용자',
-    value: '1,234',
-    change: '+12%',
-    changeType: 'positive',
-    icon: Users,
-  },
-  {
-    title: '활성 캠페인',
-    value: '56',
-    change: '+8%',
-    changeType: 'positive',
-    icon: Megaphone,
-  },
-  {
-    title: '월 매출',
-    value: '₩12,345,678',
-    change: '+23%',
-    changeType: 'positive',
-    icon: DollarSign,
-  },
-  {
-    title: '전환율',
-    value: '3.45%',
-    change: '-2%',
-    changeType: 'negative',
-    icon: TrendingUp,
-  },
-]
-
-const recentActivities = [
-  {
-    id: 1,
-    user: '김철수',
-    action: '새 캠페인 생성',
-    campaign: '2024 여름 프로모션',
-    time: '5분 전',
-    icon: Megaphone,
-  },
-  {
-    id: 2,
-    user: '이영희',
-    action: '회원 가입',
-    campaign: '',
-    time: '12분 전',
-    icon: UserPlus,
-  },
-  {
-    id: 3,
-    user: '박민수',
-    action: '리포트 다운로드',
-    campaign: 'Q2 실적 분석',
-    time: '30분 전',
-    icon: Download,
-  },
-  {
-    id: 4,
-    user: '정수진',
-    action: '캠페인 조회',
-    campaign: '인스타그램 마케팅',
-    time: '1시간 전',
-    icon: Eye,
-  },
-]
+interface DashboardStats {
+  overview: {
+    totalUsers: number
+    activeUsers: number
+    newUsersToday: number
+    totalCampaigns: number
+    activeCampaigns: number
+    monthlyRevenue: number
+    conversionRate: number
+  }
+  planDistribution: {
+    basic: number
+    pro: number
+    enterprise: number
+  }
+  recentActivities: Array<{
+    id: string
+    action: string
+    details: any
+    userName: string
+    userEmail: string
+    createdAt: string
+  }>
+  monthlyGrowth: Array<{
+    month: string
+    users: number
+  }>
+  quickStats: {
+    todayRevenue: number
+    serverStatus: string
+    pendingTasks: number
+  }
+}
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const fetchStats = async (showToast = false) => {
+    try {
+      if (showToast) setIsRefreshing(true)
+      
+      const response = await fetch('/api/admin/stats')
+      if (!response.ok) {
+        throw new Error('통계 데이터를 불러올 수 없습니다')
+      }
+      
+      const data = await response.json()
+      setStats(data)
+      
+      if (showToast) {
+        toast.success('통계가 업데이트되었습니다')
+      }
+    } catch (error) {
+      console.error('Stats fetch error:', error)
+      toast.error('통계 데이터 로딩 실패')
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchStats()
+    // 1분마다 자동 새로고침
+    const interval = setInterval(() => fetchStats(), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+    
+    if (minutes < 1) return '방금 전'
+    if (minutes < 60) return `${minutes}분 전`
+    if (hours < 24) return `${hours}시간 전`
+    return `${days}일 전`
+  }
+
+  const getActionIcon = (action: string) => {
+    if (action.includes('캠페인')) return Megaphone
+    if (action.includes('가입')) return UserPlus
+    if (action.includes('다운로드')) return Download
+    return Eye
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    )
+  }
+
+  const statsCards = [
+    {
+      title: '전체 사용자',
+      value: stats?.overview.totalUsers || 0,
+      change: stats?.overview.newUsersToday 
+        ? `오늘 +${stats.overview.newUsersToday}명`
+        : '변동 없음',
+      changeType: stats?.overview.newUsersToday ? 'positive' : 'neutral' as const,
+      icon: Users,
+    },
+    {
+      title: '활성 캠페인',
+      value: stats?.overview.activeCampaigns || 0,
+      change: `전체 ${stats?.overview.totalCampaigns || 0}개`,
+      changeType: 'neutral' as const,
+      icon: Megaphone,
+    },
+    {
+      title: '월 매출',
+      value: `₩${(stats?.overview.monthlyRevenue || 0).toLocaleString()}`,
+      change: '예상 매출',
+      changeType: 'neutral' as const,
+      icon: DollarSign,
+    },
+    {
+      title: '전환율',
+      value: `${stats?.overview.conversionRate || 0}%`,
+      change: '캠페인 성공률',
+      changeType: 'neutral' as const,
+      icon: TrendingUp,
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* 페이지 타이틀 */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">대시보드</h1>
-        <p className="text-gray-500 mt-2">AIMAX 플랫폼 전체 현황을 한눈에 확인하세요</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">대시보드</h1>
+          <p className="text-gray-500 mt-2">AIMAX 플랫폼 전체 현황을 한눈에 확인하세요</p>
+        </div>
+        <Button 
+          onClick={() => fetchStats(true)}
+          disabled={isRefreshing}
+          variant="outline"
+        >
+          {isRefreshing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          <span className="ml-2">새로고침</span>
+        </Button>
       </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+        {statsCards.map((stat) => {
           const Icon = stat.icon
           return (
             <Card key={stat.title}>
@@ -100,9 +187,11 @@ export default function AdminDashboard() {
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
                 <p className={`text-xs ${
-                  stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                  stat.changeType === 'positive' ? 'text-green-600' : 
+                  stat.changeType === 'negative' ? 'text-red-600' : 
+                  'text-gray-500'
                 }`}>
-                  {stat.change} from last month
+                  {stat.change}
                 </p>
               </CardContent>
             </Card>
@@ -118,20 +207,46 @@ export default function AdminDashboard() {
             <CardDescription>최근 6개월간 사용자 증가 현황</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64 bg-gray-100 rounded flex items-center justify-center text-gray-400">
-              차트 영역 (구현 예정)
+            <div className="h-64 bg-gray-100 rounded flex flex-col items-center justify-center text-gray-400">
+              <p>차트 영역 (구현 예정)</p>
+              {stats?.monthlyGrowth && stats.monthlyGrowth.length > 0 && (
+                <div className="mt-4 text-xs">
+                  {stats.monthlyGrowth.map(item => (
+                    <div key={item.month}>
+                      {item.month}: {item.users}명
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>캠페인 성과</CardTitle>
-            <CardDescription>플랫폼별 캠페인 성과 분석</CardDescription>
+            <CardTitle>플랜별 사용자 분포</CardTitle>
+            <CardDescription>요금제별 사용자 현황</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64 bg-gray-100 rounded flex items-center justify-center text-gray-400">
-              차트 영역 (구현 예정)
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Basic</span>
+                <span className="text-sm text-gray-500">
+                  {stats?.planDistribution.basic || 0}명
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Pro</span>
+                <span className="text-sm text-gray-500">
+                  {stats?.planDistribution.pro || 0}명
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Enterprise</span>
+                <span className="text-sm text-gray-500">
+                  {stats?.planDistribution.enterprise || 0}명
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -145,25 +260,28 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActivities.map((activity) => {
-              const Icon = activity.icon
-              return (
-                <div key={activity.id} className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-blue-600" />
+            {stats?.recentActivities && stats.recentActivities.length > 0 ? (
+              stats.recentActivities.map((activity) => {
+                const Icon = getActionIcon(activity.action)
+                return (
+                  <div key={activity.id} className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        <span className="font-bold">{activity.userName}</span>님이 {activity.action}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatRelativeTime(activity.createdAt)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      <span className="font-bold">{activity.user}</span>님이 {activity.action}
-                      {activity.campaign && (
-                        <span className="text-gray-600"> - {activity.campaign}</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            ) : (
+              <p className="text-sm text-gray-500">아직 활동 내역이 없습니다</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -177,7 +295,9 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">234</p>
+                <p className="text-2xl font-bold">
+                  {stats?.overview.newUsersToday || 0}
+                </p>
                 <p className="text-sm text-gray-500">오늘 신규 가입</p>
               </div>
               <Users className="w-8 h-8 text-blue-600" />
@@ -192,7 +312,9 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-green-600">정상</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats?.quickStats.serverStatus === 'healthy' ? '정상' : '점검중'}
+                </p>
                 <p className="text-sm text-gray-500">모든 서비스 운영중</p>
               </div>
               <Activity className="w-8 h-8 text-green-600" />
@@ -207,7 +329,9 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">₩567,890</p>
+                <p className="text-2xl font-bold">
+                  ₩{(stats?.quickStats.todayRevenue || 0).toLocaleString()}
+                </p>
                 <p className="text-sm text-gray-500">오늘 매출액</p>
               </div>
               <DollarSign className="w-8 h-8 text-green-600" />
