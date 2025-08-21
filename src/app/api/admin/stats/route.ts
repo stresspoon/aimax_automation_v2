@@ -33,110 +33,94 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
-    // 모든 쿼리를 병렬로 실행
-    const [
-      totalUsersResult,
-      activeUsersResult,
-      newUsersTodayResult,
-      activeCampaignsResult,
-      totalCampaignsResult,
-      planStatsResult,
-      recentActivitiesResult,
-      monthlyUsersResult
-    ] = await Promise.all([
-      // 1. 전체 사용자 수
-      supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact' }),
-      
-      // 2. 활성 사용자 수 (최근 7일 이내 로그인)
-      supabase
-        .from('user_profiles')
-        .select('updated_at')
-        .gte('updated_at', sevenDaysAgo.toISOString()),
-      
-      // 3. 오늘 신규 가입자
-      supabase
-        .from('user_profiles')
-        .select('id', { count: 'exact' })
-        .gte('created_at', today.toISOString()),
-      
-      // 4. 활성 캠페인 수
-      supabase
-        .from('campaigns')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active'),
-      
-      // 5. 전체 캠페인 수
-      supabase
-        .from('campaigns')
-        .select('*', { count: 'exact', head: true }),
-      
-      // 6. 플랜별 사용자 수
-      supabase
-        .from('user_profiles')
-        .select('plan'),
-      
-      // 7. 최근 활동 로그 (최근 10개)
-      supabase
-        .from('activity_logs')
-        .select(`
-          *,
-          user:user_profiles!activity_logs_user_id_fkey(
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(10),
-      
-      // 8. 월별 가입자 추이 (최근 6개월)
-      supabase
-        .from('user_profiles')
-        .select('created_at')
-        .gte('created_at', sixMonthsAgo.toISOString())
-    ])
+    // 1. 전체 사용자 수 - 모든 데이터를 가져와서 카운트
+    const { data: allUsers, error: usersError } = await supabase
+      .from('user_profiles')
+      .select('*')
+    
+    if (usersError) {
+      console.error('Error fetching users:', usersError)
+    }
 
-    // 디버깅 로그
-    console.log('Stats API Debug:', {
-      totalUsers: totalUsersResult.count,
-      totalUsersError: totalUsersResult.error,
-      activeUsersCount: activeUsersResult.data?.length,
-      planStatsCount: planStatsResult.data?.length,
-      planStatsError: planStatsResult.error
-    })
+    // 2. 활성 사용자 수 (최근 7일 이내 업데이트)
+    const { data: activeUsers } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .gte('updated_at', sevenDaysAgo.toISOString())
+
+    // 3. 오늘 신규 가입자
+    const { data: newUsersToday } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .gte('created_at', today.toISOString())
+
+    // 4. 캠페인 통계
+    const { data: allCampaigns } = await supabase
+      .from('campaigns')
+      .select('*')
+    
+    const activeCampaigns = allCampaigns?.filter(c => c.status === 'active') || []
+
+    // 5. 최근 활동 로그
+    const { data: recentActivities } = await supabase
+      .from('activity_logs')
+      .select(`
+        *,
+        user:user_profiles!activity_logs_user_id_fkey(
+          full_name,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    // 6. 월별 가입자 추이
+    const { data: monthlyUsers } = await supabase
+      .from('user_profiles')
+      .select('created_at')
+      .gte('created_at', sixMonthsAgo.toISOString())
 
     // 플랜별 집계
-    const planCounts = planStatsResult.data?.reduce((acc: any, user) => {
-      acc[user.plan] = (acc[user.plan] || 0) + 1
+    const planCounts = (allUsers || []).reduce((acc: any, user) => {
+      const plan = user.plan || 'basic'
+      acc[plan] = (acc[plan] || 0) + 1
       return acc
-    }, {}) || {}
+    }, {})
 
     // 월별 집계
-    const monthlyGrowth = monthlyUsersResult.data?.reduce((acc: any, user) => {
+    const monthlyGrowth = (monthlyUsers || []).reduce((acc: any, user) => {
       const month = new Date(user.created_at).toLocaleDateString('ko-KR', { 
         year: 'numeric', 
         month: 'short' 
       })
       acc[month] = (acc[month] || 0) + 1
       return acc
-    }, {}) || {}
+    }, {})
 
     // 통계 계산
-    const totalUsers = totalUsersResult.count || totalUsersResult.data?.length || 0
-    const totalCampaigns = totalCampaignsResult.count || 0
-    const activeCampaigns = activeCampaignsResult.count || 0
+    const totalUsers = allUsers?.length || 0
+    const totalCampaigns = allCampaigns?.length || 0
+    const activeCampaignsCount = activeCampaigns.length
     const monthlyRevenue = totalUsers * 50000 // 임시 계산
     const conversionRate = totalCampaigns ? 
-      ((activeCampaigns) / totalCampaigns * 100).toFixed(2) : 0
+      ((activeCampaignsCount) / totalCampaigns * 100).toFixed(2) : 0
+
+    // 디버깅 로그
+    console.log('Stats API Result:', {
+      totalUsers,
+      allUsersCount: allUsers?.length,
+      activeUsersCount: activeUsers?.length,
+      newUsersTodayCount: newUsersToday?.length,
+      planCounts
+    })
 
     const stats = {
       overview: {
         totalUsers,
-        activeUsers: activeUsersResult.data?.length || 0,
-        newUsersToday: newUsersTodayResult.count || 0,
+        activeUsers: activeUsers?.length || 0,
+        newUsersToday: newUsersToday?.length || 0,
         totalCampaigns,
-        activeCampaigns,
+        activeCampaigns: activeCampaignsCount,
         monthlyRevenue,
         conversionRate: parseFloat(conversionRate as string),
       },
@@ -145,7 +129,7 @@ export async function GET(request: NextRequest) {
         pro: planCounts.pro || 0,
         enterprise: planCounts.enterprise || 0,
       },
-      recentActivities: recentActivitiesResult.data?.map(activity => ({
+      recentActivities: recentActivities?.map(activity => ({
         id: activity.id,
         action: activity.action,
         details: activity.details,
@@ -164,10 +148,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 캐시 헤더 추가 (1분간 캐싱)
+    // 캐시 헤더 추가 (30초간 캐싱)
     return NextResponse.json(stats, {
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=15',
       },
     })
   } catch (error) {
