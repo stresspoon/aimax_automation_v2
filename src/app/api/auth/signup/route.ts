@@ -65,7 +65,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 프로필 업데이트 (트리거로 기본 생성됨)
+    // user_profiles 테이블에 사용자 추가 (관리자 대시보드용)
+    await supabase
+      .from('user_profiles')
+      .upsert({
+        id: data.user.id,
+        email: data.user.email,
+        full_name: name,
+        role: 'user', // 기본 역할
+        plan: 'basic', // 기본 플랜
+        status: 'active', // 활성 상태
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: false
+      });
+
+    // profiles 테이블도 업데이트 (호환성을 위해)
     await supabase
       .from('profiles')
       .update({
