@@ -227,6 +227,30 @@ export async function POST(req: Request) {
     // 남은 사용 횟수 확인
     const updatedUsage = await checkUsageLimit('content_generation')
     
+    // 활동 로그 기록
+    try {
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        await supabase
+          .from('activity_logs')
+          .insert({
+            user_id: user.id,
+            action: '콘텐츠 생성',
+            details: {
+              keyword: body.keyword,
+              contentType: body.contentType,
+              hasImages: body.generateImages || false,
+              usage: updatedUsage
+            }
+          })
+      }
+    } catch (logError) {
+      console.error('활동 로그 기록 실패:', logError)
+    }
+    
     return NextResponse.json({ 
       content: combined, 
       images,

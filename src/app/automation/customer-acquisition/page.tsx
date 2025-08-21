@@ -46,6 +46,7 @@ export default function CustomerAcquisitionPage() {
   const [_typingIndex, setTypingIndex] = useState<number>(0);
   const [typingContent, setTypingContent] = useState<string>('');
   const [_typingActive, setTypingActive] = useState<boolean>(false);
+  const [hasTypingStarted, setHasTypingStarted] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("");
   const [projectData, setProjectData] = useState({
     step1: {
@@ -399,6 +400,9 @@ export default function CustomerAcquisitionPage() {
         }
       }
       
+      // 새로운 콘텐츠 생성 시 타이핑 효과를 위한 플래그 설정
+      setHasTypingStarted(true);
+      
       setProjectData({
         ...projectData,
         step1: {
@@ -446,17 +450,35 @@ export default function CustomerAcquisitionPage() {
       setTypingContent('')
       setTypingActive(false)
       setTypingIndex(0)
+      setHasTypingStarted(false)
       return
     }
+    
+    // 이미 타이핑이 시작되었고 같은 콘텐츠면 스킵
+    if (hasTypingStarted && typingContent === full) {
+      return
+    }
+    
+    // 페이지 로드 시 이미 콘텐츠가 있으면 타이핑 효과 없이 바로 표시
+    if (full && !hasTypingStarted) {
+      setTypingContent(full)
+      setTypingActive(false)
+      setTypingIndex(full.length)
+      return
+    }
+    
     if (!typingEnabled) {
       setTypingContent(full)
       setTypingActive(false)
       setTypingIndex(full.length)
       return
     }
+    
+    // 새로운 콘텐츠 생성 시에만 타이핑 효과
     setTypingContent('')
     setTypingIndex(0)
     setTypingActive(true)
+    setHasTypingStarted(true)
     const charsPerTick = 2
     const interval = setInterval(() => {
       setTypingIndex(prev => {
