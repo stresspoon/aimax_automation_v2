@@ -1,25 +1,46 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useCartStore } from "@/stores/cartStore";
 import { createClient } from '@/lib/supabase/client';
-import ProjectCard from '@/components/projects/ProjectCard';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const { addItem, getTotalItems } = useCartStore();
-  const [mounted, setMounted] = useState(false);
-  const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [campaignName, setCampaignName] = useState("");
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [userProjects, setUserProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
     fetchProjects();
+    fetchUserInfo();
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
+  const fetchUserInfo = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || "");
+      }
+    } catch (error) {
+      console.error('사용자 정보 로드 실패:', error);
+    }
+  };
+
   const fetchProjects = async () => {
     try {
       const supabase = createClient();
@@ -68,104 +89,15 @@ export default function DashboardPage() {
     },
   ];
 
-  const toolCards = [
-    {
-      id: "naver-blog",
-      title: "네이버 블로그 완전 자동화",
-      description: "포스팅부터 관리까지 완전 자동화",
-      price: 49900,
-      priceDisplay: "₩49,900",
-    },
-    {
-      id: "smartstore-review",
-      title: "스마트스토어 리뷰 자동답글",
-      description: "리뷰에 자동으로 맞춤형 답글 작성",
-      price: 39900,
-      priceDisplay: "₩39,900",
-    },
-    {
-      id: "image-extract",
-      title: "이미지 추출",
-      description: "웹페이지에서 이미지 일괄 추출",
-      price: 29900,
-      priceDisplay: "₩29,900",
-    },
-    {
-      id: "naver-place",
-      title: "네이버 플레이스 리뷰 자동답글",
-      description: "플레이스 리뷰 자동 관리",
-      price: 39900,
-      priceDisplay: "₩39,900",
-    },
-    {
-      id: "blog-neighbor",
-      title: "네이버 블로그 서이추+이웃댓글 자동화",
-      description: "이웃 관리와 댓글을 자동으로",
-      price: 34900,
-      priceDisplay: "₩34,900",
-    },
-    {
-      id: "review-writing",
-      title: "리뷰 글쓰기 자동화",
-      description: "AI가 작성하는 완벽한 리뷰",
-      price: 44900,
-      priceDisplay: "₩44,900",
-    },
-  ];
-
-  const handleCreateCampaign = () => {
-    if (campaignName.trim()) {
-      window.location.href = `/automation/customer-acquisition?campaign=${encodeURIComponent(campaignName)}`;
-    }
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
   };
+
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 캠페인 생성 모달 */}
-      {showCampaignModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card rounded-2xl shadow-2xl border max-w-md w-full p-8"
-          >
-            <h3 className="text-2xl font-bold text-foreground mb-2">새 캠페인 만들기</h3>
-            <p className="text-muted-foreground mb-6">
-              캠페인 이름을 입력하면 고객모집 자동화를 시작할 수 있습니다
-            </p>
-            
-            <input
-              type="text"
-              value={campaignName}
-              onChange={(e) => setCampaignName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateCampaign()}
-              placeholder="예: 2024년 연말 프로모션"
-              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition mb-6"
-              autoFocus
-            />
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowCampaignModal(false);
-                  setCampaignName("");
-                }}
-                className="flex-1 px-4 py-3 rounded-lg border border-border text-muted-foreground hover:bg-muted/50 font-semibold transition"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleCreateCampaign}
-                disabled={!campaignName.trim()}
-                className="flex-1 px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                캠페인 시작
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-      
       {/* 헤더 */}
       <header className="bg-card border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -184,22 +116,60 @@ export default function DashboardPage() {
                 </Link>
               </nav>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/cart" className="relative text-muted-foreground hover:text-foreground">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {mounted && getTotalItems() > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {getTotalItems()}
-                  </span>
-                )}
-              </Link>
-              <button className="text-muted-foreground hover:text-foreground">
+            <div className="relative" ref={userMenuRef}>
+              <button 
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/50 transition"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </button>
+              
+              {showUserMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute right-0 mt-2 w-64 bg-card rounded-lg shadow-lg border z-50"
+                >
+                  <div className="p-4 border-b">
+                    <p className="text-sm text-muted-foreground">로그인 계정</p>
+                    <p className="text-sm font-medium truncate">{userEmail}</p>
+                  </div>
+                  <div className="p-2">
+                    <Link
+                      href="/settings"
+                      className="flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>계정 설정</span>
+                    </Link>
+                    <Link
+                      href="/projects"
+                      className="flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>내 프로젝트</span>
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition text-left"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span>로그아웃</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </div>
         </div>
@@ -245,30 +215,6 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground text-sm">{card.description}</p>
                   </div>
                 )}
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* 개별 판매 도구 섹션 */}
-        <section>
-          <h3 className="text-2xl font-bold text-foreground mb-6">개별 판매 도구</h3>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {toolCards.map((tool, index) => (
-              <motion.div
-                key={tool.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => addItem({ id: tool.id, title: tool.title, price: tool.price })}
-                className="bg-card border rounded-xl p-6 hover:shadow-lg hover:border-primary/50 transition cursor-pointer group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="h-8"></div>
-                  <span className="text-primary font-bold">{tool.priceDisplay}</span>
-                </div>
-                <h4 className="font-bold text-foreground mb-2 group-hover:text-primary transition">{tool.title}</h4>
-                <p className="text-muted-foreground text-sm">{tool.description}</p>
               </motion.div>
             ))}
           </div>
