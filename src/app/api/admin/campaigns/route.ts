@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAdmin } from '@/lib/admin-auth'
+import { logActivity } from '@/lib/activity-logger'
 
 // 캠페인 목록 조회
 export async function GET(request: NextRequest) {
@@ -146,16 +147,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 활동 로그 기록
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: user.id,
-        action: `캠페인 상태 변경: ${status}`,
-        details: {
-          campaignId,
-          newStatus: status
-        }
-      })
+    await logActivity('campaign.status_change', {
+      campaign_id: campaignId,
+      campaign_name: data.name,
+      new_status: status,
+      changed_by: user.id
+    }, user.id)
 
     return NextResponse.json({
       message: '캠페인 상태가 변경되었습니다',
@@ -202,15 +199,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 활동 로그 기록
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: user.id,
-        action: '캠페인 삭제',
-        details: {
-          deletedCampaignId: campaignId
-        }
-      })
+    await logActivity('campaign.delete', {
+      campaign_id: campaignId,
+      deleted_by: user.id
+    }, user.id)
 
     return NextResponse.json({
       message: '캠페인이 삭제되었습니다'
@@ -269,17 +261,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 활동 로그 기록
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: user.id,
-        action: '새 캠페인 생성',
-        details: {
-          campaignId: data.id,
-          campaignName: name,
-          platform
-        }
-      })
+    await logActivity('campaign.create', {
+      campaign_id: data.id,
+      campaign_name: name,
+      platform,
+      created_by: user.id
+    }, user.id)
 
     return NextResponse.json({
       message: '캠페인이 생성되었습니다',
