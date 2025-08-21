@@ -15,7 +15,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react'
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 interface DashboardStats {
   overview: {
@@ -52,6 +52,7 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
+  const { toast } = useToast()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -69,11 +70,18 @@ export default function AdminDashboard() {
       setStats(data)
       
       if (showToast) {
-        toast.success('통계가 업데이트되었습니다')
+        toast({
+          title: '성공',
+          description: '통계가 업데이트되었습니다'
+        })
       }
     } catch (error) {
       console.error('Stats fetch error:', error)
-      toast.error('통계 데이터 로딩 실패')
+      toast({
+        title: '오류',
+        description: '통계 데이터 로딩 실패',
+        variant: 'destructive'
+      })
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)

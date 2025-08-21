@@ -20,6 +20,22 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/api/admin/campaigns/[id]",
+      "regex": "^/api/admin/campaigns/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/admin/campaigns/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/admin/users/[id]",
+      "regex": "^/api/admin/users/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/admin/users/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/campaigns/[id]",
       "regex": "^/api/campaigns/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -84,6 +100,12 @@
       "regex": "^/admin/campaigns(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/admin/campaigns(?:/)?$"
+    },
+    {
+      "page": "/admin/logs",
+      "regex": "^/admin/logs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/logs(?:/)?$"
     },
     {
       "page": "/admin/settings",

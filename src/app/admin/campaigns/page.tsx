@@ -33,7 +33,7 @@ import {
   ChevronRight,
   AlertCircle
 } from 'lucide-react'
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +74,7 @@ interface CampaignStats {
 }
 
 export default function CampaignsPage() {
+  const { toast } = useToast()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -128,11 +129,18 @@ export default function CampaignsPage() {
       })
 
       if (showToast) {
-        toast.success('캠페인 목록이 업데이트되었습니다')
+        toast({
+          title: '성공',
+          description: '캠페인 목록이 업데이트되었습니다'
+        })
       }
     } catch (error) {
       console.error('Campaigns fetch error:', error)
-      toast.error('캠페인 목록 로딩 실패')
+      toast({
+        title: '오류',
+        description: '캠페인 목록 로딩 실패',
+        variant: 'destructive'
+      })
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
@@ -155,11 +163,18 @@ export default function CampaignsPage() {
         throw new Error('캠페인 상태 변경 실패')
       }
 
-      toast.success('캠페인 상태가 변경되었습니다')
+      toast({
+        title: '성공',
+        description: '캠페인 상태가 변경되었습니다'
+      })
       fetchCampaigns()
     } catch (error) {
       console.error('Update campaign error:', error)
-      toast.error('캠페인 상태 변경 실패')
+      toast({
+        title: '오류',
+        description: '캠페인 상태 변경 실패',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -178,11 +193,18 @@ export default function CampaignsPage() {
         throw new Error('캠페인 삭제 실패')
       }
 
-      toast.success('캠페인이 삭제되었습니다')
+      toast({
+        title: '성공',
+        description: '캠페인이 삭제되었습니다'
+      })
       fetchCampaigns()
     } catch (error) {
       console.error('Delete campaign error:', error)
-      toast.error('캠페인 삭제 실패')
+      toast({
+        title: '오류',
+        description: '캠페인 삭제 실패',
+        variant: 'destructive'
+      })
     }
   }
 

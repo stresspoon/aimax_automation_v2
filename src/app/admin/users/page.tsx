@@ -47,7 +47,7 @@ import {
   Check,
   X
 } from 'lucide-react'
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 interface User {
   id: string
@@ -70,6 +70,7 @@ interface UserStats {
 }
 
 export default function UsersPage() {
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -129,11 +130,18 @@ export default function UsersPage() {
       })
 
       if (showToast) {
-        toast.success('사용자 목록이 업데이트되었습니다')
+        toast({
+          title: '성공',
+          description: '사용자 목록이 업데이트되었습니다'
+        })
       }
     } catch (error) {
       console.error('Users fetch error:', error)
-      toast.error('사용자 목록 로딩 실패')
+      toast({
+        title: '오류',
+        description: '사용자 목록 로딩 실패',
+        variant: 'destructive'
+      })
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
@@ -156,11 +164,18 @@ export default function UsersPage() {
         throw new Error('사용자 상태 변경 실패')
       }
 
-      toast.success('사용자 상태가 변경되었습니다')
+      toast({
+        title: '성공',
+        description: '사용자 상태가 변경되었습니다'
+      })
       fetchUsers()
     } catch (error) {
       console.error('Update user error:', error)
-      toast.error('사용자 상태 변경 실패')
+      toast({
+        title: '오류',
+        description: '사용자 상태 변경 실패',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -180,11 +195,18 @@ export default function UsersPage() {
         throw new Error('플랜 변경 실패')
       }
 
-      toast.success('사용자 플랜이 변경되었습니다')
+      toast({
+        title: '성공',
+        description: '사용자 플랜이 변경되었습니다'
+      })
       fetchUsers()
     } catch (error) {
       console.error('Update plan error:', error)
-      toast.error('플랜 변경 실패')
+      toast({
+        title: '오류',
+        description: '플랜 변경 실패',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -203,11 +225,18 @@ export default function UsersPage() {
         throw new Error('사용자 삭제 실패')
       }
 
-      toast.success('사용자가 삭제되었습니다')
+      toast({
+        title: '성공',
+        description: '사용자가 삭제되었습니다'
+      })
       fetchUsers()
     } catch (error) {
       console.error('Delete user error:', error)
-      toast.error('사용자 삭제 실패')
+      toast({
+        title: '오류',
+        description: '사용자 삭제 실패',
+        variant: 'destructive'
+      })
     }
   }
 
