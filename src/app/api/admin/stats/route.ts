@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
   )
 
   try {
+    const searchParams = request.nextUrl.searchParams
+    const debug = searchParams.get('debug') === '1'
+
     // 날짜 계산
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -114,7 +117,7 @@ export async function GET(request: NextRequest) {
       planCounts
     })
 
-    const stats = {
+    const stats: any = {
       overview: {
         totalUsers,
         activeUsers: activeUsers?.length || 0,
@@ -145,6 +148,17 @@ export async function GET(request: NextRequest) {
         todayRevenue: Math.floor(monthlyRevenue / 30),
         serverStatus: 'healthy',
         pendingTasks: 0,
+      }
+    }
+
+    if (debug) {
+      const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https?:\/\/(.*?)\.supabase\.co/i)?.[1]
+      stats.debug = {
+        projectRef,
+        allUsersCount: allUsers?.length || 0,
+        activeUsersCount: activeUsers?.length || 0,
+        newUsersTodayCount: newUsersToday?.length || 0,
+        planCounts,
       }
     }
 
