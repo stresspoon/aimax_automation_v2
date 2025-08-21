@@ -79,8 +79,8 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [platformFilter, setPlatformFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [platformFilter, setPlatformFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCampaigns, setTotalCampaigns] = useState(0)
@@ -98,8 +98,8 @@ export default function CampaignsPage() {
         page: currentPage.toString(),
         limit: limit.toString(),
         search: searchQuery,
-        status: statusFilter,
-        platform: platformFilter,
+        status: statusFilter === 'all' ? '' : statusFilter,
+        platform: platformFilter === 'all' ? '' : platformFilter,
         sortBy: 'created_at',
         sortOrder: 'desc'
       })
@@ -380,7 +380,7 @@ export default function CampaignsPage() {
                   <SelectValue placeholder="상태 필터" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">전체 상태</SelectItem>
+                  <SelectItem value="all">전체 상태</SelectItem>
                   <SelectItem value="active">진행중</SelectItem>
                   <SelectItem value="paused">일시정지</SelectItem>
                   <SelectItem value="completed">완료</SelectItem>
@@ -392,7 +392,7 @@ export default function CampaignsPage() {
                   <SelectValue placeholder="플랫폼 필터" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">전체 플랫폼</SelectItem>
+                  <SelectItem value="all">전체 플랫폼</SelectItem>
                   <SelectItem value="instagram">Instagram</SelectItem>
                   <SelectItem value="threads">Threads</SelectItem>
                   <SelectItem value="naver">Naver Blog</SelectItem>

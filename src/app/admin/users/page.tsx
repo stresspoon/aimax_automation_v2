@@ -82,9 +82,9 @@ export default function UsersPage() {
   const [stats, setStats] = useState<UserStats | null>(null)
   
   // 필터 상태
-  const [roleFilter, setRoleFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [planFilter, setPlanFilter] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [planFilter, setPlanFilter] = useState('all')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
 
@@ -100,9 +100,9 @@ export default function UsersPage() {
         page: currentPage.toString(),
         limit: limit.toString(),
         search: searchQuery,
-        role: roleFilter,
-        status: statusFilter,
-        plan: planFilter,
+        role: roleFilter === 'all' ? '' : roleFilter,
+        status: statusFilter === 'all' ? '' : statusFilter,
+        plan: planFilter === 'all' ? '' : planFilter,
         sortBy,
         sortOrder
       })
@@ -419,7 +419,7 @@ export default function UsersPage() {
                   <SelectValue placeholder="역할" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">전체</SelectItem>
+                  <SelectItem value="all">전체</SelectItem>
                   <SelectItem value="user">사용자</SelectItem>
                   <SelectItem value="admin">관리자</SelectItem>
                   <SelectItem value="super_admin">최고관리자</SelectItem>
@@ -430,7 +430,7 @@ export default function UsersPage() {
                   <SelectValue placeholder="상태" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">전체</SelectItem>
+                  <SelectItem value="all">전체</SelectItem>
                   <SelectItem value="active">활성</SelectItem>
                   <SelectItem value="inactive">비활성</SelectItem>
                   <SelectItem value="suspended">정지</SelectItem>
@@ -441,7 +441,7 @@ export default function UsersPage() {
                   <SelectValue placeholder="플랜" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">전체</SelectItem>
+                  <SelectItem value="all">전체</SelectItem>
                   <SelectItem value="basic">Basic</SelectItem>
                   <SelectItem value="pro">Pro</SelectItem>
                   <SelectItem value="enterprise">Enterprise</SelectItem>
