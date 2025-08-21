@@ -185,9 +185,17 @@ export default function ProjectDetailPage() {
               AI가 블로그 콘텐츠를 자동으로 생성합니다
             </p>
             {project.content_count > 0 && (
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium mb-4">
                 생성된 콘텐츠: {project.content_count}개
               </p>
+            )}
+            {!project.step1_completed && (
+              <button
+                onClick={() => router.push(`/automation/customer-acquisition?projectId=${project.id}&step=1`)}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg font-semibold transition mt-4"
+              >
+                시작하기
+              </button>
             )}
           </motion.div>
 
@@ -207,9 +215,17 @@ export default function ProjectDetailPage() {
               타겟 고객 데이터베이스를 수집합니다
             </p>
             {project.leads_count > 0 && (
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium mb-4">
                 수집된 리드: {project.leads_count}명
               </p>
+            )}
+            {project.step1_completed && !project.step2_completed && (
+              <button
+                onClick={() => router.push(`/automation/customer-acquisition?projectId=${project.id}&step=2`)}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg font-semibold transition mt-4"
+              >
+                시작하기
+              </button>
             )}
           </motion.div>
 
@@ -229,9 +245,17 @@ export default function ProjectDetailPage() {
               수집된 리드에게 이메일을 발송합니다
             </p>
             {project.emails_sent > 0 && (
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium mb-4">
                 발송된 이메일: {project.emails_sent}건
               </p>
+            )}
+            {project.step2_completed && !project.step3_completed && (
+              <button
+                onClick={() => router.push(`/automation/customer-acquisition?projectId=${project.id}&step=3`)}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg font-semibold transition mt-4"
+              >
+                시작하기
+              </button>
             )}
           </motion.div>
         </div>
