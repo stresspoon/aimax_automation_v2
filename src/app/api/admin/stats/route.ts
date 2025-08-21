@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       // 1. 전체 사용자 수
       supabase
         .from('user_profiles')
-        .select('*', { count: 'exact', head: true }),
+        .select('id', { count: 'exact' }),
       
       // 2. 활성 사용자 수 (최근 7일 이내 로그인)
       supabase
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       // 3. 오늘 신규 가입자
       supabase
         .from('user_profiles')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .gte('created_at', today.toISOString()),
       
       // 4. 활성 캠페인 수
@@ -97,6 +97,15 @@ export async function GET(request: NextRequest) {
         .gte('created_at', sixMonthsAgo.toISOString())
     ])
 
+    // 디버깅 로그
+    console.log('Stats API Debug:', {
+      totalUsers: totalUsersResult.count,
+      totalUsersError: totalUsersResult.error,
+      activeUsersCount: activeUsersResult.data?.length,
+      planStatsCount: planStatsResult.data?.length,
+      planStatsError: planStatsResult.error
+    })
+
     // 플랜별 집계
     const planCounts = planStatsResult.data?.reduce((acc: any, user) => {
       acc[user.plan] = (acc[user.plan] || 0) + 1
@@ -114,7 +123,7 @@ export async function GET(request: NextRequest) {
     }, {}) || {}
 
     // 통계 계산
-    const totalUsers = totalUsersResult.count || 0
+    const totalUsers = totalUsersResult.count || totalUsersResult.data?.length || 0
     const totalCampaigns = totalCampaignsResult.count || 0
     const activeCampaigns = activeCampaignsResult.count || 0
     const monthlyRevenue = totalUsers * 50000 // 임시 계산
