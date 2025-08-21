@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { verifyAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
   // 관리자 권한 확인
-  const { user, error } = await verifyAdmin(request)
+  const { error } = await verifyAdmin(request)
   if (error) {
     return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
@@ -115,9 +114,9 @@ export async function GET(request: NextRequest) {
 // 사용자 상태 변경
 export async function PATCH(request: NextRequest) {
   // 관리자 권한 확인
-  const { user, error } = await verifyAdmin(request)
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
+  const adminResult = await verifyAdmin(request)
+  if (adminResult.error) {
+    return NextResponse.json({ error: adminResult.error.message }, { status: adminResult.error.status || 403 })
   }
 
   // Service Role 키로 순수 서버 클라이언트 생성 (세션/쿠키 비사용)
@@ -175,7 +174,7 @@ export async function PATCH(request: NextRequest) {
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: user.id,
+        user_id: adminResult.user.id,
         action: '사용자 정보 수정',
         details: {
           targetUserId: userId,
@@ -199,9 +198,9 @@ export async function PATCH(request: NextRequest) {
 // 사용자 삭제
 export async function DELETE(request: NextRequest) {
   // 관리자 권한 확인
-  const { user, error } = await verifyAdmin(request)
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
+  const adminResult = await verifyAdmin(request)
+  if (adminResult.error) {
+    return NextResponse.json({ error: adminResult.error.message }, { status: adminResult.error.status || 403 })
   }
 
   const searchParams = request.nextUrl.searchParams
@@ -238,7 +237,7 @@ export async function DELETE(request: NextRequest) {
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: user.id,
+        user_id: adminResult.user.id,
         action: '사용자 삭제',
         details: {
           deletedUserId: userId

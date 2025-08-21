@@ -50,7 +50,7 @@ export default function DashboardPage() {
       title: "고객모집 자동화",
       description: "블로그 글쓰기, DB 관리, 이메일 발송을 한 번에",
       available: true,
-      href: "/automation/customer-acquisition",
+      href: "/automation/customer-acquisition/dashboard",
     },
     {
       id: "detail-page",
@@ -212,41 +212,6 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">오늘도 AIMAX와 함께 효율적인 마케팅을 시작해보세요</p>
         </div>
 
-        {/* 내 프로젝트 (있을 경우만 표시) */}
-        {!loading && userProjects.length > 0 && (
-          <section className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-foreground">진행 중인 프로젝트</h3>
-              <button
-                onClick={() => setShowCampaignModal(true)}
-                className="text-sm text-primary hover:text-primary/80 font-semibold"
-              >
-                + 새 프로젝트
-              </button>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {userProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </div>
-          </section>
-        )}
-        
-        {/* 프로젝트가 없을 때 */}
-        {!loading && userProjects.length === 0 && (
-          <section className="mb-12 bg-muted/30 rounded-xl p-8 text-center">
-            <h3 className="text-xl font-bold text-foreground mb-2">아직 프로젝트가 없습니다</h3>
-            <p className="text-muted-foreground mb-6">
-              첫 번째 고객모집 자동화 프로젝트를 시작해보세요
-            </p>
-            <button
-              onClick={() => setShowCampaignModal(true)}
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
-            >
-              프로젝트 시작하기
-            </button>
-          </section>
-        )}
 
         {/* 자동화 섹션 */}
         <section className="mb-12">
@@ -262,11 +227,7 @@ export default function DashboardPage() {
                 {card.available ? (
                   <div 
                     onClick={() => {
-                      if (card.id === "customer-acquisition") {
-                        setShowCampaignModal(true);
-                      } else {
-                        window.location.href = card.href;
-                      }
+                      window.location.href = card.href;
                     }}
                     className="bg-card border-2 border-primary/20 rounded-xl p-6 hover:border-primary hover:shadow-lg transition cursor-pointer h-full"
                   >
