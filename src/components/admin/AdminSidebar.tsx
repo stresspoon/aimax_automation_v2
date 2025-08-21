@@ -7,10 +7,8 @@ import {
   Users, 
   Megaphone,
   Settings,
-  BarChart3,
-  FileText,
-  Mail,
-  Shield
+  Activity,
+  FileText
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,42 +17,45 @@ const menuItems = [
     title: '대시보드',
     href: '/admin',
     icon: LayoutDashboard,
+    enabled: true
   },
   {
     title: '사용자 관리',
     href: '/admin/users',
     icon: Users,
+    enabled: true
   },
   {
     title: '캠페인 모니터링',
     href: '/admin/campaigns',
     icon: Megaphone,
+    enabled: true
   },
   {
-    title: '통계 분석',
-    href: '/admin/analytics',
-    icon: BarChart3,
-  },
-  {
-    title: '콘텐츠 관리',
-    href: '/admin/content',
-    icon: FileText,
-  },
-  {
-    title: '이메일 템플릿',
-    href: '/admin/emails',
-    icon: Mail,
-  },
-  {
-    title: '권한 관리',
-    href: '/admin/permissions',
-    icon: Shield,
+    title: '활동 로그',
+    href: '/admin/logs',
+    icon: Activity,
+    enabled: true
   },
   {
     title: '시스템 설정',
     href: '/admin/settings',
     icon: Settings,
+    enabled: true
   },
+  // 아래는 추후 구현 예정
+  // {
+  //   title: '통계 분석',
+  //   href: '/admin/analytics',
+  //   icon: BarChart3,
+  //   enabled: false
+  // },
+  // {
+  //   title: '콘텐츠 관리',
+  //   href: '/admin/content',
+  //   icon: FileText,
+  //   enabled: false
+  // },
 ]
 
 export default function AdminSidebar() {
@@ -79,10 +80,24 @@ export default function AdminSidebar() {
           const isActive = pathname === item.href || 
                           (item.href !== '/admin' && pathname.startsWith(item.href))
           
+          if (!item.enabled) {
+            return (
+              <div
+                key={item.href}
+                className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-400 cursor-not-allowed"
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{item.title}</span>
+                <span className="text-xs ml-auto">준비중</span>
+              </div>
+            )
+          }
+
           return (
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
                 isActive 
@@ -96,6 +111,14 @@ export default function AdminSidebar() {
           )
         })}
       </nav>
+
+      {/* 하단 정보 */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+        <div className="text-xs text-gray-500">
+          <p>AIMAX Admin v2.0</p>
+          <p className="mt-1">© 2024 AIMAX</p>
+        </div>
+      </div>
     </aside>
   )
 }
