@@ -162,13 +162,19 @@ async function generateImages(keyword: string, contentType: 'blog' | 'thread', c
 export async function POST(req: Request) {
   try {
     // 사용 제한 확인
-    const usage = await checkUsageLimit('content_generation')
-    if (usage.limit !== -1 && usage.remaining <= 0) {
-      return NextResponse.json({ 
-        error: '무료 체험 횟수를 모두 사용했습니다',
-        usage,
-        needsUpgrade: true 
-      }, { status: 429 })
+    let usage = { limit: 3, used: 0, remaining: 3, feature: 'content_generation' }
+    try {
+      usage = await checkUsageLimit('content_generation')
+      if (usage.limit !== -1 && usage.remaining <= 0) {
+        return NextResponse.json({ 
+          error: '무료 체험 횟수를 모두 사용했습니다',
+          usage,
+          needsUpgrade: true 
+        }, { status: 429 })
+      }
+    } catch (usageError) {
+      console.error('사용량 확인 오류:', usageError)
+      // 사용량 확인 실패 시에도 계속 진행 (기본 제한 적용)
     }
     
     const json = await req.json()
@@ -222,10 +228,19 @@ export async function POST(req: Request) {
     }
     
     // 사용 횟수 증가
-    await incrementUsage('content_generation')
+    try {
+      await incrementUsage('content_generation')
+    } catch (incError) {
+      console.error('사용 횟수 증가 오류:', incError)
+    }
     
     // 남은 사용 횟수 확인
-    const updatedUsage = await checkUsageLimit('content_generation')
+    let updatedUsage = usage
+    try {
+      updatedUsage = await checkUsageLimit('content_generation')
+    } catch (checkError) {
+      console.error('사용량 재확인 오류:', checkError)
+    }
     
     // 활동 로그 기록
     try {

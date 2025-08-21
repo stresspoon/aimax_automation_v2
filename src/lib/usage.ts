@@ -20,11 +20,23 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   const FREE_LIMIT = 3
   
   // 사용자의 프로필 정보 조회 (구독 상태 확인)
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('subscription_status')
     .eq('id', user.id)
     .single()
+  
+  // 프로필이 없으면 생성
+  if (profileError && profileError.code === 'PGRST116') {
+    await supabase
+      .from('user_profiles')
+      .insert({
+        id: user.id,
+        email: user.email,
+        subscription_status: 'free',
+        created_at: new Date().toISOString()
+      })
+  }
   
   // 유료 구독자는 무제한
   if (profile?.subscription_status === 'active' || profile?.subscription_status === 'premium') {
@@ -41,12 +53,17 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
   
   // usage_logs 테이블에서 이번 달 사용 횟수 조회
-  const { data: logs } = await supabase
+  const { data: logs, error: logsError } = await supabase
     .from('usage_logs')
     .select('id')
     .eq('user_id', user.id)
     .eq('feature', feature)
     .gte('created_at', startOfMonth)
+  
+  // 테이블이 없거나 오류가 있으면 0으로 처리
+  if (logsError) {
+    console.warn('usage_logs 조회 오류:', logsError)
+  }
   
   const used = logs?.length || 0
   const remaining = Math.max(0, FREE_LIMIT - used)
