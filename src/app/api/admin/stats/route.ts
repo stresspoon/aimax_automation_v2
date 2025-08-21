@@ -12,74 +12,86 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient()
 
   try {
-    // 1. 전체 사용자 수
-    const { count: totalUsers, error: usersError } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
-
-    // 2. 활성 사용자 수 (최근 7일 이내 로그인)
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    
-    const { data: activeUsers } = await supabase
-      .from('auth.users')
-      .select('last_sign_in_at')
-      .gte('last_sign_in_at', sevenDaysAgo.toISOString())
-
-    // 3. 오늘 신규 가입자
+    // 날짜 계산
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
-    const { count: newUsersToday } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', today.toISOString())
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
-    // 4. 활성 캠페인 수
-    const { count: activeCampaigns } = await supabase
-      .from('campaigns')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active')
+    // 모든 쿼리를 병렬로 실행
+    const [
+      totalUsersResult,
+      activeUsersResult,
+      newUsersTodayResult,
+      activeCampaignsResult,
+      totalCampaignsResult,
+      planStatsResult,
+      recentActivitiesResult,
+      monthlyUsersResult
+    ] = await Promise.all([
+      // 1. 전체 사용자 수
+      supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true }),
+      
+      // 2. 활성 사용자 수 (최근 7일 이내 로그인)
+      supabase
+        .from('user_profiles')
+        .select('updated_at')
+        .gte('updated_at', sevenDaysAgo.toISOString()),
+      
+      // 3. 오늘 신규 가입자
+      supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString()),
+      
+      // 4. 활성 캠페인 수
+      supabase
+        .from('campaigns')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
+      
+      // 5. 전체 캠페인 수
+      supabase
+        .from('campaigns')
+        .select('*', { count: 'exact', head: true }),
+      
+      // 6. 플랜별 사용자 수
+      supabase
+        .from('user_profiles')
+        .select('plan'),
+      
+      // 7. 최근 활동 로그 (최근 10개)
+      supabase
+        .from('activity_logs')
+        .select(`
+          *,
+          user:user_profiles!activity_logs_user_id_fkey(
+            full_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      
+      // 8. 월별 가입자 추이 (최근 6개월)
+      supabase
+        .from('user_profiles')
+        .select('created_at')
+        .gte('created_at', sixMonthsAgo.toISOString())
+    ])
 
-    // 5. 전체 캠페인 수
-    const { count: totalCampaigns } = await supabase
-      .from('campaigns')
-      .select('*', { count: 'exact', head: true })
-
-    // 6. 플랜별 사용자 수
-    const { data: planStats } = await supabase
-      .from('user_profiles')
-      .select('plan')
-
-    const planCounts = planStats?.reduce((acc: any, user) => {
+    // 플랜별 집계
+    const planCounts = planStatsResult.data?.reduce((acc: any, user) => {
       acc[user.plan] = (acc[user.plan] || 0) + 1
       return acc
     }, {}) || {}
 
-    // 7. 최근 활동 로그 (최근 10개)
-    const { data: recentActivities } = await supabase
-      .from('activity_logs')
-      .select(`
-        *,
-        user:user_profiles!activity_logs_user_id_fkey(
-          full_name,
-          email
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    // 8. 월별 가입자 추이 (최근 6개월)
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    
-    const { data: monthlyUsers } = await supabase
-      .from('user_profiles')
-      .select('created_at')
-      .gte('created_at', sixMonthsAgo.toISOString())
-
-    // 월별로 그룹화
-    const monthlyGrowth = monthlyUsers?.reduce((acc: any, user) => {
+    // 월별 집계
+    const monthlyGrowth = monthlyUsersResult.data?.reduce((acc: any, user) => {
       const month = new Date(user.created_at).toLocaleDateString('ko-KR', { 
         year: 'numeric', 
         month: 'short' 
@@ -88,20 +100,21 @@ export async function GET(request: NextRequest) {
       return acc
     }, {}) || {}
 
-    // 9. 이번 달 예상 매출 (임시 데이터)
-    const monthlyRevenue = totalUsers ? totalUsers * 50000 : 0 // 임시 계산
-
-    // 10. 전환율 계산 (임시)
+    // 통계 계산
+    const totalUsers = totalUsersResult.count || 0
+    const totalCampaigns = totalCampaignsResult.count || 0
+    const activeCampaigns = activeCampaignsResult.count || 0
+    const monthlyRevenue = totalUsers * 50000 // 임시 계산
     const conversionRate = totalCampaigns ? 
-      ((activeCampaigns || 0) / totalCampaigns * 100).toFixed(2) : 0
+      ((activeCampaigns) / totalCampaigns * 100).toFixed(2) : 0
 
     const stats = {
       overview: {
-        totalUsers: totalUsers || 0,
-        activeUsers: activeUsers?.length || 0,
-        newUsersToday: newUsersToday || 0,
-        totalCampaigns: totalCampaigns || 0,
-        activeCampaigns: activeCampaigns || 0,
+        totalUsers,
+        activeUsers: activeUsersResult.data?.length || 0,
+        newUsersToday: newUsersTodayResult.count || 0,
+        totalCampaigns,
+        activeCampaigns,
         monthlyRevenue,
         conversionRate: parseFloat(conversionRate as string),
       },
@@ -110,7 +123,7 @@ export async function GET(request: NextRequest) {
         pro: planCounts.pro || 0,
         enterprise: planCounts.enterprise || 0,
       },
-      recentActivities: recentActivities?.map(activity => ({
+      recentActivities: recentActivitiesResult.data?.map(activity => ({
         id: activity.id,
         action: activity.action,
         details: activity.details,
@@ -123,13 +136,18 @@ export async function GET(request: NextRequest) {
         users: count,
       })),
       quickStats: {
-        todayRevenue: Math.floor(monthlyRevenue / 30), // 일일 매출 추정
+        todayRevenue: Math.floor(monthlyRevenue / 30),
         serverStatus: 'healthy',
         pendingTasks: 0,
       }
     }
 
-    return NextResponse.json(stats)
+    // 캐시 헤더 추가 (1분간 캐싱)
+    return NextResponse.json(stats, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+      },
+    })
   } catch (error) {
     console.error('통계 조회 오류:', error)
     return NextResponse.json(
