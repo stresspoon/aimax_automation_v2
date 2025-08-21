@@ -57,21 +57,31 @@ export async function POST(req: Request) {
     
     const { accessToken, refreshToken, email } = await req.json()
     
+    if (!refreshToken) {
+      return NextResponse.json({ error: 'Refresh token이 필요합니다' }, { status: 400 })
+    }
+    
     // Gmail 연결 정보 저장 (먼저 기존 연결 삭제)
-    await supabase
+    const { error: deleteError } = await supabase
       .from('gmail_connections')
       .delete()
       .eq('user_id', user.id)
+    
+    if (deleteError) {
+      console.error('기존 연결 삭제 오류:', deleteError)
+    }
     
     // 새로운 연결 정보 저장
     const { error } = await supabase
       .from('gmail_connections')
       .insert({
         user_id: user.id,
-        email,
+        email: email || user.email,
         access_token: accessToken,
         refresh_token: refreshToken,
         connected_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
     
     if (error) {
