@@ -32,7 +32,10 @@
       "Bash(curl:*)",
       "Bash(brew install:*)",
       "Bash(ngrok http 3001)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(npm run create-admin:*)",
+      "Bash(cat:*)",
+      "Bash(npx shadcn@latest add:*)"
     ],
     "deny": [],
     "ask": []

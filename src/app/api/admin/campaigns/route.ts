@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   // 관리자 권한 확인
   const { user, error } = await verifyAdmin(request)
   if (error) {
-    return NextResponse.json({ error }, { status: error.status || 403 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
   const supabase = await createClient()
@@ -105,7 +105,7 @@ export async function PATCH(request: NextRequest) {
   // 관리자 권한 확인
   const { user, error } = await verifyAdmin(request)
   if (error) {
-    return NextResponse.json({ error }, { status: error.status || 403 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
   const supabase = await createClient()
@@ -175,7 +175,7 @@ export async function DELETE(request: NextRequest) {
   // 관리자 권한 확인
   const { user, error } = await verifyAdmin(request)
   if (error) {
-    return NextResponse.json({ error }, { status: error.status || 403 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
   const searchParams = request.nextUrl.searchParams
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
   // 관리자 권한 확인  
   const { user, error } = await verifyAdmin(request)
   if (error) {
-    return NextResponse.json({ error }, { status: error.status || 403 })
+    return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
   const supabase = await createClient()
