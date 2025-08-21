@@ -21,7 +21,7 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   
   // 사용자의 프로필 정보 조회 (구독 상태 확인)
   const { data: profile } = await supabase
-    .from('profiles')
+    .from('user_profiles')
     .select('subscription_status')
     .eq('id', user.id)
     .single()
@@ -103,7 +103,7 @@ export async function getUserSubscriptionStatus() {
   }
   
   const { data: profile } = await supabase
-    .from('profiles')
+    .from('user_profiles')
     .select('subscription_status, subscription_plan')
     .eq('id', user.id)
     .single()

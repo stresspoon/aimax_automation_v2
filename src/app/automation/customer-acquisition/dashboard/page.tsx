@@ -22,6 +22,13 @@ export default function CustomerAcquisitionDashboard() {
 
   useEffect(() => {
     fetchProjects();
+    
+    // 5초마다 프로젝트 목록 새로고침
+    const interval = setInterval(() => {
+      fetchProjects();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchProjects = async () => {
