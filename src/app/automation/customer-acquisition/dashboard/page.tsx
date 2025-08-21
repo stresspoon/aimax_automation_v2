@@ -229,72 +229,99 @@ export default function CustomerAcquisitionDashboard() {
                   className="p-6 hover:bg-muted/30 transition"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-4">
-                      <h3 className="text-lg font-semibold">{project.name}</h3>
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{project.name}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                         {getStatusText(project.status)}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3">
                       <Link
                         href={`/automation/customer-acquisition?projectId=${project.id}`}
-                        className="text-primary hover:text-primary/80 font-medium text-sm"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg font-semibold transition"
                       >
                         상세보기
                       </Link>
                       <button
                         onClick={() => handleDeleteProject(project.id)}
-                        className="text-destructive hover:text-destructive/80 font-medium text-sm ml-4"
+                        className="text-destructive hover:text-destructive/80 font-medium text-sm"
                       >
                         삭제
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground mb-1">Step 1: 글쓰기</p>
-                      <p className="font-medium">
-                        {project.step1_completed ? (
-                          <span className="text-green-600">✓ 완료</span>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className={`border rounded-lg p-4 ${project.step1_completed || project.generated_content ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
+                      <p className="text-sm font-semibold mb-2">Step 1: 글쓰기</p>
+                      <div className="flex items-center space-x-2">
+                        {(project.step1_completed || project.generated_content) ? (
+                          <>
+                            <span className="text-green-600 text-lg">✓</span>
+                            <span className="text-green-600 font-medium">완료</span>
+                          </>
                         ) : (
-                          <span className="text-muted-foreground">대기중</span>
+                          <>
+                            <span className="text-gray-400 text-lg">○</span>
+                            <span className="text-gray-500">대기중</span>
+                          </>
                         )}
-                      </p>
+                      </div>
                       {project.keyword && (
-                        <p className="text-xs text-muted-foreground mt-1">키워드: {project.keyword}</p>
+                        <p className="text-xs text-muted-foreground mt-2">키워드: {project.keyword}</p>
+                      )}
+                      {project.content_count > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">생성: {project.content_count}개</p>
                       )}
                     </div>
 
-                    <div>
-                      <p className="text-muted-foreground mb-1">Step 2: DB 관리</p>
-                      <p className="font-medium">
-                        {project.step2_completed ? (
-                          <span className="text-green-600">✓ 완료</span>
-                        ) : project.step1_completed ? (
-                          <span className="text-blue-600">진행중</span>
+                    <div className={`border rounded-lg p-4 ${project.step2_completed || project.db_collected ? 'bg-green-50 border-green-200' : project.step1_completed || project.generated_content ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'}`}>
+                      <p className="text-sm font-semibold mb-2">Step 2: DB 수집</p>
+                      <div className="flex items-center space-x-2">
+                        {(project.step2_completed || project.db_collected) ? (
+                          <>
+                            <span className="text-green-600 text-lg">✓</span>
+                            <span className="text-green-600 font-medium">완료</span>
+                          </>
+                        ) : (project.step1_completed || project.generated_content) ? (
+                          <>
+                            <span className="text-blue-600 text-lg">◉</span>
+                            <span className="text-blue-600 font-medium">진행가능</span>
+                          </>
                         ) : (
-                          <span className="text-muted-foreground">대기중</span>
+                          <>
+                            <span className="text-gray-400 text-lg">○</span>
+                            <span className="text-gray-500">대기중</span>
+                          </>
                         )}
-                      </p>
+                      </div>
                       {project.leads_count > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">수집: {project.leads_count}명</p>
+                        <p className="text-xs text-muted-foreground mt-2">수집: {project.leads_count}명</p>
                       )}
                     </div>
 
-                    <div>
-                      <p className="text-muted-foreground mb-1">Step 3: 이메일 발송</p>
-                      <p className="font-medium">
-                        {project.step3_completed ? (
-                          <span className="text-green-600">✓ 완료</span>
-                        ) : project.step2_completed ? (
-                          <span className="text-purple-600">진행중</span>
+                    <div className={`border rounded-lg p-4 ${project.step3_completed || project.emails_sent > 0 ? 'bg-green-50 border-green-200' : project.step2_completed || project.db_collected ? 'bg-purple-50 border-purple-200' : 'bg-gray-50'}`}>
+                      <p className="text-sm font-semibold mb-2">Step 3: 이메일 발송</p>
+                      <div className="flex items-center space-x-2">
+                        {(project.step3_completed || project.emails_sent > 0) ? (
+                          <>
+                            <span className="text-green-600 text-lg">✓</span>
+                            <span className="text-green-600 font-medium">완료</span>
+                          </>
+                        ) : (project.step2_completed || project.db_collected) ? (
+                          <>
+                            <span className="text-purple-600 text-lg">◉</span>
+                            <span className="text-purple-600 font-medium">진행가능</span>
+                          </>
                         ) : (
-                          <span className="text-muted-foreground">대기중</span>
+                          <>
+                            <span className="text-gray-400 text-lg">○</span>
+                            <span className="text-gray-500">대기중</span>
+                          </>
                         )}
-                      </p>
+                      </div>
                       {project.emails_sent > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">발송: {project.emails_sent}건</p>
+                        <p className="text-xs text-muted-foreground mt-2">발송: {project.emails_sent}건</p>
                       )}
                     </div>
                   </div>

@@ -407,6 +407,21 @@ export default function CustomerAcquisitionPage() {
           generatedImages: json.images || [],
         },
       })
+      
+      // Step 1 완료 상태 업데이트
+      if (projectId) {
+        const supabase = createClient();
+        await supabase
+          .from('projects')
+          .update({ 
+            step1_completed: true,
+            generated_content: json.content,
+            content_count: json.images ? json.images.length + 1 : 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+      }
+      
       showNotification('생성이 완료되었습니다', 'success')
     } catch (e: any) {
       showNotification(e?.message || '에러가 발생했습니다', 'error')
@@ -733,6 +748,20 @@ export default function CustomerAcquisitionPage() {
         showNotification('시트 준비 또는 측정 중 오류가 발생했습니다', 'error')
       } finally {
         setLoading(false)
+        
+        // Step 2 완료 상태 업데이트 (성공적으로 데이터를 가져온 경우)
+        if (projectId && projectData.step2.candidates.length > 0) {
+          const supabase = createClient();
+          await supabase
+            .from('projects')
+            .update({ 
+              step2_completed: true,
+              db_collected: true,
+              leads_count: projectData.step2.candidates.length,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', projectId);
+        }
       }
     } else {
       // 일시정지
@@ -1044,6 +1073,20 @@ export default function CustomerAcquisitionPage() {
             emailsSent: (prev.step3.emailsSent || 0) + emailsSent,
           },
         }));
+        
+        // Step 3 완료 상태 업데이트
+        if (projectId) {
+          const supabase = createClient();
+          await supabase
+            .from('projects')
+            .update({ 
+              step3_completed: true,
+              emails_sent: emailsSent,
+              status: 'completed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', projectId);
+        }
       }
     } catch (err) {
       showNotification('이메일 발송 중 오류가 발생했습니다', 'error');
@@ -1967,6 +2010,9 @@ export default function CustomerAcquisitionPage() {
         {/* 프로세스 선택 카드 */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">고객모집 자동화</h1>
+          {campaignName && (
+            <h2 className="text-xl font-semibold text-primary mb-2">프로젝트: {campaignName}</h2>
+          )}
           <p className="text-muted-foreground">원하는 단계를 선택하여 시작하세요</p>
         </div>
 
