@@ -199,7 +199,7 @@ export default function ProjectsPage() {
                     <div className="flex items-center space-x-3">
                       {(project.keyword || project.step1_completed !== undefined) ? (
                         <Link
-                          href={`/automation/customer-acquisition/projects/${project.id}`}
+                          href={`/automation/customer-acquisition?projectId=${project.id}`}
                           className="text-primary hover:text-primary/80 font-medium text-sm"
                         >
                           상세보기
