@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { verifyAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
@@ -9,7 +10,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: error.status || 403 })
   }
 
-  const supabase = await createClient()
+  // Service Role 키를 사용하여 RLS 우회
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
 
   try {
     // 날짜 계산
