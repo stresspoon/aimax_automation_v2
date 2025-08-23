@@ -19,23 +19,29 @@ export async function GET(req: Request) {
   
   try {
     // 프로젝트의 폼 찾기
-    const { data: forms } = await supabase
+    console.log('Sync candidates - Looking for forms with projectId:', projectId, 'userId:', user.id)
+    const { data: forms, error: formsError } = await supabase
       .from('forms')
       .select('id')
       .eq('project_id', projectId)
       .eq('user_id', user.id)
+    
+    console.log('Forms found:', forms, 'Error:', formsError)
     
     if (!forms || forms.length === 0) {
       return NextResponse.json({ candidates: [], message: '폼이 없습니다' })
     }
     
     // 폼의 모든 응답 가져오기
+    console.log('Fetching responses for form:', forms[0].id)
     const { data: responses, error } = await supabase
       .from('form_responses_temp')
       .select('*')
       .eq('form_id', forms[0].id)
       .in('status', ['completed', 'processing', 'pending'])
       .order('created_at', { ascending: false })
+    
+    console.log('Responses found:', responses?.length, 'Error:', error)
     
     if (error) {
       console.error('Error fetching responses:', error)

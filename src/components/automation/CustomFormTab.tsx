@@ -36,7 +36,9 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   
   // 폼 정보 로드
   useEffect(() => {
-    loadForm()
+    if (projectId) {
+      loadForm()
+    }
   }, [projectId])
   
   // 자동 새로고침 (5초마다)
@@ -51,10 +53,17 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   }, [form])
   
   const loadForm = async () => {
+    if (!projectId) {
+      console.log('No projectId provided')
+      return
+    }
+    
     try {
+      console.log('Loading form for projectId:', projectId)
       const res = await fetch(`/api/forms?projectId=${projectId}`)
       if (res.ok) {
         const forms = await res.json()
+        console.log('Forms loaded:', forms)
         if (forms.length > 0) {
           setForm(forms[0])
           setGoogleSheetUrl(forms[0].google_sheet_url || '')
@@ -105,8 +114,14 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   
   // 폼 생성 또는 업데이트
   const handleCreateForm = async () => {
+    if (!projectId) {
+      alert('프로젝트를 먼저 저장해주세요')
+      return
+    }
+    
     setLoading(true)
     try {
+      console.log('Creating form with projectId:', projectId)
       const res = await fetch('/api/forms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,9 +286,39 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                 </div>
               )}
               
+              {/* 프로젝트 연결 (임시 수정 버튼) */}
+              {form && !form.project_id && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    이 폼이 프로젝트와 연결되지 않았습니다.
+                    <Button 
+                      size="sm" 
+                      className="ml-2"
+                      onClick={async () => {
+                        const res = await fetch('/api/forms', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            id: form.id,
+                            project_id: projectId
+                          })
+                        })
+                        if (res.ok) {
+                          alert('프로젝트와 연결되었습니다')
+                          loadForm()
+                        }
+                      }}
+                    >
+                      프로젝트 연결
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               {/* Google Sheets 연결 */}
               <div className="space-y-2">
-                <Label>Google Sheets URL</Label>
+                <Label>Google Sheets URL (선택사항)</Label>
                 <div className="flex gap-2">
                   <Input
                     placeholder="https://docs.google.com/spreadsheets/d/..."

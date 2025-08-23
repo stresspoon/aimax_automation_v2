@@ -1,5 +1,8 @@
 {
   "/api/forms/responses/route": "app/api/forms/responses/route.js",
+  "/api/forms/sync-candidates/route": "app/api/forms/sync-candidates/route.js",
+  "/api/sheets/prepare/route": "app/api/sheets/prepare/route.js",
+  "/api/forms/route": "app/api/forms/route.js",
   "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
   "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
   "/page": "app/page.js",

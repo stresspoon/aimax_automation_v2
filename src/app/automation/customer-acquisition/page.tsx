@@ -709,9 +709,13 @@ export default function CustomerAcquisitionPage() {
 
       try {
         // 먼저 자체 폼 데이터 확인
+        console.log('Checking form data for projectId:', projectId)
         const formResponse = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+        console.log('Form response status:', formResponse.status)
+        
         if (formResponse.ok) {
           const formData = await formResponse.json()
+          console.log('Form data:', formData)
           
           if (formData.candidates && formData.candidates.length > 0) {
             // 자체 폼 데이터 사용

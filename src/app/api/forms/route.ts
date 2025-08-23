@@ -30,11 +30,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const { data: forms, error } = await supabase
+  const projectId = searchParams.get('projectId')
+  
+  let query = supabase
     .from('forms')
     .select('*')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  
+  // projectId가 있으면 해당 프로젝트의 폼만 조회
+  if (projectId && projectId !== 'null' && projectId !== 'undefined') {
+    query = query.eq('project_id', projectId)
+  }
+  
+  const { data: forms, error } = await query.order('created_at', { ascending: false })
   
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
