@@ -187,8 +187,14 @@ export default function CustomerAcquisitionPage() {
               
               // 프로젝트가 이미 실행 중이면 periodic check 시작
               if (projectFromDb.data.step2?.isRunning) {
-                console.log('프로젝트가 실행 중입니다. 주기적 체크를 시작합니다.');
+                console.log('🔄 === 기존 실행 중인 프로젝트 감지 ===');
+                console.log('Project ID:', projectFromDb.id);
+                console.log('Sheet URL:', projectFromDb.data.step2?.sheetUrl);
+                console.log('Candidates:', projectFromDb.data.step2?.candidates?.length);
+                console.log('1초 후 주기적 체크 시작...');
                 setTimeout(() => startPeriodicCheck(), 1000); // 1초 후 시작
+              } else {
+                console.log('ℹ️ 프로젝트가 실행 중이 아님');
               }
             }
           }
@@ -847,15 +853,22 @@ export default function CustomerAcquisitionPage() {
       clearInterval(checkInterval);
     }
     
-    console.log('Starting periodic check...');
+    console.log('🚀 === 주기적 체크 시작 ===');
+    console.log('Project ID:', projectId);
     
     // 즉시 한 번 체크
+    console.log('📍 초기 체크 실행...');
     checkForNewResponses();
     
     // 10초마다 새로운 응답 확인 (테스트를 위해 간격 단축)
     const interval = setInterval(async () => {
+      console.log('⏰ === 10초 간격 체크 ===');
+      
       // DB에서 현재 프로젝트 상태 확인
-      if (!projectId) return;
+      if (!projectId) {
+        console.log('❌ Project ID가 없어서 체크 중단');
+        return;
+      }
       
       const supabase = createClient();
       const { data: project } = await supabase
@@ -867,10 +880,15 @@ export default function CustomerAcquisitionPage() {
       const isRunning = project?.data?.step2?.isRunning;
       const sheetUrl = project?.data?.step2?.sheetUrl;
       
-      console.log('Periodic check - isRunning:', isRunning, 'sheetUrl:', sheetUrl);
+      console.log('📊 프로젝트 상태:');
+      console.log(`  - isRunning: ${isRunning}`);
+      console.log(`  - sheetUrl: ${sheetUrl}`);
       
       if (isRunning && sheetUrl) {
+        console.log('✅ 조건 충족 - 새로운 응답 체크 실행');
         await checkForNewResponses();
+      } else {
+        console.log('⏸️ 체크 건너뜀 (실행 중이 아니거나 시트 URL 없음)');
       }
     }, 10000); // 10초마다 체크
     
@@ -945,9 +963,13 @@ export default function CustomerAcquisitionPage() {
   };
 
   const checkForNewResponses = async () => {
+    console.log('🔍 === 새로운 응답 체크 시작 ===');
+    console.log('Project ID:', projectId);
+    console.log('현재 시간:', new Date().toLocaleTimeString());
+    
     try {
       if (!projectId) {
-        console.log('No project ID, skipping check');
+        console.log('❌ No project ID, skipping check');
         return;
       }
       
@@ -960,15 +982,17 @@ export default function CustomerAcquisitionPage() {
         .single();
       
       if (error || !project) {
-        console.error('Failed to fetch project data:', error);
+        console.error('❌ Failed to fetch project data:', error);
         return;
       }
       
       const lastRowCount = project.data?.step2?.lastRowCount || 0;
       const currentCandidatesCount = project.data?.step2?.candidates?.length || 0;
       
-      console.log('Checking for new responses...');
-      console.log(`DB lastRowCount: ${lastRowCount}, Current candidates: ${currentCandidatesCount}`);
+      console.log('📊 현재 상태:');
+      console.log(`  - DB에 저장된 마지막 체크 행 수: ${lastRowCount}`);
+      console.log(`  - 현재 후보자 수: ${currentCandidatesCount}`);
+      console.log(`  - Sheet URL: ${projectData.step2.sheetUrl}`);
       
       const res = await fetch('/api/sheets/sync', {
         method: 'POST',
@@ -984,9 +1008,12 @@ export default function CustomerAcquisitionPage() {
       });
       
       const data = await res.json();
-      console.log('Check response:', data);
+      console.log('📨 API 응답:', data);
       
       if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
+        console.log(`✅ ${data.newCandidates.length}명의 새로운 후보자 발견!`);
+        console.log('새 후보자 목록:', data.newCandidates);
+        
         // DB에서 다시 최신 데이터 가져오기 (업데이트된 데이터)
         const { data: updatedProject } = await supabase
           .from('projects')
@@ -1003,12 +1030,14 @@ export default function CustomerAcquisitionPage() {
               ...updatedProject.data.step2,
             },
           }));
+          console.log('✅ UI 업데이트 완료');
         }
         
         showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
-        console.log(`Added ${data.newCandidates.length} new candidates`);
+      } else if (data.message) {
+        console.log(`ℹ️ ${data.message}`);
       } else {
-        console.log('No new candidates found');
+        console.log('❌ 응답 처리 실패:', data);
       }
     } catch (err) {
       console.error('New responses check error:', err);
