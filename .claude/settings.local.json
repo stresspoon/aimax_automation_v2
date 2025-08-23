@@ -35,7 +35,9 @@
       "Bash(git restore:*)",
       "Bash(npm run create-admin:*)",
       "Bash(cat:*)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx supabase migration:*)"
     ],
     "deny": [],
     "ask": []
