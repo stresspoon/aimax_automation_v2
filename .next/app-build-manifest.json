@@ -55,6 +55,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/sheets/prepare/route.js"
+    ],
+    "/api/forms/sync-candidates/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/forms/sync-candidates/route.js"
     ]
   }
 }

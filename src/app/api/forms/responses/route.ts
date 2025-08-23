@@ -61,12 +61,16 @@ export async function POST(req: Request) {
         priority: 1
       })
     
-    // 백그라운드 처리 트리거 (비동기)
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/forms/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ responseId: response.id })
-    }).catch(console.error)
+    // 백그라운드 처리 트리거 (비동기) - SNS 체크 및 선정
+    setTimeout(() => {
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/forms/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responseId: response.id })
+      }).catch(error => {
+        console.error('Background processing error:', error)
+      })
+    }, 1000) // 1초 후 처리 시작
     
     return NextResponse.json({
       success: true,

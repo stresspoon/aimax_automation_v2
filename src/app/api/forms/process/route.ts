@@ -152,15 +152,23 @@ export async function POST(req: Request) {
     // 응답 조회
     const { data: response, error: responseError } = await supabase
       .from('form_responses_temp')
-      .select(`
-        *,
-        forms(*)
-      `)
+      .select('*')
       .eq('id', responseId)
       .single()
     
     if (responseError || !response) {
       return NextResponse.json({ error: '응답을 찾을 수 없습니다' }, { status: 404 })
+    }
+    
+    // 폼 정보 조회
+    const { data: form, error: formError } = await supabase
+      .from('forms')
+      .select('*')
+      .eq('id', response.form_id)
+      .single()
+    
+    if (formError || !form) {
+      return NextResponse.json({ error: '폼을 찾을 수 없습니다' }, { status: 404 })
     }
     
     // 이미 처리됨
@@ -181,7 +189,7 @@ export async function POST(req: Request) {
     const snsResult = await checkSNSParallel(response.data)
     
     // 선정 기준 확인
-    const criteria = response.forms.settings?.selectionCriteria || {
+    const criteria = form.settings?.selectionCriteria || {
       threads: 500,
       blog: 300,
       instagram: 1000
@@ -205,9 +213,9 @@ export async function POST(req: Request) {
       .eq('id', responseId)
     
     // Google Sheets 동기화
-    if (response.forms.google_sheet_id) {
+    if (form.google_sheet_id) {
       const synced = await appendToGoogleSheet(
-        response.forms,
+        form,
         response.data,
         snsResult,
         isSelected

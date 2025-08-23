@@ -747,15 +747,46 @@ export default function CustomerAcquisitionPage() {
           }
         }
         
-        // 자체 폼 데이터가 없으면 Google Sheets 확인
+        // 자체 폼 데이터가 없고 Google Sheets URL도 없으면 안내
         if (!projectData.step2.sheetUrl) {
           showNotification('자체 폼에 응답이 없습니다. 폼 링크를 공유하여 응답을 받아보세요.', 'info');
           setLoading(false);
           setProgress({ total: 100, current: 0, currentName: '', status: 'idle', phase: 'idle' });
+          
+          // 빈 상태로 대기 모드 시작 (새 응답 기다림)
+          setProjectData({
+            ...projectData,
+            step2: {
+              ...projectData.step2,
+              candidates: [],
+              isRunning: true,
+              usingFormData: true
+            }
+          });
+          
+          // 주기적으로 폼 데이터 체크
+          const checkInterval = setInterval(async () => {
+            const response = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (data.candidates && data.candidates.length > 0) {
+                setProjectData(prev => ({
+                  ...prev,
+                  step2: {
+                    ...prev.step2,
+                    candidates: data.candidates
+                  }
+                }))
+                showNotification(`${data.candidates.length}명의 새로운 응답이 있습니다!`, 'success')
+                clearInterval(checkInterval)
+              }
+            }
+          }, 5000)
+          
           return;
         }
         
-        // 1) 시트 준비: 후보 목록만 가져오기
+        // Google Sheets URL이 있으면 기존 로직 실행
         const prep = await fetch('/api/sheets/prepare', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sheetUrl: projectData.step2.sheetUrl })
