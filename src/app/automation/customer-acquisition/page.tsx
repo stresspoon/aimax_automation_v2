@@ -1161,7 +1161,7 @@ export default function CustomerAcquisitionPage() {
         const sheetUrl = project?.data?.step2?.sheetUrl;
         
         if (isRunning && sheetUrl) {
-          const hasNewData = await checkForNewResponses(projectId);
+          const hasNewData = await checkForNewResponses(projectId || undefined);
           
           if (hasNewData) {
             setPollingInterval(5000);
