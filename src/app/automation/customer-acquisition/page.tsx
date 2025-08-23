@@ -2198,7 +2198,9 @@ export default function CustomerAcquisitionPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">고객모집 자동화</h1>
           {campaignName && (
-            <h2 className="text-xl font-semibold text-primary mb-2">프로젝트: {campaignName}</h2>
+            <div className="bg-primary/10 rounded-lg px-4 py-2 inline-block mb-4">
+              <h2 className="text-xl font-semibold text-primary">📁 {campaignName}</h2>
+            </div>
           )}
           <p className="text-muted-foreground">원하는 단계를 선택하여 시작하세요</p>
         </div>

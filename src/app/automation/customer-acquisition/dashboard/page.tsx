@@ -17,6 +17,8 @@ export default function CustomerAcquisitionDashboard() {
     conversionRate: 0,
     totalLeads: 0,
   });
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
   const router = useRouter();
   const supabase = createClient();
 
@@ -89,6 +91,38 @@ export default function CustomerAcquisitionDashboard() {
     }
   };
 
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) {
+      alert('프로젝트 이름을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 새 프로젝트 생성
+      const { data: newProject, error } = await supabase
+        .from('projects')
+        .insert({
+          user_id: user.id,
+          campaign_name: newProjectName,
+          status: 'writing',
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // 상세 페이지로 이동
+      router.push(`/automation/customer-acquisition?id=${newProject.id}`);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('프로젝트 생성 중 오류가 발생했습니다.');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "writing":
@@ -132,12 +166,12 @@ export default function CustomerAcquisitionDashboard() {
               <span className="ml-4 text-muted-foreground">/ 고객모집 자동화</span>
             </div>
             <div className="flex items-center space-x-4">
-              <Link 
-                href="/automation/customer-acquisition" 
+              <button 
+                onClick={() => setShowNameModal(true)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold transition"
               >
                 새 프로젝트 시작
-              </Link>
+              </button>
               <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
                 메인으로
               </Link>
@@ -219,12 +253,12 @@ export default function CustomerAcquisitionDashboard() {
           ) : projects.length === 0 ? (
             <div className="p-12 text-center">
               <p className="text-muted-foreground mb-4">아직 프로젝트가 없습니다</p>
-              <Link 
-                href="/automation/customer-acquisition"
+              <button 
+                onClick={() => setShowNameModal(true)}
                 className="inline-block bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition"
               >
                 첫 프로젝트 시작하기
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="divide-y">
@@ -342,6 +376,41 @@ export default function CustomerAcquisitionDashboard() {
           )}
         </div>
       </main>
+
+      {/* 프로젝트 이름 입력 모달 */}
+      {showNameModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">새 프로젝트 만들기</h2>
+            <input
+              type="text"
+              placeholder="프로젝트 이름을 입력하세요"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateProject()}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setNewProjectName('');
+                }}
+                className="px-4 py-2 text-muted-foreground hover:text-foreground"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreateProject}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+              >
+                시작하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
