@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { createClient } from '@/lib/supabase/client'
+import { ResponseDashboard } from '@/components/forms/ResponseDashboard'
 
 interface CustomFormTabProps {
   projectId: string | null
@@ -391,6 +392,21 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
           )}
         </CardContent>
       </Card>
+      
+      {/* 응답 대시보드 */}
+      {form && (
+        <Card>
+          <CardHeader>
+            <CardTitle>응답 통계</CardTitle>
+            <CardDescription>
+              실시간 폼 응답 현황을 확인하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponseDashboard formId={form.id} />
+          </CardContent>
+        </Card>
+      )}
       
     </div>
   )
