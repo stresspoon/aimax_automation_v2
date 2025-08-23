@@ -814,7 +814,7 @@ export default function CustomerAcquisitionPage() {
         showNotification('후보별 SNS 체크가 완료되었습니다', 'success')
         
         // 측정이 완료되어도 isRunning은 true로 유지 (주기적 체크 계속)
-        console.log('자동화 실행 중 - 10초마다 새로운 응답을 확인합니다')
+        console.log('자동화 실행 중 - 5초마다 새로운 응답을 확인합니다')
 
       } catch (err) {
         console.error(err)
@@ -916,9 +916,9 @@ export default function CustomerAcquisitionPage() {
     console.log('📍 초기 체크 실행...');
     checkForNewResponses(currentProjectId);
     
-    // 10초마다 새로운 응답 확인 (테스트를 위해 간격 단축)
+    // 5초마다 새로운 응답 확인 (빠른 응답 감지)
     const interval = setInterval(async () => {
-      console.log('⏰ === 10초 간격 체크 ===');
+      console.log('⏰ === 5초 간격 체크 ===');
       console.log('Current Project ID:', currentProjectId);
       
       const supabase = createClient();
@@ -941,7 +941,7 @@ export default function CustomerAcquisitionPage() {
       } else {
         console.log('⏸️ 체크 건너뜀 (실행 중이 아니거나 시트 URL 없음)');
       }
-    }, 10000); // 10초마다 체크
+    }, 5000); // 5초마다 체크 (더 빠른 응답)
     
     setCheckInterval(interval);
     
@@ -1613,7 +1613,7 @@ export default function CustomerAcquisitionPage() {
               <span className="text-sm font-medium text-blue-700">
                 {progress.phase === 'sheet_loading' ? '구글 시트 데이터를 불러오는 중...' : 
                  progress.phase === 'sns_checking' ? 'SNS 팔로워/이웃수를 체크하는 중...' :
-                 '자동화 실행 중 - 10초마다 새로운 응답을 확인합니다'}
+                 '자동화 실행 중 - 5초마다 새로운 응답을 확인합니다'}
               </span>
             </div>
             

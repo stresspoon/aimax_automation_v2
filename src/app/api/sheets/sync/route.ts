@@ -179,10 +179,46 @@ export async function POST(req: Request) {
     type Row = Record<string, string>
     let rows = (parsed.data as Row[]).filter(Boolean)
     
+    // 빈 시트도 허용 (초기 연결 시)
     if (rows.length === 0) {
+      console.log('Empty sheet detected - initial connection')
+      
+      // 프로젝트 초기 설정 저장
+      if (body.projectId) {
+        const supabase = await createClient()
+        const { data: existingProject } = await supabase
+          .from('projects')
+          .select('data')
+          .eq('id', body.projectId)
+          .single()
+        
+        await supabase
+          .from('projects')
+          .update({ 
+            data: { 
+              ...existingProject?.data,
+              step2: { 
+                ...existingProject?.data?.step2,
+                candidates: [],
+                stats: { total: 0, selected: 0, notSelected: 0 },
+                sheetUrl: body.sheetUrl,
+                selectionCriteria: body.selectionCriteria,
+                lastRowCount: 0,
+                lastSyncedAt: new Date().toISOString(),
+                isRunning: true
+              } 
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', body.projectId)
+      }
+      
       return NextResponse.json({ 
-        error: '시트에 데이터가 없습니다.' 
-      }, { status: 400 })
+        success: true,
+        candidates: [],
+        stats: { total: 0, selected: 0, notSelected: 0 },
+        message: '시트가 연결되었습니다. 새로운 응답을 기다리는 중...'
+      })
     }
 
     // 새로운 응답만 체크하는 경우
@@ -213,7 +249,10 @@ export async function POST(req: Request) {
           // 새로운 행들만 처리
           rows = rows.slice(lastRowCount)
           isNewCheck = true
-          console.log(`Processing ${rows.length} new rows (from row ${lastRowCount + 1} to ${newRowCount})`)
+          console.log(`🆕 ${rows.length}명의 새로운 응답 발견! (행 ${lastRowCount + 1} ~ ${newRowCount})`)
+          if (rows.length > 1) {
+            console.log(`📌 동시에 여러 응답 처리 중...`)
+          }
         } else {
           // 새로운 데이터가 없음
           console.log('No new responses found')
