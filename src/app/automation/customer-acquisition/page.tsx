@@ -693,7 +693,7 @@ export default function CustomerAcquisitionPage() {
         }
         
         // 자동화 시작 시 주기적 체크 시작
-        console.log('🚀 자동화 시작 - 주기적 체크 활성화');
+        console.log('🚀 자동화 시작 - 스마트 폴링 활성화');
         startPeriodicCheck(projectId || undefined)
 
         // 2) 후보별 순차 측정
@@ -874,8 +874,11 @@ export default function CustomerAcquisitionPage() {
     }
   };
 
-  // 주기적 체크를 위한 interval 관리
+  // 스마트 폴링 관련
   const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollingInterval, setPollingInterval] = useState(5000); // 초기 5초
+  const [lastDataTime, setLastDataTime] = useState(Date.now());
+  const [minutesSinceLastData, setMinutesSinceLastData] = useState(0);
   
   // 진행상황 추적 상태
   const [progress, setProgress] = useState<{
@@ -904,22 +907,29 @@ export default function CustomerAcquisitionPage() {
       clearInterval(checkInterval);
     }
     
-    console.log('🚀 === 주기적 체크 시작 ===');
+    console.log('🚀 === 스마트 폴링 시작 ===');
     console.log('Project ID:', currentProjectId);
+    console.log('초기 체크 간격: 5초');
     
     if (!currentProjectId) {
       console.log('❌ Project ID가 없어서 시작 불가');
       return;
     }
     
+    // 초기 설정
+    setPollingInterval(5000);
+    setLastDataTime(Date.now());
+    setMinutesSinceLastData(0);
+    
     // 즉시 한 번 체크
     console.log('📍 초기 체크 실행...');
     checkForNewResponses(currentProjectId);
     
-    // 5초마다 새로운 응답 확인 (빠른 응답 감지)
-    const interval = setInterval(async () => {
-      console.log('⏰ === 5초 간격 체크 ===');
+    // 스마트 폴링 함수
+    const performSmartCheck = async () => {
+      console.log(`⏰ === 스마트 폴링 체크 (${pollingInterval/1000}초 간격) ===`);
       console.log('Current Project ID:', currentProjectId);
+      console.log(`마지막 데이터: ${minutesSinceLastData}분 전`);
       
       const supabase = createClient();
       const { data: project } = await supabase
@@ -937,12 +947,38 @@ export default function CustomerAcquisitionPage() {
       
       if (isRunning && sheetUrl) {
         console.log('✅ 조건 충족 - 새로운 응답 체크 실행');
-        await checkForNewResponses(currentProjectId);
+        const hasNewData = await checkForNewResponses(currentProjectId);
+        
+        if (hasNewData) {
+          // 새 데이터 발견 - 간격을 5초로 리셋
+          setPollingInterval(5000);
+          setLastDataTime(Date.now());
+          setMinutesSinceLastData(0);
+          console.log('📊 새 데이터 발견! 체크 간격을 5초로 리셋');
+        } else {
+          // 데이터 없음 - 간격 점진적 증가
+          const timeSinceLastData = Date.now() - lastDataTime;
+          const minutes = Math.floor(timeSinceLastData / 60000);
+          setMinutesSinceLastData(minutes);
+          
+          if (minutes > 60 && pollingInterval !== 60000) {
+            setPollingInterval(60000);
+            console.log('⏱️ 1시간 이상 변화 없음 - 체크 간격을 1분으로 변경');
+          } else if (minutes > 30 && pollingInterval !== 30000) {
+            setPollingInterval(30000);
+            console.log('⏱️ 30분 이상 변화 없음 - 체크 간격을 30초로 변경');
+          } else if (minutes > 10 && pollingInterval !== 15000) {
+            setPollingInterval(15000);
+            console.log('⏱️ 10분 이상 변화 없음 - 체크 간격을 15초로 변경');
+          }
+        }
       } else {
         console.log('⏸️ 체크 건너뜀 (실행 중이 아니거나 시트 URL 없음)');
       }
-    }, 5000); // 5초마다 체크 (더 빠른 응답)
+    };
     
+    // 스마트 폴링 시작
+    const interval = setInterval(performSmartCheck, pollingInterval);
     setCheckInterval(interval);
     
     // 진행상황 체크 시작
@@ -950,11 +986,13 @@ export default function CustomerAcquisitionPage() {
   };
 
   const stopPeriodicCheck = () => {
-    console.log('🛑 === 주기적 체크 중지 ===');
+    console.log('🛑 === 스마트 폴링 중지 ===');
     
     if (checkInterval) {
       clearInterval(checkInterval);
       setCheckInterval(null);
+      setPollingInterval(5000); // 리셋
+      setMinutesSinceLastData(0);
       console.log('✅ Interval 정리 완료');
     } else {
       console.log('ℹ️ 정리할 interval 없음');
@@ -1018,7 +1056,7 @@ export default function CustomerAcquisitionPage() {
     }
   };
 
-  const checkForNewResponses = async (pId?: string) => {
+  const checkForNewResponses = async (pId?: string): Promise<boolean> => {
     const currentProjectId = pId || projectId;
     
     console.log('🔍 === 새로운 응답 체크 시작 ===');
@@ -1028,7 +1066,7 @@ export default function CustomerAcquisitionPage() {
     try {
       if (!currentProjectId) {
         console.log('❌ No project ID, skipping check');
-        return;
+        return false;
       }
       
       // DB에서 최신 프로젝트 데이터 가져오기
@@ -1041,7 +1079,7 @@ export default function CustomerAcquisitionPage() {
       
       if (error || !project) {
         console.error('❌ Failed to fetch project data:', error);
-        return;
+        return false;
       }
       
       const lastRowCount = project.data?.step2?.lastRowCount || 0;
@@ -1092,16 +1130,65 @@ export default function CustomerAcquisitionPage() {
         }
         
         showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
+        return true; // 새 데이터 발견
       } else if (data.message) {
         console.log(`ℹ️ ${data.message}`);
+        return false; // 새 데이터 없음
       } else {
         console.log('❌ 응답 처리 실패:', data);
+        return false;
       }
     } catch (err) {
       console.error('New responses check error:', err);
+      return false;
     }
   };
 
+  // 폴링 간격이 변경되면 인터벌 재설정
+  useEffect(() => {
+    if (checkInterval && projectData.step2.isRunning) {
+      clearInterval(checkInterval);
+      
+      const performSmartCheck = async () => {
+        const supabase = createClient();
+        const { data: project } = await supabase
+          .from('projects')
+          .select('data')
+          .eq('id', projectId)
+          .single();
+        
+        const isRunning = project?.data?.step2?.isRunning;
+        const sheetUrl = project?.data?.step2?.sheetUrl;
+        
+        if (isRunning && sheetUrl) {
+          const hasNewData = await checkForNewResponses(projectId);
+          
+          if (hasNewData) {
+            setPollingInterval(5000);
+            setLastDataTime(Date.now());
+            setMinutesSinceLastData(0);
+          } else {
+            const timeSinceLastData = Date.now() - lastDataTime;
+            const minutes = Math.floor(timeSinceLastData / 60000);
+            setMinutesSinceLastData(minutes);
+            
+            if (minutes > 60 && pollingInterval !== 60000) {
+              setPollingInterval(60000);
+            } else if (minutes > 30 && pollingInterval !== 30000) {
+              setPollingInterval(30000);
+            } else if (minutes > 10 && pollingInterval !== 15000) {
+              setPollingInterval(15000);
+            }
+          }
+        }
+      };
+      
+      const interval = setInterval(performSmartCheck, pollingInterval);
+      setCheckInterval(interval);
+      console.log(`🔄 폴링 간격 변경됨: ${pollingInterval/1000}초`);
+    }
+  }, [pollingInterval]);
+  
   // 컴포넌트 언마운트 시 interval 정리
   useEffect(() => {
     return () => {
@@ -1608,13 +1695,20 @@ export default function CustomerAcquisitionPage() {
         {/* 자동화 상태 표시 */}
         {(projectData.step2.isRunning || loading || progress.status === 'loading' || progress.status === 'processing') && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center space-x-2 mb-3">
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-blue-700">
-                {progress.phase === 'sheet_loading' ? '구글 시트 데이터를 불러오는 중...' : 
-                 progress.phase === 'sns_checking' ? 'SNS 팔로워/이웃수를 체크하는 중...' :
-                 '자동화 실행 중 - 5초마다 새로운 응답을 확인합니다'}
-              </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-blue-700">
+                  {progress.phase === 'sheet_loading' ? '구글 시트 데이터를 불러오는 중...' : 
+                   progress.phase === 'sns_checking' ? 'SNS 팔로워/이웃수를 체크하는 중...' :
+                   `자동화 실행 중 - ${pollingInterval/1000}초마다 체크`}
+                </span>
+              </div>
+              {minutesSinceLastData > 0 && (
+                <span className="text-xs text-gray-500">
+                  마지막 데이터: {minutesSinceLastData}분 전
+                </span>
+              )}
             </div>
             
             {/* 진행상황 표시 */}

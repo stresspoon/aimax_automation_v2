@@ -33,6 +33,12 @@ export async function POST(req: Request) {
     type Row = Record<string, string>
     const rows = (parsed.data as Row[]).filter(Boolean)
 
+    // 빈 시트인 경우 빈 배열 반환하여 자동화 시작 가능하게 함
+    if (rows.length === 0) {
+      console.log('Empty sheet detected - allowing automation to start with empty data')
+      return NextResponse.json({ candidates: [] })
+    }
+
     const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '')
     const getByHeaderHints = (row: Row, hints: string[]): string => {
       for (const key of Object.keys(row)) {
