@@ -58,23 +58,52 @@ export async function POST(req: Request) {
           .replace(/\{\{name\}\}/g, recipient.name || '고객님')
           .replace(/\{이름\}/g, recipient.name || '고객님')
         
-        // 이메일 메시지 생성
+        // HTML 본문을 올바른 형식으로 래핑
+        const htmlBody = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+p { margin-bottom: 15px; }
+ul { margin-bottom: 15px; padding-left: 20px; }
+li { margin-bottom: 5px; }
+</style>
+</head>
+<body>
+${processedBody}
+</body>
+</html>`
+        
+        // 이메일 메시지 생성 (MIME 형식)
+        const boundary = '----=_Part_0_' + Date.now()
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipient.email}`,
-          `Subject: ${subject}`,
+          `Subject: =?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`,
           replyTo ? `Reply-To: ${replyTo}` : '',
-          'Content-Type: text/html; charset=utf-8',
+          'MIME-Version: 1.0',
+          `Content-Type: multipart/alternative; boundary="${boundary}"`,
           '',
-          processedBody
-        ].filter(Boolean).join('\n')
+          `--${boundary}`,
+          'Content-Type: text/html; charset=utf-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          Buffer.from(htmlBody, 'utf-8').toString('base64'),
+          `--${boundary}--`
+        ].filter(Boolean).join('\r\n')
         
-        // Base64 인코딩
+        // Gmail API용 Base64 인코딩 (URL-safe)
         const encodedMessage = Buffer.from(message, 'utf-8')
           .toString('base64')
           .replace(/\+/g, '-')
           .replace(/\//g, '_')
           .replace(/=+$/, '')
+        
+        // 디버깅용 로그
+        console.log('Sending email to:', recipient.email)
+        console.log('Subject (decoded):', subject)
+        console.log('Name in body:', recipient.name || '고객님')
         
         // Gmail API로 발송
         const result = await gmail.users.messages.send({
