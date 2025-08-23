@@ -730,6 +730,38 @@ export default function CustomerAcquisitionPage() {
             });
             
             showNotification(`자체 폼에서 ${formData.candidates.length}명의 후보를 가져왔습니다`, 'success');
+            
+            // pending 상태인 응답들에 대해 SNS 체크 실행
+            const pendingResponses = formData.candidates.filter((c: any) => 
+              c.checkStatus?.threads === 'pending' || 
+              c.checkStatus?.blog === 'pending' || 
+              c.checkStatus?.instagram === 'pending'
+            )
+            
+            if (pendingResponses.length > 0) {
+              showNotification(`${pendingResponses.length}명에 대해 SNS 체크를 시작합니다`, 'info')
+              
+              // formId를 사용해서 pending 응답들 가져오기
+              if (formData.formId) {
+                const responsesRes = await fetch(`/api/forms/responses?formId=${formData.formId}`)
+                if (responsesRes.ok) {
+                  const responsesData = await responsesRes.json()
+                  const pendingIds = responsesData
+                    .filter((r: any) => r.status === 'pending')
+                    .map((r: any) => r.id)
+                  
+                  // 각 응답에 대해 SNS 체크 실행
+                  for (const responseId of pendingIds) {
+                    fetch('/api/forms/process', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ responseId })
+                    }).catch(console.error)
+                  }
+                }
+              }
+            }
+            
             setLoading(false);
             setProgress({ total: 100, current: 100, currentName: '완료', status: 'completed', phase: 'completed' });
             

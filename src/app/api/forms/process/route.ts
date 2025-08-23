@@ -147,6 +147,7 @@ async function appendToGoogleSheet(form: any, responseData: any, snsResult: any,
 export async function POST(req: Request) {
   try {
     const { responseId } = await req.json()
+    console.log('Processing response:', responseId)
     const supabase = await createClient()
     
     // 응답 조회
@@ -186,7 +187,9 @@ export async function POST(req: Request) {
       .eq('id', responseId)
     
     // SNS 병렬 체크
+    console.log('Starting SNS check for data:', response.data)
     const snsResult = await checkSNSParallel(response.data)
+    console.log('SNS check result:', snsResult)
     
     // 선정 기준 확인
     const criteria = form.settings?.selectionCriteria || {

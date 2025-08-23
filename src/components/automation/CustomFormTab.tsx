@@ -397,6 +397,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                       <th className="px-4 py-2 text-left text-sm">상태</th>
                       <th className="px-4 py-2 text-left text-sm">선정여부</th>
                       <th className="px-4 py-2 text-left text-sm">제출시간</th>
+                      <th className="px-4 py-2 text-left text-sm">작업</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -418,6 +419,29 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-500">
                           {new Date(response.created_at).toLocaleString('ko-KR')}
+                        </td>
+                        <td className="px-4 py-2">
+                          {response.status === 'pending' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                const res = await fetch('/api/forms/process', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ responseId: response.id })
+                                })
+                                if (res.ok) {
+                                  alert('SNS 체크 완료')
+                                  loadResponses(form.id)
+                                } else {
+                                  alert('SNS 체크 실패')
+                                }
+                              }}
+                            >
+                              SNS 체크
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
