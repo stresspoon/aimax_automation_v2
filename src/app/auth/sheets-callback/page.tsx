@@ -1,26 +1,40 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-export default function SheetsCallbackPage() {
+function SheetsCallbackContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const supabase = createClient()
+        const code = searchParams.get('code')
+        const error = searchParams.get('error')
         
-        // 현재 세션 확인
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError || !session) {
-          setError('Google Sheets 인증에 실패했습니다')
+        if (error) {
+          setError('Google 인증이 취소되었습니다')
           setTimeout(() => router.push('/automation/customer-acquisition'), 3000)
+          return
+        }
+        
+        if (!code) {
+          setError('인증 코드가 없습니다')
+          setTimeout(() => router.push('/automation/customer-acquisition'), 3000)
+          return
+        }
+
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (!user) {
+          setError('로그인이 필요합니다')
+          setTimeout(() => router.push('/'), 3000)
           return
         }
 
@@ -30,11 +44,7 @@ export default function SheetsCallbackPage() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            accessToken: session.provider_token,
-            refreshToken: session.provider_refresh_token,
-            email: session.user.email,
-          }),
+          body: JSON.stringify({ code }),
         })
 
         if (!response.ok) {
@@ -52,7 +62,7 @@ export default function SheetsCallbackPage() {
     }
 
     handleCallback()
-  }, [router])
+  }, [router, searchParams])
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -71,5 +81,17 @@ export default function SheetsCallbackPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function SheetsCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <SheetsCallbackContent />
+    </Suspense>
   )
 }

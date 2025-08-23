@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { google } from 'googleapis'
 
 export async function GET() {
   try {
@@ -11,33 +12,25 @@ export async function GET() {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
     }
     
-    // BASE_URL 확인 및 기본값 설정
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                    (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : 'https://aimax.vercel.app')
+    // Google OAuth2 클라이언트 생성
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.NEXT_PUBLIC_BASE_URL + '/auth/sheets-callback'
+    )
     
-    // Google Sheets OAuth용 Google 로그인
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${baseUrl}/auth/sheets-callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-        scopes: 'email profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
-      },
+    // 권한 URL 생성
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file'
+      ],
+      prompt: 'consent',
+      state: user.id // 사용자 ID를 state로 전달
     })
 
-    if (error) {
-      console.error('Sheets OAuth error:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    if (!data || !data.url) {
-      return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
-    }
-
-    return NextResponse.json({ url: data.url })
+    return NextResponse.json({ url: authUrl })
   } catch (error) {
     console.error('Sheets OAuth URL error:', error)
     return NextResponse.json({ error: 'Google Sheets OAuth URL 생성 중 오류가 발생했습니다' }, { status: 500 })
@@ -55,41 +48,64 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
     }
     
-    const { accessToken, refreshToken, email } = await req.json()
+    const { code } = await req.json()
     
-    if (!refreshToken) {
-      return NextResponse.json({ error: 'Refresh token이 필요합니다' }, { status: 400 })
+    if (!code) {
+      return NextResponse.json({ error: 'Authorization code가 필요합니다' }, { status: 400 })
     }
     
-    // Sheets 연결 정보 저장 (먼저 기존 연결 삭제)
-    const { error: deleteError } = await supabase
+    // OAuth2 클라이언트 생성
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.NEXT_PUBLIC_BASE_URL + '/auth/sheets-callback'
+    )
+    
+    // 코드를 토큰으로 교환
+    const { tokens } = await oauth2Client.getToken(code)
+    
+    if (!tokens.access_token || !tokens.refresh_token) {
+      return NextResponse.json({ error: '토큰 교환 실패' }, { status: 500 })
+    }
+    
+    // 먼저 테이블 존재 확인을 위해 조회 시도
+    const { data: existingConnection } = await supabase
       .from('sheets_connections')
-      .delete()
+      .select('id')
       .eq('user_id', user.id)
+      .single()
     
-    if (deleteError) {
-      console.error('기존 연결 삭제 오류:', deleteError)
+    // 기존 연결이 있으면 업데이트, 없으면 삽입
+    const connectionData = {
+      user_id: user.id,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type || 'Bearer',
+      expiry_date: tokens.expiry_date || Date.now() + 3600 * 1000
     }
     
-    // 새로운 연결 정보 저장
-    const { error } = await supabase
-      .from('sheets_connections')
-      .insert({
-        user_id: user.id,
-        email: email || user.email,
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        connected_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+    let error
+    if (existingConnection) {
+      // 업데이트
+      const { error: updateError } = await supabase
+        .from('sheets_connections')
+        .update(connectionData)
+        .eq('user_id', user.id)
+      error = updateError
+    } else {
+      // 삽입
+      const { error: insertError } = await supabase
+        .from('sheets_connections')
+        .insert(connectionData)
+      error = insertError
+    }
     
     if (error) {
       console.error('Sheets connection save error:', error)
       return NextResponse.json({ error: '연결 정보 저장 실패' }, { status: 500 })
     }
     
-    return NextResponse.json({ success: true, email })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Sheets connection error:', error)
     return NextResponse.json({ error: 'Google Sheets 연결 중 오류가 발생했습니다' }, { status: 500 })
