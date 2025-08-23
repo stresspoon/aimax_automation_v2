@@ -1667,6 +1667,12 @@ export default function CustomerAcquisitionPage() {
             placeholder="https://docs.google.com/spreadsheets/d/..."
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
+          
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800">
+              💡 <strong>팁:</strong> Google Forms로 응답받으면 더 빠르게 자동 수집됩니다
+            </p>
+          </div>
         </div>
 
         {/* 선정 기준 커스터마이징 */}
