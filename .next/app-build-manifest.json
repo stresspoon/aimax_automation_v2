@@ -36,10 +36,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/forms/responses/route.js"
     ],
-    "/_not-found/page": [
+    "/automation/customer-acquisition/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/automation/customer-acquisition/dashboard/page.js"
+    ],
+    "/api/projects/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/projects/route.js"
+    ],
+    "/api/forms/process/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/forms/process/route.js"
+    ],
+    "/api/sheets/prepare/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/sheets/prepare/route.js"
     ]
   }
 }

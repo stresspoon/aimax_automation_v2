@@ -1,9 +1,7 @@
 {
-  "/api/forms/route": "app/api/forms/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/usage/route": "app/api/usage/route.js",
   "/api/forms/responses/route": "app/api/forms/responses/route.js",
   "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
-  "/form/[slug]/page": "app/form/[slug]/page.js",
-  "/page": "app/page.js"
+  "/page": "app/page.js",
+  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
+  "/form/[slug]/page": "app/form/[slug]/page.js"
 }

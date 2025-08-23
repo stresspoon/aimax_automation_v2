@@ -39,6 +39,17 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     loadForm()
   }, [projectId])
   
+  // 자동 새로고침 (5초마다)
+  useEffect(() => {
+    if (!form) return
+    
+    const interval = setInterval(() => {
+      loadResponses(form.id)
+    }, 5000)
+    
+    return () => clearInterval(interval)
+  }, [form])
+  
   const loadForm = async () => {
     try {
       const res = await fetch(`/api/forms?projectId=${projectId}`)

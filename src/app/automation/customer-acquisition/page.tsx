@@ -699,20 +699,62 @@ export default function CustomerAcquisitionPage() {
   }
 
   const handleStep2Start = async () => {
-    if (!projectData.step2.sheetUrl) {
-      showNotification('구글시트 URL을 입력해주세요', 'error');
-      return;
-    }
-
     // 자동화 시작/일시정지 토글
     const newRunningState = !projectData.step2.isRunning;
     
     if (newRunningState) {
       // 시작: 준비 단계
       setLoading(true)
-      setProgress({ total: 100, current: 0, currentName: '구글 시트 연결 준비 중...', status: 'loading', phase: 'sheet_loading' })
+      setProgress({ total: 100, current: 0, currentName: '데이터 확인 중...', status: 'loading', phase: 'sheet_loading' })
 
       try {
+        // 먼저 자체 폼 데이터 확인
+        const formResponse = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+        if (formResponse.ok) {
+          const formData = await formResponse.json()
+          
+          if (formData.candidates && formData.candidates.length > 0) {
+            // 자체 폼 데이터 사용
+            setProjectData({
+              ...projectData,
+              step2: {
+                ...projectData.step2,
+                candidates: formData.candidates,
+                isRunning: true,
+                usingFormData: true
+              }
+            });
+            
+            showNotification(`자체 폼에서 ${formData.candidates.length}명의 후보를 가져왔습니다`, 'success');
+            setLoading(false);
+            setProgress({ total: 100, current: 100, currentName: '완료', status: 'completed', phase: 'completed' });
+            
+            // 프로젝트 업데이트
+            if (projectId) {
+              const supabase = createClient();
+              await supabase
+                .from('projects')
+                .update({ 
+                  step2_completed: true,
+                  db_collected: true,
+                  leads_count: formData.candidates.length,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', projectId);
+            }
+            
+            return;
+          }
+        }
+        
+        // 자체 폼 데이터가 없으면 Google Sheets 확인
+        if (!projectData.step2.sheetUrl) {
+          showNotification('자체 폼에 응답이 없습니다. 폼 링크를 공유하여 응답을 받아보세요.', 'info');
+          setLoading(false);
+          setProgress({ total: 100, current: 0, currentName: '', status: 'idle', phase: 'idle' });
+          return;
+        }
+        
         // 1) 시트 준비: 후보 목록만 가져오기
         const prep = await fetch('/api/sheets/prepare', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1750,7 +1792,7 @@ export default function CustomerAcquisitionPage() {
         {/* 자동화 시작/일시정지 버튼 */}
         <button
           onClick={handleStep2Start}
-          disabled={!projectData.step2.sheetUrl}
+          disabled={false}  // 항상 활성화 (자체 폼 또는 Google Sheets 중 하나 사용)
           className={`w-full py-3 rounded-lg font-semibold transition disabled:opacity-50 ${
             projectData.step2.isRunning
               ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
