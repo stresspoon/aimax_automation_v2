@@ -477,53 +477,9 @@ export async function POST(req: Request) {
       const statusEmoji = selected ? '🎉' : '❌'
       console.log(`[${name}] ${statusEmoji} 최종 결과: Threads(${threads}), Instagram(${instagram}), Blog(${blog}) - ${selected ? '선정' : '미달'}`)
       
-      // 진행상황 업데이트 (완료)
+      // 진행상황 업데이트만 (DB 저장은 마지막에 한 번만)
       if (body.projectId && !skipSnsCheck) {
         updateProgress(body.projectId, rows.length * 3, (index + 1) * 3, `${name} 완료`, 'processing', 'sns_checking')
-        
-        // 실시간으로 프로젝트 데이터 업데이트 (새로운 데이터 체크가 아닌 경우에만)
-        if (!skipSnsCheck && !isNewCheck) {
-          try {
-            const supabase = await createClient()
-            
-            // 현재 프로젝트 데이터 가져오기
-            const { data: currentProject } = await supabase
-              .from('projects')
-              .select('data')
-              .eq('id', body.projectId)
-              .single()
-            
-            // 현재까지의 candidates 저장
-            const currentStats = {
-              total: candidates.length,
-              selected: candidates.filter(c => c.status === 'selected').length,
-              notSelected: candidates.filter(c => c.status === 'notSelected').length,
-              lastSync: new Date().toISOString(),
-            }
-            
-            await supabase
-              .from('projects')
-              .update({ 
-                data: {
-                  ...currentProject?.data || {},
-                  step2: {
-                    ...currentProject?.data?.step2 || {},
-                    candidates: candidates,
-                    stats: currentStats,
-                    sheetUrl: body.sheetUrl,
-                    selectionCriteria: body.selectionCriteria || {},
-                    lastRowCount: rows.length,
-                  }
-                },
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', body.projectId)
-            
-            console.log(`[DB 업데이트] ${index + 1}/${rows.length} - ${name} 저장 완료`)
-          } catch (err) {
-            console.error('실시간 업데이트 실패:', err)
-          }
-        }
       }
       
       // 각 후보자 처리 완료 후 잠깐 대기 (서버 부하 방지)
@@ -562,18 +518,24 @@ export async function POST(req: Request) {
           
           const existingCandidates = existingProject?.data?.step2?.candidates || []
           
-          // 이메일 기준으로 중복 제거 (기존 데이터 우선)
-          const existingEmails = new Set(existingCandidates.map(c => c.email))
-          const newUniqueCandidates = candidates.filter(c => !existingEmails.has(c.email))
+          // 이름과 이메일 조합으로 중복 제거 (더 정확한 중복 체크)
+          const existingKeys = new Set(
+            existingCandidates.map((c: any) => `${c.name}_${c.email}`)
+          )
+          const newUniqueCandidates = candidates.filter((c: any) => 
+            !existingKeys.has(`${c.name}_${c.email}`)
+          )
+          
+          // 새로운 후보만 추가
           const allCandidates = [...existingCandidates, ...newUniqueCandidates]
           
-          console.log(`기존 후보: ${existingCandidates.length}명, 새로운 고유 후보: ${newUniqueCandidates.length}명, 전체: ${allCandidates.length}명`)
+          console.log(`[중복 제거] 기존: ${existingCandidates.length}명, 새로운 고유: ${newUniqueCandidates.length}명, 전체: ${allCandidates.length}명`)
           
           // 전체 통계 재계산
           const allStats = {
             total: allCandidates.length,
-            selected: allCandidates.filter(c => c.status === 'selected').length,
-            notSelected: allCandidates.filter(c => c.status === 'notSelected').length,
+            selected: allCandidates.filter((c: any) => c.status === 'selected').length,
+            notSelected: allCandidates.filter((c: any) => c.status === 'notSelected').length,
             lastSync: new Date().toISOString(),
           }
           
@@ -586,7 +548,7 @@ export async function POST(req: Request) {
                   ...existingProject?.data?.step2,
                   candidates: allCandidates,
                   stats: allStats,
-                  lastRowCount: originalRowCount, // 전체 행 수 저장 (원래 전체 개수)
+                  lastRowCount: originalRowCount, // 전체 행 수 저장
                   lastSyncedAt: new Date().toISOString() 
                 } 
               },
@@ -594,7 +556,7 @@ export async function POST(req: Request) {
             })
             .eq('id', body.projectId)
           
-          console.log(`Updated project with ${candidates.length} new candidates. Total rows now: ${originalRowCount}`)
+          console.log(`✅ 프로젝트 업데이트 완료: ${newUniqueCandidates.length}명 추가됨`)
         } else {
           // 전체 데이터 처리한 경우 - 기존 프로젝트 데이터 가져오기
           const { data: existingProject } = await supabase
