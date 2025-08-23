@@ -183,16 +183,34 @@ export default function CustomerAcquisitionPage() {
             setCampaignId(projectFromDb.campaign_id);
             setCampaignName(projectFromDb.campaign_name);
             if (projectFromDb.data) {
-              // selectionCriteria 기본값 보장
+              // 전체 데이터 구조 기본값 보장
               const loadedData = {
                 ...projectFromDb.data,
+                step1: projectFromDb.data.step1 || {
+                  keyword: '',
+                  contentType: 'blog',
+                  apiKey: '',
+                  instructions: '',
+                  generateImages: false,
+                  generatedContent: '',
+                  generatedImages: []
+                },
                 step2: {
-                  ...projectFromDb.data.step2,
+                  sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
+                  isRunning: projectFromDb.data.step2?.isRunning || false,
+                  candidates: projectFromDb.data.step2?.candidates || [],
                   selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
                     threads: 500,
                     blog: 300,
                     instagram: 1000
                   }
+                },
+                step3: projectFromDb.data.step3 || {
+                  targetType: 'selected',
+                  emailSubject: '',
+                  emailBody: '',
+                  senderEmail: '',
+                  emailsSent: 0
                 }
               };
               setProjectData(loadedData);
@@ -227,16 +245,34 @@ export default function CustomerAcquisitionPage() {
           const projectFromDb = await loadProjectData(id);
           
           if (projectFromDb && projectFromDb.data) {
-            // DB에 저장된 데이터가 있으면 사용 (selectionCriteria 기본값 보장)
+            // DB에 저장된 데이터가 있으면 사용 (step2 기본 구조 보장)
             const loadedData = {
               ...projectFromDb.data,
+              step1: projectFromDb.data.step1 || {
+                keyword: '',
+                contentType: 'blog',
+                apiKey: '',
+                instructions: '',
+                generateImages: false,
+                generatedContent: '',
+                generatedImages: []
+              },
               step2: {
-                ...projectFromDb.data.step2,
+                sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
+                isRunning: projectFromDb.data.step2?.isRunning || false,
+                candidates: projectFromDb.data.step2?.candidates || [],
                 selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
                   threads: 500,
                   blog: 300,
                   instagram: 1000
                 }
+              },
+              step3: projectFromDb.data.step3 || {
+                targetType: 'selected',
+                emailSubject: '',
+                emailBody: '',
+                senderEmail: '',
+                emailsSent: 0
               }
             };
             setProjectData(loadedData);
@@ -861,14 +897,14 @@ export default function CustomerAcquisitionPage() {
         setLoading(false)
         
         // Step 2 완료 상태 업데이트 (성공적으로 데이터를 가져온 경우)
-        if (projectId && projectData.step2.candidates.length > 0) {
+        if (projectId && (projectData.step2.candidates?.length || 0) > 0) {
           const supabase = createClient();
           await supabase
             .from('projects')
             .update({ 
               step2_completed: true,
               db_collected: true,
-              leads_count: projectData.step2.candidates.length,
+              leads_count: projectData.step2.candidates?.length || 0,
               updated_at: new Date().toISOString()
             })
             .eq('id', projectId);
@@ -1320,7 +1356,7 @@ export default function CustomerAcquisitionPage() {
       return;
     }
     
-    if (projectData.step2.candidates.length === 0) {
+    if ((projectData.step2.candidates?.length || 0) === 0) {
       showNotification('발송할 대상이 없습니다. Step 2에서 데이터를 가져와주세요', 'error');
       return;
     }
@@ -1861,7 +1897,7 @@ export default function CustomerAcquisitionPage() {
         )}
 
         {/* 수집된 데이터 */}
-        {projectData.step2.candidates.length > 0 && (
+        {(projectData.step2.candidates?.length || 0) > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-text">수집된 후보</h4>
@@ -1966,7 +2002,7 @@ export default function CustomerAcquisitionPage() {
         )}
 
         {/* 다음 단계 버튼 */}
-        {projectData.step2.candidates.length > 0 && (
+        {(projectData.step2.candidates?.length || 0) > 0 && (
           <button
             onClick={() => setExpandedStep(3)}
             className="w-full bg-muted hover:bg-muted/80 text-foreground py-3 rounded-lg font-semibold transition"
