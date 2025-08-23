@@ -481,8 +481,8 @@ export async function POST(req: Request) {
       if (body.projectId && !skipSnsCheck) {
         updateProgress(body.projectId, rows.length * 3, (index + 1) * 3, `${name} 완료`, 'processing', 'sns_checking')
         
-        // 실시간으로 프로젝트 데이터 업데이트 (SNS 체크 시에만)
-        if (!skipSnsCheck) {
+        // 실시간으로 프로젝트 데이터 업데이트 (새로운 데이터 체크가 아닌 경우에만)
+        if (!skipSnsCheck && !isNewCheck) {
           try {
             const supabase = await createClient()
             
@@ -561,7 +561,13 @@ export async function POST(req: Request) {
             .single()
           
           const existingCandidates = existingProject?.data?.step2?.candidates || []
-          const allCandidates = [...existingCandidates, ...candidates]
+          
+          // 이메일 기준으로 중복 제거 (기존 데이터 우선)
+          const existingEmails = new Set(existingCandidates.map(c => c.email))
+          const newUniqueCandidates = candidates.filter(c => !existingEmails.has(c.email))
+          const allCandidates = [...existingCandidates, ...newUniqueCandidates]
+          
+          console.log(`기존 후보: ${existingCandidates.length}명, 새로운 고유 후보: ${newUniqueCandidates.length}명, 전체: ${allCandidates.length}명`)
           
           // 전체 통계 재계산
           const allStats = {
@@ -634,7 +640,7 @@ export async function POST(req: Request) {
         success: true,
         newCandidates: candidates,
         stats,
-        message: `${candidates.length}명의 새로운 후보자를 처리했습니다. (선정: ${stats.selected}명, 미달: ${stats.notSelected}명)`
+        message: `${candidates.length}명의 새로운 후보자를 처리했습니다.`
       })
     } else {
       return NextResponse.json({ 
