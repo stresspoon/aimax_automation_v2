@@ -6,6 +6,8 @@ import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import CustomFormTab from '@/components/automation/CustomFormTab'
 
 type Step = 1 | 2 | 3;
 
@@ -1647,18 +1649,32 @@ export default function CustomerAcquisitionPage() {
     >
       <h2 className="text-2xl font-bold text-foreground mb-6">Step 2: DB 관리</h2>
       
-      <div className="space-y-6">
-        {/* 매뉴얼 링크 */}
-        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-          <p className="text-sm text-foreground mb-2">구글폼 + 구글시트 연동 방법</p>
-          <Link href="#" className="text-primary hover:text-primary/80 font-semibold">
-            노션 매뉴얼 보기 →
-          </Link>
-        </div>
+      <Tabs defaultValue="custom-form" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="custom-form">자체 폼 시스템</TabsTrigger>
+          <TabsTrigger value="google-sheets">Google Sheets 연동</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="custom-form" className="mt-6">
+          <CustomFormTab 
+            projectId={projectId || ''}
+            projectData={projectData}
+            onUpdate={(data) => setProjectData(data)}
+          />
+        </TabsContent>
+        
+        <TabsContent value="google-sheets" className="mt-6">
+          <div className="space-y-6">
+            {/* 매뉴얼 링크 */}
+            <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+              <p className="text-sm text-foreground mb-2">구글폼 + 구글시트 연동 방법</p>
+              <Link href="#" className="text-primary hover:text-primary/80 font-semibold">
+                노션 매뉴얼 보기 →
+              </Link>
+            </div>
 
-
-        {/* 구글시트 URL */}
-        <div>
+            {/* 구글시트 URL */}
+            <div>
           <label className="block text-sm font-medium text-foreground mb-2">구글시트 URL</label>
           <input
             type="url"
@@ -2023,6 +2039,8 @@ export default function CustomerAcquisitionPage() {
           </button>
         )}
       </div>
+        </TabsContent>
+      </Tabs>
     </motion.div>
   );
 
