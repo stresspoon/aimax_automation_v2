@@ -191,8 +191,9 @@ export default function CustomerAcquisitionPage() {
                 console.log('Project ID:', projectFromDb.id);
                 console.log('Sheet URL:', projectFromDb.data.step2?.sheetUrl);
                 console.log('Candidates:', projectFromDb.data.step2?.candidates?.length);
+                console.log('lastRowCount:', projectFromDb.data.step2?.lastRowCount);
                 console.log('1초 후 주기적 체크 시작...');
-                setTimeout(() => startPeriodicCheck(), 1000); // 1초 후 시작
+                setTimeout(() => startPeriodicCheck(projectFromDb.id), 1000); // 1초 후 시작, ID 전달
               } else {
                 console.log('ℹ️ 프로젝트가 실행 중이 아님');
               }
@@ -220,8 +221,12 @@ export default function CustomerAcquisitionPage() {
             
             // 프로젝트가 이미 실행 중이면 periodic check 시작
             if (projectFromDb.data.step2?.isRunning) {
-              console.log('프로젝트가 실행 중입니다. 주기적 체크를 시작합니다.');
-              setTimeout(() => startPeriodicCheck(), 1000); // 1초 후 시작
+              console.log('🔄 === 기존 실행 중인 프로젝트 감지 ===');
+              console.log('Project ID:', projectFromDb.id);
+              console.log('Sheet URL:', projectFromDb.data.step2?.sheetUrl);
+              console.log('Candidates:', projectFromDb.data.step2?.candidates?.length);
+              console.log('lastRowCount:', projectFromDb.data.step2?.lastRowCount);
+              setTimeout(() => startPeriodicCheck(projectFromDb.id), 1000); // 1초 후 시작, ID 전달
             }
           } else {
             // DB에 없으면 localStorage 확인 (마이그레이션)
@@ -847,34 +852,36 @@ export default function CustomerAcquisitionPage() {
   // 진행상황 체크 interval
   const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
 
-  const startPeriodicCheck = () => {
+  const startPeriodicCheck = (pId?: string) => {
+    const currentProjectId = pId || projectId;
+    
     // 기존 interval이 있으면 정리
     if (checkInterval) {
       clearInterval(checkInterval);
     }
     
     console.log('🚀 === 주기적 체크 시작 ===');
-    console.log('Project ID:', projectId);
+    console.log('Project ID:', currentProjectId);
+    
+    if (!currentProjectId) {
+      console.log('❌ Project ID가 없어서 시작 불가');
+      return;
+    }
     
     // 즉시 한 번 체크
     console.log('📍 초기 체크 실행...');
-    checkForNewResponses();
+    checkForNewResponses(currentProjectId);
     
     // 10초마다 새로운 응답 확인 (테스트를 위해 간격 단축)
     const interval = setInterval(async () => {
       console.log('⏰ === 10초 간격 체크 ===');
-      
-      // DB에서 현재 프로젝트 상태 확인
-      if (!projectId) {
-        console.log('❌ Project ID가 없어서 체크 중단');
-        return;
-      }
+      console.log('Current Project ID:', currentProjectId);
       
       const supabase = createClient();
       const { data: project } = await supabase
         .from('projects')
         .select('data')
-        .eq('id', projectId)
+        .eq('id', currentProjectId)
         .single();
       
       const isRunning = project?.data?.step2?.isRunning;
@@ -886,7 +893,7 @@ export default function CustomerAcquisitionPage() {
       
       if (isRunning && sheetUrl) {
         console.log('✅ 조건 충족 - 새로운 응답 체크 실행');
-        await checkForNewResponses();
+        await checkForNewResponses(currentProjectId);
       } else {
         console.log('⏸️ 체크 건너뜀 (실행 중이 아니거나 시트 URL 없음)');
       }
@@ -962,13 +969,15 @@ export default function CustomerAcquisitionPage() {
     }
   };
 
-  const checkForNewResponses = async () => {
+  const checkForNewResponses = async (pId?: string) => {
+    const currentProjectId = pId || projectId;
+    
     console.log('🔍 === 새로운 응답 체크 시작 ===');
-    console.log('Project ID:', projectId);
+    console.log('Project ID:', currentProjectId);
     console.log('현재 시간:', new Date().toLocaleTimeString());
     
     try {
-      if (!projectId) {
+      if (!currentProjectId) {
         console.log('❌ No project ID, skipping check');
         return;
       }
@@ -978,7 +987,7 @@ export default function CustomerAcquisitionPage() {
       const { data: project, error } = await supabase
         .from('projects')
         .select('data')
-        .eq('id', projectId)
+        .eq('id', currentProjectId)
         .single();
       
       if (error || !project) {
@@ -998,9 +1007,9 @@ export default function CustomerAcquisitionPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sheetUrl: projectData.step2.sheetUrl,
-          projectId: projectId,
-          selectionCriteria: projectData.step2.selectionCriteria,
+          sheetUrl: project.data?.step2?.sheetUrl || projectData.step2.sheetUrl,
+          projectId: currentProjectId,
+          selectionCriteria: project.data?.step2?.selectionCriteria || projectData.step2.selectionCriteria,
           checkNewOnly: true, // 새로운 응답만 체크하는 옵션
           lastRowCount: lastRowCount, // DB에 저장된 마지막 행 수 사용
           skipSnsCheck: false, // SNS 체크도 수행
@@ -1018,7 +1027,7 @@ export default function CustomerAcquisitionPage() {
         const { data: updatedProject } = await supabase
           .from('projects')
           .select('data')
-          .eq('id', projectId)
+          .eq('id', currentProjectId)
           .single();
         
         if (updatedProject) {
