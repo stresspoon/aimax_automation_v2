@@ -647,6 +647,9 @@ export default function CustomerAcquisitionPage() {
           step2: { ...prev.step2, isRunning: true, candidates: prepJson.candidates }
         }))
         setProgress(p => ({ ...p, total: prepJson.candidates.length * 3, current: 0, currentName: `후보 ${prepJson.candidates.length}명 로드됨`, status: 'processing', phase: 'sns_checking' }))
+        
+        // 자동화 시작 시 주기적 체크 시작
+        startPeriodicCheck()
 
         // 2) 후보별 순차 측정
         const total = prepJson.candidates.length
@@ -764,6 +767,9 @@ export default function CustomerAcquisitionPage() {
 
         setProgress(p => ({ ...p, currentName: '완료', status: 'completed', phase: 'completed', current: (total * 3), currentSns: undefined }))
         showNotification('후보별 SNS 체크가 완료되었습니다', 'success')
+        
+        // 측정이 완료되어도 isRunning은 true로 유지 (주기적 체크 계속)
+        console.log('자동화 실행 중 - 30초마다 새로운 응답을 확인합니다')
 
       } catch (err) {
         console.error(err)
@@ -794,10 +800,10 @@ export default function CustomerAcquisitionPage() {
           isRunning: false,
       },
     });
+    
+    // 자동화 중지 시 주기적 체크도 중지
+    stopPeriodicCheck();
       showNotification('자동화가 일시정지되었습니다', 'info');
-      
-      // 주기적 체크 중지
-      stopPeriodicCheck();
     }
   };
 
@@ -908,6 +914,9 @@ export default function CustomerAcquisitionPage() {
 
   const checkForNewResponses = async () => {
     try {
+      console.log('Checking for new responses...');
+      console.log('Current candidates:', projectData.step2.candidates.length);
+      
       const res = await fetch('/api/sheets/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -916,10 +925,13 @@ export default function CustomerAcquisitionPage() {
           projectId: projectId,
           selectionCriteria: projectData.step2.selectionCriteria,
           checkNewOnly: true, // 새로운 응답만 체크하는 옵션
+          lastRowCount: projectData.step2.candidates.length, // 현재 체크한 행 수 전달
+          skipSnsCheck: false, // SNS 체크도 수행
         }),
       });
       
       const data = await res.json();
+      console.log('Check response:', data);
       
       if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
         // 새로운 후보자가 있으면 기존 후보자 목록에 추가
@@ -932,6 +944,9 @@ export default function CustomerAcquisitionPage() {
         }));
         
         showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
+        console.log(`Added ${data.newCandidates.length} new candidates`);
+      } else {
+        console.log('No new candidates found');
       }
     } catch (err) {
       console.error('New responses check error:', err);

@@ -187,32 +187,41 @@ export async function POST(req: Request) {
 
     // 새로운 응답만 체크하는 경우
     let isNewCheck = false
-    if (body.checkNewOnly && body.projectId) {
+    let originalRowCount = rows.length
+    if (body.checkNewOnly) {
       try {
-        const supabase = await createClient()
-        const { data: project } = await supabase
-          .from('projects')
-          .select('data')
-          .eq('id', body.projectId)
-          .single()
+        // body.lastRowCount 우선 사용, 없으면 DB에서 가져오기
+        let lastRowCount = body.lastRowCount
         
-        if (project?.data?.step2?.lastRowCount) {
-          const lastRowCount = project.data.step2.lastRowCount
-          const newRowCount = rows.length
+        if (lastRowCount === undefined && body.projectId) {
+          const supabase = await createClient()
+          const { data: project } = await supabase
+            .from('projects')
+            .select('data')
+            .eq('id', body.projectId)
+            .single()
           
-          if (newRowCount > lastRowCount) {
-            // 새로운 행들만 처리
-            rows = rows.slice(lastRowCount)
-            isNewCheck = true
-            console.log(`Processing ${rows.length} new rows (total: ${newRowCount}, last: ${lastRowCount})`)
-          } else {
-            // 새로운 데이터가 없음
-            return NextResponse.json({ 
-              success: true,
-              newCandidates: [],
-              message: '새로운 응답이 없습니다'
-            })
-          }
+          lastRowCount = project?.data?.step2?.lastRowCount || 0
+        }
+        
+        lastRowCount = lastRowCount || 0
+        const newRowCount = rows.length
+        
+        console.log(`Checking for new responses: total=${newRowCount}, last=${lastRowCount}`)
+        
+        if (newRowCount > lastRowCount) {
+          // 새로운 행들만 처리
+          rows = rows.slice(lastRowCount)
+          isNewCheck = true
+          console.log(`Processing ${rows.length} new rows (from row ${lastRowCount + 1} to ${newRowCount})`)
+        } else {
+          // 새로운 데이터가 없음
+          console.log('No new responses found')
+          return NextResponse.json({ 
+            success: true,
+            newCandidates: [],
+            message: '새로운 응답이 없습니다'
+          })
         }
       } catch (err) {
         console.error('Failed to check existing data:', err)
@@ -532,12 +541,15 @@ export async function POST(req: Request) {
                   ...existingProject?.data?.step2,
                   candidates: allCandidates,
                   stats: allStats,
-                  lastRowCount: (parsed.data as Row[]).filter(Boolean).length, // 전체 행 수 저장
+                  lastRowCount: originalRowCount, // 전체 행 수 저장 (원래 전체 개수)
                   lastSyncedAt: new Date().toISOString() 
                 } 
-              } 
+              },
+              updated_at: new Date().toISOString()
             })
             .eq('id', body.projectId)
+          
+          console.log(`Updated project with ${candidates.length} new candidates. Total rows now: ${originalRowCount}`)
         } else {
           // 전체 데이터 처리한 경우
           await supabase
