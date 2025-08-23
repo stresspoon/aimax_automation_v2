@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
+import CustomFormTab from '@/components/automation/CustomFormTab'
 
 type Step = 1 | 2 | 3;
 
@@ -48,6 +49,7 @@ export default function CustomerAcquisitionPage() {
   const [_typingActive, setTypingActive] = useState<boolean>(false);
   const [hasTypingStarted, setHasTypingStarted] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("");
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [projectData, setProjectData] = useState({
     step1: {
       keyword: "",
@@ -62,6 +64,7 @@ export default function CustomerAcquisitionPage() {
       sheetUrl: "",
       isRunning: false,
       candidates: [] as Candidate[],
+      usingFormData: false,
       selectionCriteria: {
         threads: 500,
         blog: 300,
@@ -165,6 +168,46 @@ export default function CustomerAcquisitionPage() {
     checkGmailConnection();
   }, []);
   
+  // 자동 새로고침 - 2초마다 후보 데이터 업데이트
+  useEffect(() => {
+    if (!projectId) return;
+    
+    // 자체 폼 사용 여부와 관계없이 항상 새로고침
+    console.log('✅ 자동 새로고침 시작! projectId:', projectId);
+    
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`);
+        if (res.ok) {
+          const data = await res.json();
+          
+          // UI 업데이트 (항상)
+          setProjectData(prev => {
+            const currentCount = prev.step2?.candidates?.length || 0;
+            const newCount = data.candidates?.length || 0;
+            
+            // 새 후보자 추가 시 알림
+            if (newCount > currentCount) {
+              showNotification(`${newCount - currentCount}명의 새로운 신청자가 등록되었습니다!`, 'success');
+            }
+            
+            return {
+              ...prev,
+              step2: {
+                ...prev.step2,
+                candidates: data.candidates,
+              },
+            };
+          });
+        }
+      } catch (error) {
+        console.error('자동 새로고침 오류:', error);
+      }
+    }, 2000); // 2초마다 체크
+    
+    return () => clearInterval(interval);
+  }, [projectId]); // projectId만 dependency로 사용
+  
   // URL에서 캠페인 이름 또는 프로젝트 ID 가져오고 DB에서 데이터 로드
   useEffect(() => {
     const loadCampaignData = async () => {
@@ -222,8 +265,8 @@ export default function CustomerAcquisitionPage() {
                 console.log('Sheet URL:', projectFromDb.data.step2?.sheetUrl);
                 console.log('Candidates:', projectFromDb.data.step2?.candidates?.length);
                 console.log('lastRowCount:', projectFromDb.data.step2?.lastRowCount);
-                console.log('1초 후 주기적 체크 시작...');
-                setTimeout(() => startPeriodicCheck(projectFromDb.id), 1000); // 1초 후 시작, ID 전달
+                console.log('Realtime 구독으로 자동 업데이트됩니다');
+                // setTimeout(() => startPeriodicCheck(projectFromDb.id), 1000); // Realtime으로 대체
               } else {
                 console.log('ℹ️ 프로젝트가 실행 중이 아님');
               }
@@ -698,21 +741,130 @@ export default function CustomerAcquisitionPage() {
   }
 
   const handleStep2Start = async () => {
-    if (!projectData.step2.sheetUrl) {
-      showNotification('구글시트 URL을 입력해주세요', 'error');
-      return;
-    }
-
     // 자동화 시작/일시정지 토글
     const newRunningState = !projectData.step2.isRunning;
     
     if (newRunningState) {
       // 시작: 준비 단계
       setLoading(true)
-      setProgress({ total: 100, current: 0, currentName: '구글 시트 연결 준비 중...', status: 'loading', phase: 'sheet_loading' })
+      setProgress({ total: 100, current: 0, currentName: '데이터 확인 중...', status: 'loading', phase: 'sheet_loading' })
 
       try {
-        // 1) 시트 준비: 후보 목록만 가져오기
+        // 먼저 자체 폼 데이터 확인
+        console.log('Checking form data for projectId:', projectId)
+        const formResponse = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+        console.log('Form response status:', formResponse.status)
+        
+        if (formResponse.ok) {
+          const formData = await formResponse.json()
+          console.log('Form data:', formData)
+          
+          if (formData.candidates && formData.candidates.length > 0) {
+            // 자체 폼 데이터 사용
+            setProjectData({
+              ...projectData,
+              step2: {
+                ...projectData.step2,
+                candidates: formData.candidates,
+                isRunning: true,
+                usingFormData: true
+              }
+            });
+            
+            showNotification(`자체 폼에서 ${formData.candidates.length}명의 후보를 가져왔습니다`, 'success');
+            
+            // pending 상태인 응답들에 대해 SNS 체크 실행
+            const pendingResponses = formData.candidates.filter((c: any) => 
+              c.checkStatus?.threads === 'pending' || 
+              c.checkStatus?.blog === 'pending' || 
+              c.checkStatus?.instagram === 'pending'
+            )
+            
+            if (pendingResponses.length > 0) {
+              showNotification(`${pendingResponses.length}명에 대해 SNS 체크를 시작합니다`, 'info')
+              
+              // formId를 사용해서 pending 응답들 가져오기
+              if (formData.formId) {
+                const responsesRes = await fetch(`/api/forms/responses?formId=${formData.formId}`)
+                if (responsesRes.ok) {
+                  const responsesData = await responsesRes.json()
+                  const pendingIds = responsesData
+                    .filter((r: any) => r.status === 'pending')
+                    .map((r: any) => r.id)
+                  
+                  // 각 응답에 대해 SNS 체크 실행
+                  for (const responseId of pendingIds) {
+                    fetch('/api/forms/process', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ responseId })
+                    }).catch(console.error)
+                  }
+                }
+              }
+            }
+            
+            setLoading(false);
+            setProgress({ total: 100, current: 100, currentName: '완료', status: 'completed', phase: 'completed' });
+            
+            // 프로젝트 업데이트
+            if (projectId) {
+              const supabase = createClient();
+              await supabase
+                .from('projects')
+                .update({ 
+                  step2_completed: true,
+                  db_collected: true,
+                  leads_count: formData.candidates.length,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', projectId);
+            }
+            
+            return;
+          }
+        }
+        
+        // 자체 폼 데이터가 없고 Google Sheets URL도 없으면 안내
+        if (!projectData.step2.sheetUrl) {
+          showNotification('자체 폼에 응답이 없습니다. 폼 링크를 공유하여 응답을 받아보세요.', 'info');
+          setLoading(false);
+          setProgress({ total: 100, current: 0, currentName: '', status: 'idle', phase: 'idle' });
+          
+          // 빈 상태로 대기 모드 시작 (새 응답 기다림)
+          setProjectData({
+            ...projectData,
+            step2: {
+              ...projectData.step2,
+              candidates: [],
+              isRunning: true,
+              usingFormData: true
+            }
+          });
+          
+          // 주기적으로 폼 데이터 체크
+          const checkInterval = setInterval(async () => {
+            const response = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (data.candidates && data.candidates.length > 0) {
+                setProjectData(prev => ({
+                  ...prev,
+                  step2: {
+                    ...prev.step2,
+                    candidates: data.candidates
+                  }
+                }))
+                showNotification(`${data.candidates.length}명의 새로운 응답이 있습니다!`, 'success')
+                clearInterval(checkInterval)
+              }
+            }
+          }, 5000)
+          
+          return;
+        }
+        
+        // Google Sheets URL이 있으면 기존 로직 실행
         const prep = await fetch('/api/sheets/prepare', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sheetUrl: projectData.step2.sheetUrl })
@@ -757,9 +909,9 @@ export default function CustomerAcquisitionPage() {
             .eq('id', projectId);
         }
         
-        // 자동화 시작 시 주기적 체크 시작
-        console.log('🚀 자동화 시작 - 스마트 폴링 활성화');
-        startPeriodicCheck(projectId || undefined)
+        // Realtime 구독이 있으므로 스마트 폴링 불필요
+        console.log('🚀 자동화 시작 - Realtime 구독 활성화');
+        // startPeriodicCheck(projectId || undefined) // 비활성화
 
         // 2) 후보별 순차 측정 (빈 시트인 경우 건너뜀)
         const total = prepJson.candidates.length
@@ -959,8 +1111,8 @@ export default function CustomerAcquisitionPage() {
     total: number
     current: number
     currentName: string
-    status: 'loading' | 'processing' | 'completed' | 'error'
-    phase: 'sheet_loading' | 'sns_checking' | 'completed'
+    status: 'idle' | 'loading' | 'processing' | 'completed' | 'error'
+    phase: 'idle' | 'sheet_loading' | 'sns_checking' | 'completed'
     currentSns?: 'threads' | 'blog' | 'instagram'
   }>({
     total: 0,
@@ -990,8 +1142,8 @@ export default function CustomerAcquisitionPage() {
       return;
     }
     
-    // 초기 설정
-    setPollingInterval(5000);
+    // 초기 설정 - 더 빠른 체크를 위해 2초로 시작
+    setPollingInterval(2000);
     setLastDataTime(Date.now());
     setMinutesSinceLastData(0);
     
@@ -1014,21 +1166,23 @@ export default function CustomerAcquisitionPage() {
       
       const isRunning = project?.data?.step2?.isRunning;
       const sheetUrl = project?.data?.step2?.sheetUrl;
+      const usingFormData = project?.data?.step2?.usingFormData;
       
       console.log('📊 프로젝트 상태:');
       console.log(`  - isRunning: ${isRunning}`);
       console.log(`  - sheetUrl: ${sheetUrl}`);
+      console.log(`  - usingFormData: ${usingFormData}`);
       
-      if (isRunning && sheetUrl) {
+      if (isRunning && (sheetUrl || usingFormData)) {
         console.log('✅ 조건 충족 - 새로운 응답 체크 실행');
         const hasNewData = await checkForNewResponses(currentProjectId);
         
         if (hasNewData) {
-          // 새 데이터 발견 - 간격을 5초로 리셋
-          setPollingInterval(5000);
+          // 새 데이터 발견 - 간격을 2초로 리셋 (빠른 업데이트)
+          setPollingInterval(2000);
           setLastDataTime(Date.now());
           setMinutesSinceLastData(0);
-          console.log('📊 새 데이터 발견! 체크 간격을 5초로 리셋');
+          console.log('📊 새 데이터 발견! 체크 간격을 2초로 리셋');
         } else {
           // 데이터 없음 - 간격 점진적 증가
           const timeSinceLastData = Date.now() - lastDataTime;
@@ -1041,9 +1195,12 @@ export default function CustomerAcquisitionPage() {
           } else if (minutes > 30 && pollingInterval !== 30000) {
             setPollingInterval(30000);
             console.log('⏱️ 30분 이상 변화 없음 - 체크 간격을 30초로 변경');
-          } else if (minutes > 10 && pollingInterval !== 15000) {
-            setPollingInterval(15000);
-            console.log('⏱️ 10분 이상 변화 없음 - 체크 간격을 15초로 변경');
+          } else if (minutes > 5 && pollingInterval !== 10000) {
+            setPollingInterval(10000);
+            console.log('⏱️ 5분 이상 변화 없음 - 체크 간격을 10초로 변경');
+          } else if (minutes > 2 && pollingInterval !== 5000) {
+            setPollingInterval(5000);
+            console.log('⏱️ 2분 이상 변화 없음 - 체크 간격을 5초로 변경');
           }
         }
       } else {
@@ -1156,13 +1313,63 @@ export default function CustomerAcquisitionPage() {
         return false;
       }
       
-      const lastRowCount = project.data?.step2?.lastRowCount || 0;
-      const currentCandidatesCount = project.data?.step2?.candidates?.length || 0;
+      const lastCandidatesCount = project.data?.step2?.candidates?.length || 0;
       
       console.log('📊 현재 상태:');
+      console.log(`  - 현재 후보자 수: ${lastCandidatesCount}`);
+      console.log(`  - Using Form Data: ${project.data?.step2?.usingFormData}`);
+      
+      // 자체 폼 사용 중인 경우
+      if (project.data?.step2?.usingFormData) {
+        const res = await fetch(`/api/forms/sync-candidates?projectId=${currentProjectId}`);
+        const data = await res.json();
+        console.log('📨 Forms API 응답:', data);
+        
+        if (res.ok && data.candidates) {
+          const newCount = data.candidates.length;
+          
+          // 항상 최신 데이터로 UI 업데이트 (SNS 체크 결과 포함)
+          setProjectData(prev => ({
+            ...prev,
+            step2: {
+              ...prev.step2,
+              candidates: data.candidates,
+            },
+          }));
+          
+          // 새 후보자가 추가된 경우에만 알림
+          if (newCount > lastCandidatesCount) {
+            console.log(`✅ ${newCount - lastCandidatesCount}명의 새로운 후보자 발견!`);
+            
+            // DB에도 업데이트
+            await supabase
+              .from('projects')
+              .update({
+                data: {
+                  ...project.data,
+                  step2: {
+                    ...project.data.step2,
+                    candidates: data.candidates,
+                  }
+                }
+              })
+              .eq('id', currentProjectId);
+            
+            showNotification(`${newCount - lastCandidatesCount}명의 새로운 후보자가 추가되었습니다`, 'success');
+            return true; // 새 데이터 발견
+          }
+          
+          console.log('📊 후보자 데이터 업데이트 (SNS 체크 결과 반영)');
+          return false;
+        }
+        return false;
+      }
+      
+      // Google Sheets 사용 중인 경우 (기존 로직)
+      const lastRowCount = project.data?.step2?.lastRowCount || 0;
+      
       console.log(`  - DB에 저장된 마지막 체크 행 수: ${lastRowCount}`);
-      console.log(`  - 현재 후보자 수: ${currentCandidatesCount}`);
-      console.log(`  - Sheet URL: ${projectData.step2.sheetUrl}`);
+      console.log(`  - Sheet URL: ${project.data?.step2?.sheetUrl}`);
       
       const res = await fetch('/api/sheets/sync', {
         method: 'POST',
@@ -1171,20 +1378,18 @@ export default function CustomerAcquisitionPage() {
           sheetUrl: project.data?.step2?.sheetUrl || projectData.step2.sheetUrl,
           projectId: currentProjectId,
           selectionCriteria: project.data?.step2?.selectionCriteria || projectData.step2.selectionCriteria,
-          checkNewOnly: true, // 새로운 응답만 체크하는 옵션
-          lastRowCount: lastRowCount, // DB에 저장된 마지막 행 수 사용
-          skipSnsCheck: false, // SNS 체크도 수행
+          checkNewOnly: true,
+          lastRowCount: lastRowCount,
+          skipSnsCheck: false,
         }),
       });
       
       const data = await res.json();
-      console.log('📨 API 응답:', data);
+      console.log('📨 Sheets API 응답:', data);
       
       if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
         console.log(`✅ ${data.newCandidates.length}명의 새로운 후보자 발견!`);
-        console.log('새 후보자 목록:', data.newCandidates);
         
-        // DB에서 다시 최신 데이터 가져오기 (업데이트된 데이터)
         const { data: updatedProject } = await supabase
           .from('projects')
           .select('data')
@@ -1192,7 +1397,6 @@ export default function CustomerAcquisitionPage() {
           .single();
         
         if (updatedProject) {
-          // 전체 프로젝트 데이터 업데이트
           setProjectData(prev => ({
             ...prev,
             step2: {
@@ -1200,18 +1404,13 @@ export default function CustomerAcquisitionPage() {
               ...updatedProject.data.step2,
             },
           }));
-          console.log('✅ UI 업데이트 완료');
         }
         
         showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
-        return true; // 새 데이터 발견
-      } else if (data.message) {
-        console.log(`ℹ️ ${data.message}`);
-        return false; // 새 데이터 없음
-      } else {
-        console.log('❌ 응답 처리 실패:', data);
-        return false;
+        return true;
       }
+      
+      return false;
     } catch (err) {
       console.error('New responses check error:', err);
       return false;
@@ -1233,12 +1432,13 @@ export default function CustomerAcquisitionPage() {
         
         const isRunning = project?.data?.step2?.isRunning;
         const sheetUrl = project?.data?.step2?.sheetUrl;
+        const usingFormData = project?.data?.step2?.usingFormData;
         
-        if (isRunning && sheetUrl) {
+        if (isRunning && (sheetUrl || usingFormData)) {
           const hasNewData = await checkForNewResponses(projectId || undefined);
           
           if (hasNewData) {
-            setPollingInterval(5000);
+            setPollingInterval(2000);
             setLastDataTime(Date.now());
             setMinutesSinceLastData(0);
           } else {
@@ -1647,39 +1847,20 @@ export default function CustomerAcquisitionPage() {
     >
       <h2 className="text-2xl font-bold text-foreground mb-6">Step 2: DB 관리</h2>
       
-      <div className="space-y-6">
-        {/* 매뉴얼 링크 */}
-        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-          <p className="text-sm text-foreground mb-2">구글폼 + 구글시트 연동 방법</p>
-          <Link href="#" className="text-primary hover:text-primary/80 font-semibold">
-            노션 매뉴얼 보기 →
-          </Link>
-        </div>
-
-
-        {/* 구글시트 URL */}
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">구글시트 URL</label>
-          <input
-            type="url"
-            value={projectData.step2.sheetUrl}
-            onChange={(e) => setProjectData({ ...projectData, step2: { ...projectData.step2, sheetUrl: e.target.value } })}
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-          />
-          
-          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800 mb-2">
-              💡 <strong>팁:</strong> Google Forms로 응답받으면 더 빠르게 자동 수집됩니다
-            </p>
-            <p className="text-xs text-blue-700">
-              🚀 <strong>고급:</strong> Make.com 연동 시 실시간 처리 가능 (무료)
-              <a href="/MAKE_SETUP_GUIDE.md" target="_blank" className="ml-1 underline">
-                설정 가이드
-              </a>
-            </p>
-          </div>
-        </div>
+      <CustomFormTab 
+        projectId={projectId}
+        projectData={projectData}
+        onUpdate={(data) => setProjectData(data)}
+      />
+      
+      {/* 기존 Google Sheets 데이터 표시 (폼 시스템과 관계없이) */}
+      <div className="mt-8 space-y-6">
+        {/* 구글시트 URL (숨김 - 백그라운드 호환용) */}
+        <input
+          type="hidden"
+          value={projectData.step2.sheetUrl}
+          onChange={(e) => setProjectData({ ...projectData, step2: { ...projectData.step2, sheetUrl: e.target.value } })}
+        />
 
         {/* 선정 기준 커스터마이징 */}
         <div className="bg-muted/30 rounded-lg p-4 border border-border">
@@ -1768,7 +1949,7 @@ export default function CustomerAcquisitionPage() {
         {/* 자동화 시작/일시정지 버튼 */}
         <button
           onClick={handleStep2Start}
-          disabled={!projectData.step2.sheetUrl}
+          disabled={false}  // 항상 활성화 (자체 폼 또는 Google Sheets 중 하나 사용)
           className={`w-full py-3 rounded-lg font-semibold transition disabled:opacity-50 ${
             projectData.step2.isRunning
               ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
@@ -1912,12 +2093,41 @@ export default function CustomerAcquisitionPage() {
         {(projectData.step2.candidates?.length || 0) > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-text">수집된 후보</h4>
-              {projectData.step2.isRunning && (
-                <span className="text-xs text-gray-500">
-                  실시간 업데이트 중...
-                </span>
-              )}
+              <div className="flex items-center gap-4">
+                <h4 className="font-semibold text-text">수집된 후보 ({projectData.step2.candidates.length}명)</h4>
+                <div className="text-sm text-muted-foreground">
+                  선정: <span className="font-bold text-green-600">{projectData.step2.candidates.filter(c => c.status === 'selected').length}명</span> | 
+                  탈락: <span className="font-bold text-gray-500">{projectData.step2.candidates.filter(c => c.status === 'notSelected').length}명</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {projectData.step2.isRunning && (
+                  <span className="text-xs text-gray-500">
+                    실시간 업데이트 중...
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+                    if (res.ok) {
+                      const data = await res.json()
+                      if (data.candidates) {
+                        setProjectData(prev => ({
+                          ...prev,
+                          step2: {
+                            ...prev.step2,
+                            candidates: data.candidates
+                          }
+                        }))
+                        showNotification('후보 목록을 새로고침했습니다', 'success')
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
+                >
+                  새로고침
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -2444,7 +2654,7 @@ export default function CustomerAcquisitionPage() {
                     setProjectId(null)
                     setProjectData({
                       step1: { keyword:'', contentType:'blog', apiKey:'', instructions:'', generateImages:false, generatedContent:'', generatedImages:[] },
-                      step2: { sheetUrl:'', isRunning:false, candidates:[], selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
+                      step2: { sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
                       step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
