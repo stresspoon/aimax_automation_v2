@@ -665,14 +665,36 @@ export default function CustomerAcquisitionPage() {
           return
         }
 
+        // 로컬 상태 업데이트
         setProjectData(prev => ({
           ...prev,
           step2: { ...prev.step2, isRunning: true, candidates: prepJson.candidates }
         }))
         setProgress(p => ({ ...p, total: prepJson.candidates.length * 3, current: 0, currentName: `후보 ${prepJson.candidates.length}명 로드됨`, status: 'processing', phase: 'sns_checking' }))
         
+        // DB에 isRunning true로 업데이트
+        if (projectId) {
+          const supabase = createClient();
+          await supabase
+            .from('projects')
+            .update({ 
+              data: {
+                ...projectData,
+                step2: {
+                  ...projectData.step2,
+                  isRunning: true,
+                  candidates: prepJson.candidates,
+                  lastRowCount: prepJson.candidates.length, // 초기 행 수 저장
+                }
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', projectId);
+        }
+        
         // 자동화 시작 시 주기적 체크 시작
-        startPeriodicCheck()
+        console.log('🚀 자동화 시작 - 주기적 체크 활성화');
+        startPeriodicCheck(projectId)
 
         // 2) 후보별 순차 측정
         const total = prepJson.candidates.length
@@ -816,16 +838,38 @@ export default function CustomerAcquisitionPage() {
       }
     } else {
       // 일시정지
-    setProjectData({
-      ...projectData,
-      step2: {
-        ...projectData.step2,
+      console.log('⏸️ === 자동화 일시정지 ===');
+      
+      // 먼저 interval 중지
+      stopPeriodicCheck();
+      
+      // DB에 isRunning false로 업데이트
+      if (projectId) {
+        const supabase = createClient();
+        await supabase
+          .from('projects')
+          .update({ 
+            data: {
+              ...projectData,
+              step2: {
+                ...projectData.step2,
+                isRunning: false,
+              }
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+      }
+      
+      // 로컬 상태 업데이트
+      setProjectData({
+        ...projectData,
+        step2: {
+          ...projectData.step2,
           isRunning: false,
-      },
-    });
-    
-    // 자동화 중지 시 주기적 체크도 중지
-    stopPeriodicCheck();
+        },
+      });
+      
       showNotification('자동화가 일시정지되었습니다', 'info');
     }
   };
@@ -906,9 +950,14 @@ export default function CustomerAcquisitionPage() {
   };
 
   const stopPeriodicCheck = () => {
+    console.log('🛑 === 주기적 체크 중지 ===');
+    
     if (checkInterval) {
       clearInterval(checkInterval);
       setCheckInterval(null);
+      console.log('✅ Interval 정리 완료');
+    } else {
+      console.log('ℹ️ 정리할 interval 없음');
     }
     
     // 진행상황 체크 중지
@@ -1056,6 +1105,7 @@ export default function CustomerAcquisitionPage() {
   // 컴포넌트 언마운트 시 interval 정리
   useEffect(() => {
     return () => {
+      console.log('🧹 컴포넌트 언마운트 - 모든 interval 정리');
       if (checkInterval) {
         clearInterval(checkInterval);
       }
