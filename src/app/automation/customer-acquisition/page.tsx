@@ -1669,8 +1669,14 @@ export default function CustomerAcquisitionPage() {
           />
           
           <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800">
+            <p className="text-sm text-blue-800 mb-2">
               💡 <strong>팁:</strong> Google Forms로 응답받으면 더 빠르게 자동 수집됩니다
+            </p>
+            <p className="text-xs text-blue-700">
+              🚀 <strong>고급:</strong> Make.com 연동 시 실시간 처리 가능 (무료)
+              <a href="/MAKE_SETUP_GUIDE.md" target="_blank" className="ml-1 underline">
+                설정 가이드
+              </a>
             </p>
           </div>
         </div>
