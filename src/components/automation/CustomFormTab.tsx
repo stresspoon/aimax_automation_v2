@@ -164,7 +164,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     const config = {
       pending: { label: '대기중', icon: Clock, variant: 'secondary' as const },
       processing: { label: '처리중', icon: Loader2, variant: 'default' as const },
-      completed: { label: '완료', icon: CheckCircle, variant: 'success' as const },
+      completed: { label: '완료', icon: CheckCircle, variant: 'default' as const },
       archived: { label: '보관됨', icon: CheckCircle, variant: 'outline' as const },
       error: { label: '오류', icon: XCircle, variant: 'destructive' as const }
     }
@@ -354,7 +354,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                         <td className="px-4 py-2">
                           {response.is_selected !== null && (
                             response.is_selected ? (
-                              <Badge variant="success">선정</Badge>
+                              <Badge variant="default" className="bg-green-500 hover:bg-green-600">선정</Badge>
                             ) : (
                               <Badge variant="secondary">탈락</Badge>
                             )
