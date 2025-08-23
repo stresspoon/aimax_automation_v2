@@ -551,21 +551,33 @@ export async function POST(req: Request) {
           
           console.log(`Updated project with ${candidates.length} new candidates. Total rows now: ${originalRowCount}`)
         } else {
-          // 전체 데이터 처리한 경우
+          // 전체 데이터 처리한 경우 - 기존 프로젝트 데이터 가져오기
+          const { data: existingProject } = await supabase
+            .from('projects')
+            .select('data')
+            .eq('id', body.projectId)
+            .single()
+          
           await supabase
             .from('projects')
             .update({ 
               data: { 
+                ...existingProject?.data,
                 step2: { 
+                  ...existingProject?.data?.step2,
                   candidates,
                   stats,
                   sheetUrl: body.sheetUrl,
+                  selectionCriteria: body.selectionCriteria || existingProject?.data?.step2?.selectionCriteria,
                   lastRowCount: (parsed.data as Row[]).filter(Boolean).length, // 전체 행 수 저장
                   lastSyncedAt: new Date().toISOString() 
                 } 
-              } 
+              },
+              updated_at: new Date().toISOString()
             })
             .eq('id', body.projectId)
+          
+          console.log(`Full sync completed. Total rows: ${(parsed.data as Row[]).filter(Boolean).length}`)
         }
       } catch (err) {
         console.error('Failed to save to project:', err)

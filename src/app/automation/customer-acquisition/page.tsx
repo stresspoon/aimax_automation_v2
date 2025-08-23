@@ -769,7 +769,7 @@ export default function CustomerAcquisitionPage() {
         showNotification('후보별 SNS 체크가 완료되었습니다', 'success')
         
         // 측정이 완료되어도 isRunning은 true로 유지 (주기적 체크 계속)
-        console.log('자동화 실행 중 - 30초마다 새로운 응답을 확인합니다')
+        console.log('자동화 실행 중 - 10초마다 새로운 응답을 확인합니다')
 
       } catch (err) {
         console.error(err)
@@ -835,12 +835,13 @@ export default function CustomerAcquisitionPage() {
       clearInterval(checkInterval);
     }
     
-    // 30초마다 새로운 응답 확인
+    // 10초마다 새로운 응답 확인 (테스트를 위해 간격 단축)
     const interval = setInterval(async () => {
+      console.log('Periodic check - isRunning:', projectData.step2.isRunning, 'sheetUrl:', projectData.step2.sheetUrl);
       if (projectData.step2.isRunning && projectData.step2.sheetUrl) {
         await checkForNewResponses();
       }
-    }, 30000); // 30초마다 체크
+    }, 10000); // 10초마다 체크
     
     setCheckInterval(interval);
     
@@ -914,8 +915,29 @@ export default function CustomerAcquisitionPage() {
 
   const checkForNewResponses = async () => {
     try {
+      if (!projectId) {
+        console.log('No project ID, skipping check');
+        return;
+      }
+      
+      // DB에서 최신 프로젝트 데이터 가져오기
+      const supabase = createClient();
+      const { data: project, error } = await supabase
+        .from('projects')
+        .select('data')
+        .eq('id', projectId)
+        .single();
+      
+      if (error || !project) {
+        console.error('Failed to fetch project data:', error);
+        return;
+      }
+      
+      const lastRowCount = project.data?.step2?.lastRowCount || 0;
+      const currentCandidatesCount = project.data?.step2?.candidates?.length || 0;
+      
       console.log('Checking for new responses...');
-      console.log('Current candidates:', projectData.step2.candidates.length);
+      console.log(`DB lastRowCount: ${lastRowCount}, Current candidates: ${currentCandidatesCount}`);
       
       const res = await fetch('/api/sheets/sync', {
         method: 'POST',
@@ -925,7 +947,7 @@ export default function CustomerAcquisitionPage() {
           projectId: projectId,
           selectionCriteria: projectData.step2.selectionCriteria,
           checkNewOnly: true, // 새로운 응답만 체크하는 옵션
-          lastRowCount: projectData.step2.candidates.length, // 현재 체크한 행 수 전달
+          lastRowCount: lastRowCount, // DB에 저장된 마지막 행 수 사용
           skipSnsCheck: false, // SNS 체크도 수행
         }),
       });
@@ -934,14 +956,23 @@ export default function CustomerAcquisitionPage() {
       console.log('Check response:', data);
       
       if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
-        // 새로운 후보자가 있으면 기존 후보자 목록에 추가
-        setProjectData(prev => ({
-          ...prev,
-          step2: {
-            ...prev.step2,
-            candidates: [...prev.step2.candidates, ...data.newCandidates],
-          },
-        }));
+        // DB에서 다시 최신 데이터 가져오기 (업데이트된 데이터)
+        const { data: updatedProject } = await supabase
+          .from('projects')
+          .select('data')
+          .eq('id', projectId)
+          .single();
+        
+        if (updatedProject) {
+          // 전체 프로젝트 데이터 업데이트
+          setProjectData(prev => ({
+            ...prev,
+            step2: {
+              ...prev.step2,
+              ...updatedProject.data.step2,
+            },
+          }));
+        }
         
         showNotification(`${data.newCandidates.length}명의 새로운 후보자가 추가되었습니다`, 'success');
         console.log(`Added ${data.newCandidates.length} new candidates`);
@@ -1463,7 +1494,7 @@ export default function CustomerAcquisitionPage() {
               <span className="text-sm font-medium text-blue-700">
                 {progress.phase === 'sheet_loading' ? '구글 시트 데이터를 불러오는 중...' : 
                  progress.phase === 'sns_checking' ? 'SNS 팔로워/이웃수를 체크하는 중...' :
-                 '자동화 실행 중 - 30초마다 새로운 응답을 확인합니다'}
+                 '자동화 실행 중 - 10초마다 새로운 응답을 확인합니다'}
               </span>
             </div>
             
