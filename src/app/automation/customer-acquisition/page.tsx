@@ -2654,7 +2654,7 @@ export default function CustomerAcquisitionPage() {
                     setProjectId(null)
                     setProjectData({
                       step1: { keyword:'', contentType:'blog', apiKey:'', instructions:'', generateImages:false, generatedContent:'', generatedImages:[] },
-                      step2: { sheetUrl:'', isRunning:false, candidates:[], selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
+                      step2: { sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
                       step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
