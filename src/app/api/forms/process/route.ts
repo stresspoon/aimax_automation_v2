@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { google } from 'googleapis'
+import { appendToSheet, getSpreadsheetIdFromUrl } from '@/lib/google/sheets'
 
 // SNS 병렬 체크 함수
 async function checkSNSParallel(data: any) {
@@ -98,22 +98,23 @@ async function checkSNSParallel(data: any) {
   return snsResult
 }
 
-// Google Sheets에 데이터 추가
-async function appendToGoogleSheet(form: any, responseData: any, snsResult: any, isSelected: boolean) {
-  if (!form.google_sheet_id) return
+// Google Sheets에 데이터 추가 (OAuth 방식)
+async function appendToGoogleSheet(userId: string, form: any, responseData: any, snsResult: any, isSelected: boolean) {
+  if (!form.google_sheet_url) {
+    console.log('Google Sheets URL이 없습니다');
+    return false;
+  }
   
   try {
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    )
+    // Google Sheets URL에서 ID 추출
+    const sheetId = getSpreadsheetIdFromUrl(form.google_sheet_url);
+    if (!sheetId) {
+      console.log('Invalid Google Sheets URL');
+      return false;
+    }
     
-    // 서비스 계정 또는 저장된 토큰 사용
-    // TODO: 실제 구현 시 사용자의 저장된 토큰 사용
-    
-    const sheets = google.sheets({ version: 'v4', auth })
-    
-    const values = [[
+    // 데이터 행 준비
+    const rowData = [[
       new Date().toLocaleString('ko-KR'),
       responseData.name,
       responseData.phone,
@@ -127,27 +128,25 @@ async function appendToGoogleSheet(form: any, responseData: any, snsResult: any,
       snsResult.blog?.neighbors || 0,
       isSelected ? '선정' : '탈락',
       isSelected ? '기준 충족' : '기준 미달'
-    ]]
+    ]];
     
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: form.google_sheet_id,
-      range: 'A:M',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values }
-    })
+    // OAuth를 통한 Google Sheets API 호출
+    await appendToSheet(userId, sheetId, rowData);
     
-    return true
+    console.log('✅ Google Sheets에 데이터 추가 완료');
+    return true;
   } catch (error) {
-    console.error('Google Sheets sync error:', error)
-    return false
+    console.error('Google Sheets sync error:', error);
+    return false;
   }
 }
 
 // POST: 응답 처리
 export async function POST(req: Request) {
+  console.log('🔄 === Process API Called ===')
   try {
     const { responseId } = await req.json()
-    console.log('Processing response:', responseId)
+    console.log('📍 Processing response ID:', responseId)
     const supabase = await createClient()
     
     // 응답 조회
@@ -216,8 +215,10 @@ export async function POST(req: Request) {
       .eq('id', responseId)
     
     // Google Sheets 동기화
-    if (form.google_sheet_id) {
+    if (form.google_sheet_url) {
+      console.log('📊 Google Sheets 동기화 시도...');
       const synced = await appendToGoogleSheet(
+        form.user_id,  // user_id 추가
         form,
         response.data,
         snsResult,
@@ -225,6 +226,7 @@ export async function POST(req: Request) {
       )
       
       if (synced) {
+        console.log('✅ Google Sheets 동기화 성공!');
         await supabase
           .from('form_responses_temp')
           .update({
@@ -232,7 +234,11 @@ export async function POST(req: Request) {
             status: 'archived' // 동기화 완료 후 archived로 변경
           })
           .eq('id', responseId)
+      } else {
+        console.log('❌ Google Sheets 동기화 실패 - Supabase에만 저장됨');
       }
+    } else {
+      console.log('ℹ️ Google Sheets URL이 없어서 동기화 건너뜀');
     }
     
     // 처리 큐에서 제거

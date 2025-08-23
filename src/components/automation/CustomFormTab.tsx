@@ -10,9 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { 
   Copy, ExternalLink, Loader2, AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet, Link
 } from 'lucide-react'
 import QRCode from 'qrcode'
+import { createClient } from '@/lib/supabase/client'
 
 interface CustomFormTabProps {
   projectId: string | null
@@ -25,11 +26,13 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   const [form, setForm] = useState<any>(null)
   const [googleSheetUrl, setGoogleSheetUrl] = useState('')
   const [qrCodeUrl, setQrCodeUrl] = useState('')
+  const [sheetsConnected, setSheetsConnected] = useState(false)
   
   // 폼 정보 로드
   useEffect(() => {
     if (projectId) {
       loadForm()
+      checkSheetsConnection()
     }
   }, [projectId])
   
@@ -69,6 +72,41 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       setQrCodeUrl(qr)
     } catch (error) {
       console.error('QR generation failed:', error)
+    }
+  }
+  
+  // Google Sheets 연결 상태 확인
+  const checkSheetsConnection = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
+      const { data: connection } = await supabase
+        .from('sheets_connections')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+      
+      setSheetsConnected(!!connection)
+    } catch (error) {
+      console.error('Failed to check sheets connection:', error)
+    }
+  }
+  
+  // Google Sheets OAuth 연결
+  const connectGoogleSheets = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/sheets')
+      if (!res.ok) throw new Error('OAuth URL 생성 실패')
+      
+      const { url } = await res.json()
+      window.location.href = url
+    } catch (error) {
+      alert('Google Sheets 연결에 실패했습니다')
+    } finally {
+      setLoading(false)
     }
   }
   
@@ -168,15 +206,47 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
               </Alert>
               
               <div className="space-y-2">
-                <Label>Google Sheets URL (선택사항)</Label>
-                <Input
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  value={googleSheetUrl}
-                  onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                />
-                <p className="text-sm text-gray-500">
-                  * Google Sheets를 먼저 생성하고 "링크가 있는 모든 사용자가 편집 가능"으로 설정해주세요
-                </p>
+                <Label>Google Sheets 연결</Label>
+                {!sheetsConnected ? (
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={connectGoogleSheets} 
+                      disabled={loading}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          연결 중...
+                        </>
+                      ) : (
+                        <>
+                          <Link className="mr-2 h-4 w-4" />
+                          Google Sheets 연결하기
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-sm text-gray-500">
+                      * Google 계정으로 인증하여 자동으로 데이터를 동기화합니다
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Badge className="mb-2 bg-green-100 text-green-800">
+                      <FileSpreadsheet className="mr-1 h-3 w-3" />
+                      Google Sheets 연결됨
+                    </Badge>
+                    <Input
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      value={googleSheetUrl}
+                      onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    />
+                    <p className="text-sm text-gray-500">
+                      * 데이터를 저장할 Google Sheets URL을 입력하세요
+                    </p>
+                  </div>
+                )}
               </div>
               
               <Button onClick={handleCreateForm} disabled={loading}>
@@ -259,30 +329,62 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
               
               {/* Google Sheets 연결 */}
               <div className="space-y-2">
-                <Label>Google Sheets URL (선택사항)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                    value={googleSheetUrl}
-                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                  />
-                  <Button onClick={handleUpdateSheetUrl} disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      '업데이트'
+                <Label>Google Sheets 연결</Label>
+                {!sheetsConnected ? (
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={connectGoogleSheets} 
+                      disabled={loading}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          연결 중...
+                        </>
+                      ) : (
+                        <>
+                          <Link className="mr-2 h-4 w-4" />
+                          Google Sheets 연결하기
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-sm text-gray-500">
+                      * Google 계정으로 인증하여 자동으로 데이터를 동기화합니다
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Badge className="mb-2 bg-green-100 text-green-800">
+                      <FileSpreadsheet className="mr-1 h-3 w-3" />
+                      Google Sheets 연결됨
+                    </Badge>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        value={googleSheetUrl}
+                        onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                      />
+                      <Button onClick={handleUpdateSheetUrl} disabled={loading}>
+                        {loading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          '업데이트'
+                        )}
+                      </Button>
+                    </div>
+                    {form.google_sheet_url && (
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto"
+                        onClick={() => window.open(form.google_sheet_url, '_blank')}
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Google Sheets 열기
+                      </Button>
                     )}
-                  </Button>
-                </div>
-                {form.google_sheet_url && (
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => window.open(form.google_sheet_url, '_blank')}
-                  >
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Google Sheets 열기
-                  </Button>
+                  </div>
                 )}
               </div>
             </div>
