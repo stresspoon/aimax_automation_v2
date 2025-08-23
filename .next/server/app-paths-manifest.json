@@ -1,9 +1,12 @@
 {
   "/api/forms/responses/route": "app/api/forms/responses/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
+  "/api/forms/route": "app/api/forms/route.js",
+  "/api/usage/route": "app/api/usage/route.js",
+  "/api/sheets/sync/route": "app/api/sheets/sync/route.js",
+  "/api/projects/route": "app/api/projects/route.js",
   "/api/forms/process/route": "app/api/forms/process/route.js",
-  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
-  "/page": "app/page.js",
+  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
   "/form/[slug]/page": "app/form/[slug]/page.js",
-  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js"
+  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
+  "/page": "app/page.js"
 }

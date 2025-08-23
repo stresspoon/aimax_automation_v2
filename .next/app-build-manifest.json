@@ -61,10 +61,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/forms/sync-candidates/route.js"
     ],
-    "/_not-found/page": [
+    "/api/sheets/sync/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/api/sheets/sync/route.js"
     ]
   }
 }

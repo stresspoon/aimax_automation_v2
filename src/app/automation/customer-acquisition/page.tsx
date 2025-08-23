@@ -49,6 +49,7 @@ export default function CustomerAcquisitionPage() {
   const [_typingActive, setTypingActive] = useState<boolean>(false);
   const [hasTypingStarted, setHasTypingStarted] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("");
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [projectData, setProjectData] = useState({
     step1: {
       keyword: "",
@@ -2003,12 +2004,41 @@ export default function CustomerAcquisitionPage() {
         {(projectData.step2.candidates?.length || 0) > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-text">수집된 후보</h4>
-              {projectData.step2.isRunning && (
-                <span className="text-xs text-gray-500">
-                  실시간 업데이트 중...
-                </span>
-              )}
+              <div className="flex items-center gap-4">
+                <h4 className="font-semibold text-text">수집된 후보 ({projectData.step2.candidates.length}명)</h4>
+                <div className="text-sm text-muted-foreground">
+                  선정: <span className="font-bold text-green-600">{projectData.step2.candidates.filter(c => c.status === 'selected').length}명</span> | 
+                  탈락: <span className="font-bold text-gray-500">{projectData.step2.candidates.filter(c => c.status === 'notSelected').length}명</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {projectData.step2.isRunning && (
+                  <span className="text-xs text-gray-500">
+                    실시간 업데이트 중...
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
+                    if (res.ok) {
+                      const data = await res.json()
+                      if (data.candidates) {
+                        setProjectData(prev => ({
+                          ...prev,
+                          step2: {
+                            ...prev.step2,
+                            candidates: data.candidates
+                          }
+                        }))
+                        showNotification('후보 목록을 새로고침했습니다', 'success')
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
+                >
+                  새로고침
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

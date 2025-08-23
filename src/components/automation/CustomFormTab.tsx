@@ -9,9 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { 
-  Copy, ExternalLink, Loader2, RefreshCw, 
-  CheckCircle, XCircle, Clock, AlertCircle,
-  QrCode, Users, FileSpreadsheet
+  Copy, ExternalLink, Loader2, AlertCircle,
+  FileSpreadsheet
 } from 'lucide-react'
 import QRCode from 'qrcode'
 
@@ -25,13 +24,6 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<any>(null)
   const [googleSheetUrl, setGoogleSheetUrl] = useState('')
-  const [responses, setResponses] = useState<any[]>([])
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    completed: 0,
-    selected: 0
-  })
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   
   // 폼 정보 로드
@@ -41,16 +33,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     }
   }, [projectId])
   
-  // 자동 새로고침 (5초마다)
-  useEffect(() => {
-    if (!form) return
-    
-    const interval = setInterval(() => {
-      loadResponses(form.id)
-    }, 5000)
-    
-    return () => clearInterval(interval)
-  }, [form])
+  // 자동 새로고침 제거 (응답 현황 섹션이 제거되어 불필요)
   
   const loadForm = async () => {
     if (!projectId) {
@@ -68,7 +51,6 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
           setForm(forms[0])
           setGoogleSheetUrl(forms[0].google_sheet_url || '')
           generateQRCode(forms[0].slug)
-          loadResponses(forms[0].id)
         }
       }
     } catch (error) {
@@ -90,27 +72,6 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     }
   }
   
-  // 응답 로드
-  const loadResponses = async (formId: string) => {
-    try {
-      const res = await fetch(`/api/forms/responses?formId=${formId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setResponses(data)
-        
-        // 통계 계산
-        const stats = {
-          total: data.length,
-          pending: data.filter((r: any) => r.status === 'pending').length,
-          completed: data.filter((r: any) => r.status === 'completed').length,
-          selected: data.filter((r: any) => r.is_selected).length
-        }
-        setStats(stats)
-      }
-    } catch (error) {
-      console.error('Failed to load responses:', error)
-    }
-  }
   
   // 폼 생성 또는 업데이트
   const handleCreateForm = async () => {
@@ -183,26 +144,6 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     alert('링크가 복사되었습니다')
-  }
-  
-  // 상태 배지 컴포넌트
-  const StatusBadge = ({ status }: { status: string }) => {
-    const config = {
-      pending: { label: '대기중', icon: Clock, variant: 'secondary' as const },
-      processing: { label: '처리중', icon: Loader2, variant: 'default' as const },
-      completed: { label: '완료', icon: CheckCircle, variant: 'default' as const },
-      archived: { label: '보관됨', icon: CheckCircle, variant: 'outline' as const },
-      error: { label: '오류', icon: XCircle, variant: 'destructive' as const }
-    }
-    
-    const { label, icon: Icon, variant } = config[status as keyof typeof config] || config.pending
-    
-    return (
-      <Badge variant={variant} className="gap-1">
-        <Icon className="h-3 w-3" />
-        {label}
-      </Badge>
-    )
   }
   
   return (
@@ -349,114 +290,6 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
         </CardContent>
       </Card>
       
-      {/* 응답 통계 */}
-      {form && (
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>응답 현황</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => loadResponses(form.id)}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                새로고침
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{stats.total}</div>
-                <div className="text-sm text-gray-500">전체 응답</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-                <div className="text-sm text-gray-500">대기중</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.completed}</div>
-                <div className="text-sm text-gray-500">처리완료</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.selected}</div>
-                <div className="text-sm text-gray-500">선정</div>
-              </div>
-            </div>
-            
-            {/* 최근 응답 목록 */}
-            <div className="space-y-2">
-              <h4 className="font-medium">최근 응답 (최대 10개)</h4>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-sm">이름</th>
-                      <th className="px-4 py-2 text-left text-sm">이메일</th>
-                      <th className="px-4 py-2 text-left text-sm">상태</th>
-                      <th className="px-4 py-2 text-left text-sm">선정여부</th>
-                      <th className="px-4 py-2 text-left text-sm">제출시간</th>
-                      <th className="px-4 py-2 text-left text-sm">작업</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {responses.slice(0, 10).map((response) => (
-                      <tr key={response.id} className="border-t">
-                        <td className="px-4 py-2 text-sm">{response.name}</td>
-                        <td className="px-4 py-2 text-sm">{response.email}</td>
-                        <td className="px-4 py-2">
-                          <StatusBadge status={response.status} />
-                        </td>
-                        <td className="px-4 py-2">
-                          {response.is_selected !== null && (
-                            response.is_selected ? (
-                              <Badge variant="default" className="bg-green-500 hover:bg-green-600">선정</Badge>
-                            ) : (
-                              <Badge variant="secondary">탈락</Badge>
-                            )
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-500">
-                          {new Date(response.created_at).toLocaleString('ko-KR')}
-                        </td>
-                        <td className="px-4 py-2">
-                          {response.status === 'pending' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={async () => {
-                                const res = await fetch('/api/forms/process', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ responseId: response.id })
-                                })
-                                if (res.ok) {
-                                  alert('SNS 체크 완료')
-                                  loadResponses(form.id)
-                                } else {
-                                  alert('SNS 체크 실패')
-                                }
-                              }}
-                            >
-                              SNS 체크
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {responses.length === 0 && (
-                  <div className="p-8 text-center text-gray-500">
-                    아직 응답이 없습니다
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
