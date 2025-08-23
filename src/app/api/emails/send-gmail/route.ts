@@ -53,19 +53,28 @@ export async function POST(req: Request) {
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
       try {
+        // Subject를 UTF-8로 MIME 인코딩 (RFC 2047)
+        const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`
+        
+        // 본문에서 템플릿 변수 치환 - {{name}}과 {이름} 모두 지원
+        let processedBody = body
+          .replace(/\{\{name\}\}/g, recipient.name || '고객님')
+          .replace(/\{이름\}/g, recipient.name || '고객님')
+        
         // 이메일 메시지 생성
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipient.email}`,
-          `Subject: ${subject}`,
+          `Subject: ${encodedSubject}`,
           replyTo ? `Reply-To: ${replyTo}` : '',
           'Content-Type: text/html; charset=utf-8',
+          'MIME-Version: 1.0',
           '',
-          body.replace(/\{\{name\}\}/g, recipient.name || '고객님')
+          processedBody
         ].filter(Boolean).join('\n')
         
         // Base64 인코딩
-        const encodedMessage = Buffer.from(message)
+        const encodedMessage = Buffer.from(message, 'utf-8')
           .toString('base64')
           .replace(/\+/g, '-')
           .replace(/\//g, '_')
