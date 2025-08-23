@@ -50,10 +50,12 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
+      console.error('POST /api/forms - No authenticated user')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
     const { projectId, title, googleSheetUrl } = await req.json()
+    console.log('POST /api/forms - Creating form:', { projectId, title, googleSheetUrl, userId: user.id })
     
     // 기본 필드 설정
     const defaultFields = {
@@ -85,7 +87,7 @@ export async function POST(req: Request) {
     const { data: form, error } = await supabase
       .from('forms')
       .insert({
-        project_id: projectId,
+        project_id: projectId || null,  // 빈 문자열이면 null로 변환
         user_id: user.id,
         title: title || '고객 정보 수집',
         fields: defaultFields,
@@ -101,15 +103,23 @@ export async function POST(req: Request) {
           }
         },
         google_sheet_id: sheetId,
-        google_sheet_url: googleSheetUrl,
+        google_sheet_url: googleSheetUrl || null,
         google_sheet_name: sheetName
       })
       .select()
       .single()
     
     if (error) {
+      console.error('POST /api/forms - Database error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+    
+    if (!form) {
+      console.error('POST /api/forms - Form not returned after insert')
+      return NextResponse.json({ error: 'Form creation failed' }, { status: 500 })
+    }
+    
+    console.log('POST /api/forms - Form created successfully:', form.id)
     
     return NextResponse.json({
       success: true,
@@ -119,6 +129,7 @@ export async function POST(req: Request) {
     })
     
   } catch (error) {
+    console.error('POST /api/forms - Unexpected error:', error)
     return NextResponse.json({ 
       error: (error as Error).message 
     }, { status: 500 })

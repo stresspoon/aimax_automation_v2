@@ -6,7 +6,6 @@ import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomFormTab from '@/components/automation/CustomFormTab'
 
 type Step = 1 | 2 | 3;
@@ -1649,53 +1648,20 @@ export default function CustomerAcquisitionPage() {
     >
       <h2 className="text-2xl font-bold text-foreground mb-6">Step 2: DB 관리</h2>
       
-      <Tabs defaultValue="custom-form" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="custom-form">자체 폼 시스템</TabsTrigger>
-          <TabsTrigger value="google-sheets">Google Sheets 연동</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="custom-form" className="mt-6">
-          <CustomFormTab 
-            projectId={projectId || ''}
-            projectData={projectData}
-            onUpdate={(data) => setProjectData(data)}
-          />
-        </TabsContent>
-        
-        <TabsContent value="google-sheets" className="mt-6">
-          <div className="space-y-6">
-            {/* 매뉴얼 링크 */}
-            <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-              <p className="text-sm text-foreground mb-2">구글폼 + 구글시트 연동 방법</p>
-              <Link href="#" className="text-primary hover:text-primary/80 font-semibold">
-                노션 매뉴얼 보기 →
-              </Link>
-            </div>
-
-            {/* 구글시트 URL */}
-            <div>
-          <label className="block text-sm font-medium text-foreground mb-2">구글시트 URL</label>
-          <input
-            type="url"
-            value={projectData.step2.sheetUrl}
-            onChange={(e) => setProjectData({ ...projectData, step2: { ...projectData.step2, sheetUrl: e.target.value } })}
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-          />
-          
-          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800 mb-2">
-              💡 <strong>팁:</strong> Google Forms로 응답받으면 더 빠르게 자동 수집됩니다
-            </p>
-            <p className="text-xs text-blue-700">
-              🚀 <strong>고급:</strong> Make.com 연동 시 실시간 처리 가능 (무료)
-              <a href="/MAKE_SETUP_GUIDE.md" target="_blank" className="ml-1 underline">
-                설정 가이드
-              </a>
-            </p>
-          </div>
-        </div>
+      <CustomFormTab 
+        projectId={projectId}
+        projectData={projectData}
+        onUpdate={(data) => setProjectData(data)}
+      />
+      
+      {/* 기존 Google Sheets 데이터 표시 (폼 시스템과 관계없이) */}
+      <div className="mt-8 space-y-6">
+        {/* 구글시트 URL (숨김 - 백그라운드 호환용) */}
+        <input
+          type="hidden"
+          value={projectData.step2.sheetUrl}
+          onChange={(e) => setProjectData({ ...projectData, step2: { ...projectData.step2, sheetUrl: e.target.value } })}
+        />
 
         {/* 선정 기준 커스터마이징 */}
         <div className="bg-muted/30 rounded-lg p-4 border border-border">
@@ -2039,8 +2005,6 @@ export default function CustomerAcquisitionPage() {
           </button>
         )}
       </div>
-        </TabsContent>
-      </Tabs>
     </motion.div>
   );
 

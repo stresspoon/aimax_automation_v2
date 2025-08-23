@@ -16,7 +16,7 @@ import {
 import QRCode from 'qrcode'
 
 interface CustomFormTabProps {
-  projectId: string
+  projectId: string | null
   projectData: any
   onUpdate: (data: any) => void
 }
