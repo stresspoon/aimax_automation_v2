@@ -1,5 +1,130 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { parseMetrics, normalizeUrl } from '@/lib/sns/scrape'
+
+// 백그라운드에서 SNS 체크 및 처리
+async function processResponseInBackground(responseId: string) {
+  console.log('🔄 Background processing started for:', responseId)
+  
+  const supabase = await createClient()
+  
+  try {
+    // 응답 데이터 가져오기
+    const { data: response } = await supabase
+      .from('form_responses_temp')
+      .select('*')
+      .eq('id', responseId)
+      .single()
+    
+    if (!response) return
+    
+    // 폼 정보 가져오기
+    const { data: form } = await supabase
+      .from('forms')
+      .select('*')
+      .eq('id', response.form_id)
+      .single()
+    
+    if (!form) return
+    
+    // SNS 체크
+    const snsResult: any = {
+      threads: { followers: 0, checked: false },
+      instagram: { followers: 0, checked: false },
+      blog: { neighbors: 0, checked: false }
+    }
+    
+    // Threads 체크
+    if (response.data?.threadsUrl) {
+      try {
+        const url = normalizeUrl(response.data.threadsUrl, 'threads')
+        const metrics = await parseMetrics(url)
+        snsResult.threads = {
+          url: response.data.threadsUrl,
+          followers: metrics.followers || 0,
+          checked: true
+        }
+      } catch (err) {
+        console.error('Threads check error:', err)
+      }
+    }
+    
+    // Instagram 체크
+    if (response.data?.instagramUrl) {
+      try {
+        const url = normalizeUrl(response.data.instagramUrl, 'instagram')
+        const metrics = await parseMetrics(url)
+        snsResult.instagram = {
+          url: response.data.instagramUrl,
+          followers: metrics.followers || 0,
+          checked: true
+        }
+      } catch (err) {
+        console.error('Instagram check error:', err)
+      }
+    }
+    
+    // Blog 체크
+    if (response.data?.blogUrl) {
+      try {
+        const url = normalizeUrl(response.data.blogUrl, 'blog')
+        const metrics = await parseMetrics(url)
+        snsResult.blog = {
+          url: response.data.blogUrl,
+          neighbors: metrics.neighbors || 0,
+          checked: true
+        }
+      } catch (err) {
+        console.error('Blog check error:', err)
+      }
+    }
+    
+    // 선정 기준 확인
+    const criteria = form.settings?.selectionCriteria || {
+      threads: 500,
+      blog: 300,
+      instagram: 1000
+    }
+    
+    const isSelected = 
+      (snsResult.threads.followers >= criteria.threads) ||
+      (snsResult.instagram.followers >= criteria.instagram) ||
+      (snsResult.blog.neighbors >= criteria.blog)
+    
+    console.log('✅ SNS Check Result:', snsResult)
+    console.log('✅ Selection:', isSelected ? '선정' : '탈락')
+    
+    // 결과 업데이트
+    await supabase
+      .from('form_responses_temp')
+      .update({
+        sns_check_result: snsResult,
+        is_selected: isSelected,
+        selection_reason: isSelected ? '기준 충족' : '기준 미달',
+        status: 'completed',
+        processed_at: new Date().toISOString()
+      })
+      .eq('id', responseId)
+    
+    // 처리 큐에서 제거
+    await supabase
+      .from('processing_queue')
+      .delete()
+      .eq('response_id', responseId)
+    
+  } catch (error) {
+    console.error('Processing error:', error)
+    
+    // 에러 상태로 업데이트
+    await supabase
+      .from('form_responses_temp')
+      .update({
+        status: 'error',
+        error_message: (error as Error).message
+      })
+      .eq('id', responseId)
+  }
+}
 
 // POST: 폼 응답 제출
 export async function POST(req: Request) {
@@ -61,16 +186,13 @@ export async function POST(req: Request) {
         priority: 1
       })
     
-    // 백그라운드 처리 트리거 (비동기) - SNS 체크 및 선정
-    setTimeout(() => {
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/forms/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responseId: response.id })
-      }).catch(error => {
-        console.error('Background processing error:', error)
-      })
-    }, 1000) // 1초 후 처리 시작
+    // SNS 체크를 즉시 실행 (백그라운드)
+    console.log('🚀 Starting immediate SNS check for response:', response.id)
+    
+    // 비동기로 처리 (응답을 기다리지 않음)
+    processResponseInBackground(response.id).catch(err => {
+      console.error('Background processing failed:', err)
+    })
     
     return NextResponse.json({
       success: true,

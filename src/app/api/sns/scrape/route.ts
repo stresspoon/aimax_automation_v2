@@ -301,14 +301,89 @@ export async function POST(req: NextRequest) {
       platform = 'naver_blog';
       console.log('[네이버 블로그] 이웃수 추출 시작');
       
+      // 페이지 로드 대기
       await new Promise(resolve => setTimeout(resolve, 3000));
-      html = await page.content();
       
-      // 네이버 블로그 이웃 수 추출 로직
-      const buddyMatch = html.match(/이웃\s*([\d,]+)\s*명/);
-      if (buddyMatch) {
-        followers = parseInt(buddyMatch[1].replace(/,/g, '')) || 0;
+      // iframe 찾기 및 전환
+      const frames = page.frames();
+      console.log(`[네이버 블로그] 총 ${frames.length}개의 프레임 발견`);
+      
+      for (const frame of frames) {
+        try {
+          const frameUrl = frame.url();
+          console.log(`프레임 URL: ${frameUrl}`);
+          
+          // mainFrame 찾기 (blog.naver.com iframe)
+          if (frameUrl.includes('blog.naver.com') && frameUrl !== url) {
+            console.log(`[네이버 블로그] iframe 발견: ${frameUrl}`);
+            
+            try {
+              // iframe 내에서 이웃 수 찾기
+              const neighborInfo = await frame.evaluate(() => {
+                // 우선순위 셀렉터들
+                const selectors = [
+                  '.flick-cm-col1 em',
+                  '.cm-col1 em',
+                  '#widget-stat em',
+                  '.buddy_cnt',
+                  'em'
+                ];
+                
+                for (const selector of selectors) {
+                  const elements = document.querySelectorAll(selector);
+                  for (const el of elements) {
+                    const parent = el.parentElement;
+                    if (parent && (parent.textContent?.includes('블로그 이웃') || parent.textContent?.includes('이웃'))) {
+                      const text = (el.textContent || '').trim();
+                      // 숫자 형식 확인 (예: 2,298)
+                      if (/^\d{1,3}(,\d{3})*$/.test(text)) {
+                        return parseInt(text.replace(/,/g, ''));
+                      }
+                    }
+                  }
+                }
+                
+                // 직접 텍스트 매칭
+                const links = document.querySelectorAll('a[href*="BuddyMe"]');
+                for (const link of links) {
+                  const match = (link.textContent || '').match(/이웃\s*([\d,]+)/);
+                  if (match) {
+                    return parseInt(match[1].replace(/,/g, ''));
+                  }
+                }
+                
+                return 0;
+              });
+              
+              if (neighborInfo > 0) {
+                console.log(`[네이버 블로그] iframe에서 이웃 수 발견: ${neighborInfo}`);
+                followers = neighborInfo;
+                break;
+              }
+            } catch (e) {
+              console.log(`iframe 처리 중 오류:`, e);
+            }
+          }
+        } catch (e) {
+          console.log(`프레임 처리 중 오류:`, e);
+        }
       }
+      
+      // iframe에서 못 찾으면 메인 페이지에서 시도
+      if (followers === 0) {
+        const mainPageNeighbors = await page.evaluate(() => {
+          const bodyText = document.body.textContent || '';
+          const match = bodyText.match(/이웃\s*(\d+)\s*명/);
+          return match ? parseInt(match[1]) : 0;
+        });
+        
+        if (mainPageNeighbors > 0) {
+          console.log(`[네이버 블로그] 메인 페이지에서 이웃 수 발견: ${mainPageNeighbors}`);
+          followers = mainPageNeighbors;
+        }
+      }
+      
+      html = await page.content();
     }
     
     await browser.close();

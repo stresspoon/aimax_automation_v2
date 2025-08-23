@@ -18,30 +18,47 @@ export async function GET(req: Request) {
   }
   
   try {
-    // 프로젝트의 폼 찾기
+    // 프로젝트의 폼 찾기 (프로젝트와 연결된 폼 우선, 없으면 사용자의 첫 번째 폼 사용)
     console.log('Sync candidates - Looking for forms with projectId:', projectId, 'userId:', user.id)
-    const { data: forms, error: formsError } = await supabase
+    
+    // 프로젝트와 연결된 폼 찾기
+    let { data: forms, error: formsError } = await supabase
       .from('forms')
       .select('id')
       .eq('project_id', projectId)
       .eq('user_id', user.id)
     
-    console.log('Forms found:', forms, 'Error:', formsError)
+    console.log('Forms found for project:', forms)
     
+    // 프로젝트와 연결된 폼이 없으면 사용자의 모든 폼 확인
     if (!forms || forms.length === 0) {
-      return NextResponse.json({ candidates: [], message: '폼이 없습니다' })
+      const { data: userForms } = await supabase
+        .from('forms')
+        .select('id, project_id')
+        .eq('user_id', user.id)
+      
+      console.log('User forms (no project link):', userForms)
+      
+      if (userForms && userForms.length > 0) {
+        // 첫 번째 폼 사용 (나중에 프로젝트와 연결할 수 있음)
+        forms = [{ id: userForms[0].id }]
+        console.log('Using first user form:', forms[0].id)
+      } else {
+        return NextResponse.json({ candidates: [], message: '폼이 없습니다' })
+      }
     }
     
-    // 폼의 모든 응답 가져오기
-    console.log('Fetching responses for form:', forms[0].id)
+    // 폼의 모든 응답 가져오기  
+    const formId = forms[0].id
+    console.log('Fetching responses for form:', formId)
+    
     const { data: responses, error } = await supabase
       .from('form_responses_temp')
       .select('*')
-      .eq('form_id', forms[0].id)
-      .in('status', ['completed', 'processing', 'pending'])
+      .eq('form_id', formId)
       .order('created_at', { ascending: false })
     
-    console.log('Responses found:', responses?.length, 'Error:', error)
+    console.log(`Found ${responses?.length || 0} responses for form ${formId}`)
     
     if (error) {
       console.error('Error fetching responses:', error)
