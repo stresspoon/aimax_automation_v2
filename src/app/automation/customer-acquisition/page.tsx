@@ -694,7 +694,7 @@ export default function CustomerAcquisitionPage() {
         
         // 자동화 시작 시 주기적 체크 시작
         console.log('🚀 자동화 시작 - 주기적 체크 활성화');
-        startPeriodicCheck(projectId)
+        startPeriodicCheck(projectId || undefined)
 
         // 2) 후보별 순차 측정
         const total = prepJson.candidates.length
