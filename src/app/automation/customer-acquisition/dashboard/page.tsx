@@ -101,14 +101,14 @@ export default function CustomerAcquisitionDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 먼저 캠페인 생성
+      // 먼저 캠페인 생성 (type 컬럼 제외)
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .insert({
           user_id: user.id,
           name: newProjectName,
-          type: 'customer_acquisition',
           status: 'active',
+          data: { type: 'customer_acquisition' }
         })
         .select()
         .single();
@@ -128,7 +128,9 @@ export default function CustomerAcquisitionDashboard() {
             step1: {},
             step2: {},
             step3: {}
-          }
+          },
+          campaign_name: newProjectName,
+          status: 'writing'
         })
         .select()
         .single();
