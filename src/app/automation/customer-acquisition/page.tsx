@@ -659,10 +659,16 @@ export default function CustomerAcquisitionPage() {
           body: JSON.stringify({ sheetUrl: projectData.step2.sheetUrl })
         })
         const prepJson = await prep.json()
-        if (!prep.ok || !Array.isArray(prepJson.candidates) || prepJson.candidates.length === 0) {
-          showNotification(prepJson.error || '시트에서 후보를 찾을 수 없습니다', 'error')
+        if (!prep.ok || !Array.isArray(prepJson.candidates)) {
+          showNotification(prepJson.error || '시트 연결에 실패했습니다', 'error')
           setLoading(false)
           return
+        }
+        
+        // 빈 시트도 허용
+        if (prepJson.candidates.length === 0) {
+          console.log('빈 시트 감지 - 새로운 응답 대기 모드로 시작')
+          showNotification('시트가 연결되었습니다. 새로운 응답을 기다리는 중...', 'info')
         }
 
         // 로컬 상태 업데이트
@@ -696,8 +702,15 @@ export default function CustomerAcquisitionPage() {
         console.log('🚀 자동화 시작 - 스마트 폴링 활성화');
         startPeriodicCheck(projectId || undefined)
 
-        // 2) 후보별 순차 측정
+        // 2) 후보별 순차 측정 (빈 시트인 경우 건너뜀)
         const total = prepJson.candidates.length
+        if (total === 0) {
+          // 빈 시트인 경우 바로 완료 처리
+          setLoading(false)
+          setProgress({ total: 100, current: 100, currentName: '새로운 응답 대기 중...', status: 'completed', phase: 'completed' })
+          return
+        }
+        
         for (let i = 0; i < total; i++) {
           const c = prepJson.candidates[i]
           // threads → blog → instagram 순서
