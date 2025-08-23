@@ -184,6 +184,12 @@ export default function CustomerAcquisitionPage() {
             setCampaignName(projectFromDb.campaign_name);
             if (projectFromDb.data) {
               setProjectData(projectFromDb.data);
+              
+              // 프로젝트가 이미 실행 중이면 periodic check 시작
+              if (projectFromDb.data.step2?.isRunning) {
+                console.log('프로젝트가 실행 중입니다. 주기적 체크를 시작합니다.');
+                setTimeout(() => startPeriodicCheck(), 1000); // 1초 후 시작
+              }
             }
           }
         } catch (error) {
@@ -205,6 +211,12 @@ export default function CustomerAcquisitionPage() {
             // DB에 저장된 데이터가 있으면 사용
             setProjectData(projectFromDb.data);
             setProjectId(projectFromDb.id);
+            
+            // 프로젝트가 이미 실행 중이면 periodic check 시작
+            if (projectFromDb.data.step2?.isRunning) {
+              console.log('프로젝트가 실행 중입니다. 주기적 체크를 시작합니다.');
+              setTimeout(() => startPeriodicCheck(), 1000); // 1초 후 시작
+            }
           } else {
             // DB에 없으면 localStorage 확인 (마이그레이션)
       const savedData = localStorage.getItem(`campaign_${campaign}_data`);
@@ -835,10 +847,29 @@ export default function CustomerAcquisitionPage() {
       clearInterval(checkInterval);
     }
     
+    console.log('Starting periodic check...');
+    
+    // 즉시 한 번 체크
+    checkForNewResponses();
+    
     // 10초마다 새로운 응답 확인 (테스트를 위해 간격 단축)
     const interval = setInterval(async () => {
-      console.log('Periodic check - isRunning:', projectData.step2.isRunning, 'sheetUrl:', projectData.step2.sheetUrl);
-      if (projectData.step2.isRunning && projectData.step2.sheetUrl) {
+      // DB에서 현재 프로젝트 상태 확인
+      if (!projectId) return;
+      
+      const supabase = createClient();
+      const { data: project } = await supabase
+        .from('projects')
+        .select('data')
+        .eq('id', projectId)
+        .single();
+      
+      const isRunning = project?.data?.step2?.isRunning;
+      const sheetUrl = project?.data?.step2?.sheetUrl;
+      
+      console.log('Periodic check - isRunning:', isRunning, 'sheetUrl:', sheetUrl);
+      
+      if (isRunning && sheetUrl) {
         await checkForNewResponses();
       }
     }, 10000); // 10초마다 체크
