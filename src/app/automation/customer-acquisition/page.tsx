@@ -183,7 +183,19 @@ export default function CustomerAcquisitionPage() {
             setCampaignId(projectFromDb.campaign_id);
             setCampaignName(projectFromDb.campaign_name);
             if (projectFromDb.data) {
-              setProjectData(projectFromDb.data);
+              // selectionCriteria 기본값 보장
+              const loadedData = {
+                ...projectFromDb.data,
+                step2: {
+                  ...projectFromDb.data.step2,
+                  selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
+                    threads: 500,
+                    blog: 300,
+                    instagram: 1000
+                  }
+                }
+              };
+              setProjectData(loadedData);
               
               // 프로젝트가 이미 실행 중이면 periodic check 시작
               if (projectFromDb.data.step2?.isRunning) {
@@ -215,8 +227,19 @@ export default function CustomerAcquisitionPage() {
           const projectFromDb = await loadProjectData(id);
           
           if (projectFromDb && projectFromDb.data) {
-            // DB에 저장된 데이터가 있으면 사용
-            setProjectData(projectFromDb.data);
+            // DB에 저장된 데이터가 있으면 사용 (selectionCriteria 기본값 보장)
+            const loadedData = {
+              ...projectFromDb.data,
+              step2: {
+                ...projectFromDb.data.step2,
+                selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
+                  threads: 500,
+                  blog: 300,
+                  instagram: 1000
+                }
+              }
+            };
+            setProjectData(loadedData);
             setProjectId(projectFromDb.id);
             
             // 프로젝트가 이미 실행 중이면 periodic check 시작
@@ -796,7 +819,8 @@ export default function CustomerAcquisitionPage() {
               setProjectData(prev => {
                 const copy = { ...prev }
                 const prevC = copy.step2.candidates[i]
-                const selected = (tJson.threads||0) >= copy.step2.selectionCriteria.threads || (bJson.blog||0) >= copy.step2.selectionCriteria.blog || (iJson.instagram||0) >= copy.step2.selectionCriteria.instagram
+                const criteria = copy.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                const selected = (tJson.threads||0) >= criteria.threads || (bJson.blog||0) >= criteria.blog || (iJson.instagram||0) >= criteria.instagram
                 copy.step2.candidates[i] = { ...prevC, instagram: iJson.instagram || 0, status: selected ? 'selected' : 'notSelected', checkStatus: { ...(prevC as any).checkStatus, instagram: 'completed' } }
                 return copy
               })
@@ -813,7 +837,8 @@ export default function CustomerAcquisitionPage() {
             setProjectData(prev => {
               const copy = { ...prev }
               const prevC = copy.step2.candidates[i]
-              const selected = (tJson.threads||0) >= copy.step2.selectionCriteria.threads || (bJson.blog||0) >= copy.step2.selectionCriteria.blog
+              const criteria = copy.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+              const selected = (tJson.threads||0) >= criteria.threads || (bJson.blog||0) >= criteria.blog
               copy.step2.candidates[i] = { ...prevC, status: selected ? 'selected' : 'notSelected' }
               return copy
             })
@@ -1619,7 +1644,7 @@ export default function CustomerAcquisitionPage() {
               <div className="flex items-center space-x-2">
                 <input
                   type="number"
-                  value={projectData.step2.selectionCriteria.threads}
+                  value={projectData.step2.selectionCriteria?.threads || 500}
                   onChange={(e) => setProjectData({
                     ...projectData,
                     step2: {
@@ -1643,7 +1668,7 @@ export default function CustomerAcquisitionPage() {
               <div className="flex items-center space-x-2">
                 <input
                   type="number"
-                  value={projectData.step2.selectionCriteria.blog}
+                  value={projectData.step2.selectionCriteria?.blog || 300}
                   onChange={(e) => setProjectData({
                     ...projectData,
                     step2: {
@@ -1667,7 +1692,7 @@ export default function CustomerAcquisitionPage() {
               <div className="flex items-center space-x-2">
                 <input
                   type="number"
-                  value={projectData.step2.selectionCriteria.instagram}
+                  value={projectData.step2.selectionCriteria?.instagram || 1000}
                   onChange={(e) => setProjectData({
                     ...projectData,
                     step2: {
@@ -1876,7 +1901,7 @@ export default function CustomerAcquisitionPage() {
                         ) : candidate.checkStatus?.threads === 'no_url' ? (
                           <span className="text-xs text-gray-400">-</span>
                         ) : typeof candidate.threads === 'number' ? (
-                          <span className={candidate.threads >= projectData.step2.selectionCriteria.threads ? "text-green-600 font-semibold" : ""}>
+                          <span className={candidate.threads >= (projectData.step2.selectionCriteria?.threads || 500) ? "text-green-600 font-semibold" : ""}>
                             {candidate.threads}
                           </span>
                         ) : (
@@ -1896,7 +1921,7 @@ export default function CustomerAcquisitionPage() {
                         ) : candidate.checkStatus?.blog === 'no_url' ? (
                           <span className="text-xs text-gray-400">-</span>
                         ) : typeof candidate.blog === 'number' ? (
-                          <span className={candidate.blog >= projectData.step2.selectionCriteria.blog ? "text-green-600 font-semibold" : ""}>
+                          <span className={candidate.blog >= (projectData.step2.selectionCriteria?.blog || 300) ? "text-green-600 font-semibold" : ""}>
                             {candidate.blog}
                           </span>
                         ) : (
@@ -1916,7 +1941,7 @@ export default function CustomerAcquisitionPage() {
                         ) : candidate.checkStatus?.instagram === 'no_url' ? (
                           <span className="text-xs text-gray-400">-</span>
                         ) : typeof candidate.instagram === 'number' ? (
-                          <span className={candidate.instagram >= projectData.step2.selectionCriteria.instagram ? "text-green-600 font-semibold" : ""}>
+                          <span className={candidate.instagram >= (projectData.step2.selectionCriteria?.instagram || 1000) ? "text-green-600 font-semibold" : ""}>
                             {candidate.instagram}
                           </span>
                         ) : (
