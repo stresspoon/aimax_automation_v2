@@ -210,6 +210,40 @@ export default function UsersPage() {
     }
   }
 
+  // 무제한 사용 권한 토글
+  const toggleUnlimited = async (userId: string, isUnlimited: boolean) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          updates: { 
+            is_unlimited: isUnlimited,
+            unlimited_reason: isUnlimited ? '관리자 승인' : null 
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('무제한 권한 업데이트 실패')
+      }
+
+      toast({
+        title: '성공',
+        description: isUnlimited ? '무제한 사용 권한이 부여되었습니다' : '무제한 사용 권한이 제거되었습니다'
+      })
+      fetchUsers()
+    } catch (error) {
+      console.error('Update unlimited error:', error)
+      toast({
+        title: '오류',
+        description: '무제한 권한 변경 실패',
+        variant: 'destructive'
+      })
+    }
+  }
+
   // 사용자 삭제
   const deleteUser = async (userId: string) => {
     if (!confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
@@ -478,6 +512,7 @@ export default function UsersPage() {
                 <TableHead>사용자</TableHead>
                 <TableHead>역할</TableHead>
                 <TableHead>플랜</TableHead>
+                <TableHead>무제한</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>캠페인</TableHead>
                 <TableHead>가입일</TableHead>
@@ -488,7 +523,7 @@ export default function UsersPage() {
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-500">
+                  <TableCell colSpan={10} className="text-center text-gray-500">
                     사용자가 없습니다
                   </TableCell>
                 </TableRow>
@@ -519,6 +554,15 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>{getPlanBadge(user.plan)}</TableCell>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={user.is_unlimited || false}
+                        onChange={(e) => toggleUnlimited(user.id, e.target.checked)}
+                        title={user.is_unlimited ? '무제한 사용 중' : '무제한 사용 권한 부여'}
+                      />
+                    </TableCell>
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>{user.campaigns}</TableCell>
                     <TableCell>{formatDate(user.created_at)}</TableCell>

@@ -19,10 +19,10 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   // 무료 플랜 제한
   const FREE_LIMIT = 3
   
-  // 사용자의 프로필 정보 조회 (구독 상태 확인)
+  // 사용자의 프로필 정보 조회 (구독 상태 및 무제한 권한 확인)
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('subscription_status')
+    .select('subscription_status, is_unlimited, unlimited_until')
     .eq('id', user.id)
     .single()
   
@@ -36,6 +36,41 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
         subscription_status: 'free',
         created_at: new Date().toISOString()
       })
+  }
+  
+  // 무제한 사용 권한 체크
+  if (profile?.is_unlimited) {
+    // unlimited_until이 설정되어 있으면 만료일 확인
+    if (profile.unlimited_until) {
+      const expiryDate = new Date(profile.unlimited_until)
+      if (expiryDate < new Date()) {
+        // 만료된 경우 무제한 권한 자동 해제
+        await supabase
+          .from('user_profiles')
+          .update({ 
+            is_unlimited: false,
+            unlimited_until: null,
+            unlimited_reason: null 
+          })
+          .eq('id', user.id)
+      } else {
+        // 아직 유효한 무제한 권한
+        return {
+          feature,
+          limit: -1, // 무제한
+          used: 0,
+          remaining: -1
+        }
+      }
+    } else {
+      // 무기한 무제한 권한
+      return {
+        feature,
+        limit: -1, // 무제한
+        used: 0,
+        remaining: -1
+      }
+    }
   }
   
   // 유료 구독자는 무제한
