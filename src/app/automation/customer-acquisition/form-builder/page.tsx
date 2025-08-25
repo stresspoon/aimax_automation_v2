@@ -126,9 +126,11 @@ function FormBuilderContent() {
   
   // 폼 생성
   const handleCreateForm = async () => {
-    if (!projectId) {
-      alert('프로젝트 ID가 필요합니다')
-      return
+    // projectId가 'null' 문자열이거나 없으면 null로 처리
+    const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
+    
+    if (!cleanProjectId) {
+      console.log('Creating form without project ID')
     }
     
     setLoading(true)
@@ -164,7 +166,7 @@ function FormBuilderContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectId,
+          projectId: cleanProjectId,
           title: formTitle || '고객 정보 수집',
           description: formDescription || '아래 정보를 입력해주세요',
           defaultFields: enabledDefaultFields,

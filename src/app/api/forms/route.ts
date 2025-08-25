@@ -32,14 +32,17 @@ export async function GET(req: Request) {
   
   const projectId = searchParams.get('projectId')
   
+  // projectId 정리
+  const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
+  
   let query = supabase
     .from('forms')
     .select('*')
     .eq('user_id', user.id)
   
   // projectId가 있으면 해당 프로젝트의 폼만 조회
-  if (projectId && projectId !== 'null' && projectId !== 'undefined') {
-    query = query.eq('project_id', projectId)
+  if (cleanProjectId) {
+    query = query.eq('project_id', cleanProjectId)
   }
   
   const { data: forms, error } = await query.order('created_at', { ascending: false })
@@ -62,8 +65,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const { projectId, title, description, defaultFields: userDefaultFields, customFields, googleSheetUrl } = await req.json()
-    console.log('POST /api/forms - Creating form:', { projectId, title, description, googleSheetUrl, userId: user.id })
+    const body = await req.json()
+    const { projectId, title, description, defaultFields: userDefaultFields, customFields, googleSheetUrl } = body
+    
+    // projectId가 'null' 문자열이거나 빈 문자열이면 null로 변환
+    const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
+    
+    console.log('POST /api/forms - Creating form:', { 
+      projectId: cleanProjectId, 
+      title, 
+      description, 
+      googleSheetUrl, 
+      userId: user.id 
+    })
     
     // 기본 필드 설정 - 사용자가 선택한 필드만 포함
     const defaultFieldsConfig = userDefaultFields || {
@@ -97,7 +111,7 @@ export async function POST(req: Request) {
     const { data: form, error } = await supabase
       .from('forms')
       .insert({
-        project_id: projectId || null,  // 빈 문자열이면 null로 변환
+        project_id: cleanProjectId,  // 정리된 projectId 사용
         user_id: user.id,
         title: title || '고객 정보 수집',
         description: description || '아래 정보를 입력해주세요',
