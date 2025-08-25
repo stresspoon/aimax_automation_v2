@@ -10,7 +10,12 @@
     "lint": "next lint",
     "create-admin": "node scripts/create-admin.js",
     "db:migrate": "supabase migration up",
-    "db:seed": "supabase db seed"
+    "db:seed": "supabase db seed",
+    "clean": "rm -rf .next node_modules/.cache",
+    "clean:dev": "rm -rf .next node_modules/.cache && npm run dev",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "reinstall": "rm -rf node_modules package-lock.json .next && npm install"
   },
   "keywords": [
     "sns",
