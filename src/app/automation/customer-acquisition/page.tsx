@@ -18,6 +18,8 @@ interface Candidate {
   blog: number;
   instagram: number;
   status: "selected" | "notSelected";
+  emailSent?: boolean;
+  emailSentAt?: string;
   checkStatus?: {
     threads?: 'checking' | 'completed' | 'error' | 'no_url';
     threadsError?: string;
