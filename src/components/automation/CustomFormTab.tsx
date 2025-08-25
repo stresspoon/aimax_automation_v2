@@ -67,6 +67,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       const interval = setInterval(loadCandidates, 2000)
       return () => clearInterval(interval)
     }
+    return undefined
   }, [form])
   
   const loadForm = async () => {

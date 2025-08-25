@@ -64,19 +64,17 @@ export default function CustomerAcquisitionPage() {
     step2: {
       formId: null as string | null,
       formUrl: null as string | null,
-    },
-    step3: {
+      candidates: [] as Candidate[],
       sheetUrl: "",
       isRunning: false,
-      candidates: [] as Candidate[],
-      usingFormData: false,
       selectionCriteria: {
         threads: 500,
         blog: 300,
         instagram: 1000,
       },
+      usingFormData: false,
     },
-    step4: {
+    step3: {
       targetType: "selected" as "selected" | "notSelected",
       emailSubject: "",
       emailBody: "",
@@ -1898,7 +1896,7 @@ export default function CustomerAcquisitionPage() {
                 복사
               </button>
               <button
-                onClick={() => window.open(projectData.step2.formUrl, '_blank')}
+                onClick={() => window.open(projectData.step2.formUrl || '', '_blank')}
                 className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
               >
                 열기
@@ -2709,7 +2707,7 @@ export default function CustomerAcquisitionPage() {
                     setProjectId(null)
                     setProjectData({
                       step1: { keyword:'', contentType:'blog', apiKey:'', instructions:'', generateImages:false, generatedContent:'', generatedImages:[] },
-                      step2: { sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
+                      step2: { formId: null, formUrl: null, sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
                       step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
