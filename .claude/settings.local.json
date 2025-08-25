@@ -38,7 +38,8 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(git checkout:*)",
       "Bash(npx supabase migration:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
