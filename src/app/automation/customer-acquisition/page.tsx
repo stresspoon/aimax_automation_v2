@@ -8,7 +8,7 @@ import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById 
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
 import CustomFormTab from '@/components/automation/CustomFormTab'
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 interface Candidate {
   name: string;
@@ -61,6 +61,10 @@ export default function CustomerAcquisitionPage() {
       generatedImages: [] as string[],
     },
     step2: {
+      formId: null as string | null,
+      formUrl: null as string | null,
+    },
+    step3: {
       sheetUrl: "",
       isRunning: false,
       candidates: [] as Candidate[],
@@ -71,7 +75,7 @@ export default function CustomerAcquisitionPage() {
         instagram: 1000,
       },
     },
-    step3: {
+    step4: {
       targetType: "selected" as "selected" | "notSelected",
       emailSubject: "",
       emailBody: "",

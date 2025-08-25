@@ -62,22 +62,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const { projectId, title, googleSheetUrl } = await req.json()
-    console.log('POST /api/forms - Creating form:', { projectId, title, googleSheetUrl, userId: user.id })
+    const { projectId, title, description, defaultFields: userDefaultFields, customFields, googleSheetUrl } = await req.json()
+    console.log('POST /api/forms - Creating form:', { projectId, title, description, googleSheetUrl, userId: user.id })
     
-    // 기본 필드 설정
-    const defaultFields = {
-      default: {
-        name: { label: "성함", type: "text", required: true, order: 1 },
-        phone: { label: "연락처", type: "tel", required: true, order: 2 },
-        email: { label: "메일주소", type: "email", required: true, order: 3 },
-        source: { label: "어디에서 신청주셨나요?", type: "text", required: false, order: 4 },
-        threadsUrl: { label: "후기 작성할 스레드 URL", type: "url", required: false, order: 5 },
-        instagramUrl: { label: "후기 작성할 인스타그램 URL", type: "url", required: false, order: 6 },
-        blogUrl: { label: "후기 작성할 블로그 URL", type: "url", required: false, order: 7 },
-        privacyConsent: { label: "개인정보 활용 동의", type: "checkbox", required: true, order: 8 }
-      },
-      custom: []
+    // 기본 필드 설정 - 사용자가 선택한 필드만 포함
+    const defaultFieldsConfig = userDefaultFields || {
+      name: { label: "성함", type: "text", required: true, order: 1 },
+      phone: { label: "연락처", type: "tel", required: true, order: 2 },
+      email: { label: "메일주소", type: "email", required: true, order: 3 },
+      source: { label: "어디에서 신청주셨나요?", type: "text", required: false, order: 4 },
+      threadsUrl: { label: "후기 작성할 스레드 URL", type: "url", required: false, order: 5 },
+      instagramUrl: { label: "후기 작성할 인스타그램 URL", type: "url", required: false, order: 6 },
+      blogUrl: { label: "후기 작성할 블로그 URL", type: "url", required: false, order: 7 },
+      privacyConsent: { label: "개인정보 활용 동의", type: "checkbox", required: true, order: 8 }
+    }
+    
+    const fields = {
+      default: defaultFieldsConfig,
+      custom: customFields || {}
     }
     
     // Google Sheets 정보 파싱
@@ -98,7 +100,8 @@ export async function POST(req: Request) {
         project_id: projectId || null,  // 빈 문자열이면 null로 변환
         user_id: user.id,
         title: title || '고객 정보 수집',
-        fields: defaultFields,
+        description: description || '아래 정보를 입력해주세요',
+        fields: fields,
         settings: {
           selectionCriteria: {
             threads: 500,
@@ -154,11 +157,32 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const { id, ...updates } = await req.json()
+    const { id, title, description, defaultFields, customFields } = await req.json()
+    
+    // 업데이트할 데이터 준비
+    const updateData: any = {}
+    if (title !== undefined) updateData.title = title
+    if (description !== undefined) updateData.description = description
+    
+    // 필드 업데이트가 있는 경우
+    if (defaultFields !== undefined || customFields !== undefined) {
+      const { data: existingForm } = await supabase
+        .from('forms')
+        .select('fields')
+        .eq('id', id)
+        .single()
+      
+      if (existingForm && existingForm.fields) {
+        updateData.fields = {
+          default: defaultFields !== undefined ? defaultFields : existingForm.fields.default,
+          custom: customFields !== undefined ? customFields : existingForm.fields.custom
+        }
+      }
+    }
     
     const { data: form, error } = await supabase
       .from('forms')
-      .update(updates)
+      .update(updateData)
       .eq('id', id)
       .eq('user_id', user.id)
       .select()
