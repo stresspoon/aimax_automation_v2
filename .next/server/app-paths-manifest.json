@@ -1,9 +1,8 @@
 {
   "/api/forms/sync-candidates/route": "app/api/forms/sync-candidates/route.js",
   "/api/projects/route": "app/api/projects/route.js",
-  "/page": "app/page.js",
-  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
   "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/form/[slug]/page": "app/form/[slug]/page.js"
+  "/automation/customer-acquisition/form-builder/page": "app/automation/customer-acquisition/form-builder/page.js",
+  "/form/[slug]/page": "app/form/[slug]/page.js",
+  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js"
 }

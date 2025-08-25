@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
-import CustomFormTab from '@/components/automation/CustomFormTab'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -29,6 +29,7 @@ interface Candidate {
 }
 
 export default function CustomerAcquisitionPage() {
+  const router = useRouter();
   const [expandedStep, setExpandedStep] = useState<Step | null>(null);
   const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showGuide, setShowGuide] = useState<boolean>(false);
@@ -471,12 +472,22 @@ export default function CustomerAcquisitionPage() {
 
   // 콘텐츠 타입 변경시 지침 자동 업데이트
   const updateContentType = (type: "blog" | "thread") => {
+    // 현재 지침이 기본 가이드라인과 같거나 비어있을 때만 자동 변경
+    const currentInstructions = projectData.step1.instructions;
+    const currentTypeGuideline = contentGuidelines[projectData.step1.contentType];
+    const newTypeGuideline = contentGuidelines[type];
+    
+    // 사용자가 수정하지 않았거나 비어있으면 새 가이드라인으로 변경
+    const shouldUpdateInstructions = !currentInstructions || 
+                                     currentInstructions.trim() === '' || 
+                                     currentInstructions === currentTypeGuideline;
+    
     setProjectData({
       ...projectData,
       step1: {
         ...projectData.step1,
         contentType: type,
-        instructions: contentGuidelines[type]
+        instructions: shouldUpdateInstructions ? newTypeGuideline : currentInstructions
       }
     });
   };
@@ -1851,14 +1862,54 @@ export default function CustomerAcquisitionPage() {
     >
       <h2 className="text-2xl font-bold text-foreground mb-6">Step 2: DB 관리</h2>
       
-      <CustomFormTab 
-        projectId={projectId}
-        projectData={projectData}
-        onUpdate={(data) => setProjectData(data)}
-      />
+      {/* 폼 생성/수정 버튼 */}
+      <div className="mb-6 space-y-4">
+        <button
+          onClick={() => router.push(`/automation/customer-acquisition/form-builder?projectId=${projectId}`)}
+          className="w-full py-3 px-4 bg-[#131313] hover:bg-[#131313]/90 text-[#FFFFFF] font-semibold rounded-lg transition flex items-center justify-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+          </svg>
+          폼 생성/수정하기
+        </button>
+        
+        {/* 폼 URL 표시 (폼이 생성된 경우) */}
+        {projectData.step2.formUrl && (
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-700 mb-2">폼이 생성되었습니다!</p>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={projectData.step2.formUrl} 
+                readOnly 
+                className="flex-1 px-3 py-2 text-sm bg-white border rounded"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(projectData.step2.formUrl || '');
+                  alert('링크가 복사되었습니다');
+                }}
+                className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
+              >
+                복사
+              </button>
+              <button
+                onClick={() => window.open(projectData.step2.formUrl, '_blank')}
+                className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
+              >
+                열기
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       
-      {/* 기존 Google Sheets 데이터 표시 (폼 시스템과 관계없이) */}
-      <div className="mt-8 space-y-6">
+      {/* 후보자 목록 표시 */}
+      <div className="space-y-6">
         {/* 구글시트 URL (숨김 - 백그라운드 호환용) */}
         <input
           type="hidden"

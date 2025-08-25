@@ -41,10 +41,10 @@ export default function CustomerAcquisitionDashboard() {
         return;
       }
 
-      // 프로젝트 목록 가져오기
+      // 프로젝트 목록 가져오기 (campaigns 정보 포함)
       const { data: projectsData, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, campaigns(id, name)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -57,13 +57,29 @@ export default function CustomerAcquisitionDashboard() {
 
       // 통계 계산
       const activeCount = projectsData?.filter(p => p.status !== 'completed').length || 0;
+      const totalLeads = projectsData?.reduce((acc, p) => acc + (p.leads_count || 0), 0) || 0;
+      const totalEmails = projectsData?.reduce((acc, p) => acc + (p.emails_sent || 0), 0) || 0;
+      
+      // 전환율 계산: (선정된 후보 / 전체 후보) * 100
+      let conversionRate = 0;
+      if (totalLeads > 0) {
+        const selectedLeads = projectsData?.reduce((acc, p) => {
+          // step2 또는 step3의 candidates에서 selected 상태인 사람 수 계산
+          const candidates = p.data?.step2?.candidates || p.data?.step3?.candidates || [];
+          const selected = Array.isArray(candidates) ? 
+            candidates.filter((c: any) => c.status === 'selected').length : 0;
+          return acc + selected;
+        }, 0) || 0;
+        conversionRate = Math.round((selectedLeads / totalLeads) * 100 * 10) / 10; // 소수점 1자리까지
+      }
+      
       setStats({
         totalProjects: projectsData?.length || 0,
         activeProjects: activeCount,
         totalContents: projectsData?.reduce((acc, p) => acc + (p.content_count || 0), 0) || 0,
-        totalEmails: projectsData?.reduce((acc, p) => acc + (p.emails_sent || 0), 0) || 0,
-        conversionRate: 12.5, // 임시값
-        totalLeads: projectsData?.reduce((acc, p) => acc + (p.leads_count || 0), 0) || 0,
+        totalEmails: totalEmails,
+        conversionRate: conversionRate,
+        totalLeads: totalLeads,
       });
     } catch (error) {
       console.error('Error:', error);
@@ -73,21 +89,114 @@ export default function CustomerAcquisitionDashboard() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?')) return;
+    if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?\n관련된 모든 데이터가 삭제됩니다.')) return;
 
     try {
-      const { error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
+      // 먼저 프로젝트 정보를 가져와서 campaign_id 확인
+      const { data: project, error: fetchError } = await supabase
+        .from('projects')
+        .select('campaign_id')
+        .eq('id', projectId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError || !project) {
+        throw new Error('프로젝트를 찾을 수 없습니다.');
+      }
+
+      // 관련된 폼 데이터 삭제
+      // 1. 먼저 폼 responses 삭제
+      const { data: forms } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id);
+      
+      if (forms && forms.length > 0) {
+        for (const form of forms) {
+          // 폼 응답 삭제
+          await supabase
+            .from('form_responses')
+            .delete()
+            .eq('form_id', form.id);
+        }
+        
+        // 폼 삭제
+        await supabase
+          .from('forms')
+          .delete()
+          .eq('project_id', projectId)
+          .eq('user_id', user.id);
+      }
+
+      // 프로젝트 삭제 (user_id 조건 추가로 보안 강화)
+      const { error: deleteProjectError } = await supabase
         .from('projects')
         .delete()
-        .eq('id', projectId);
+        .eq('id', projectId)
+        .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (deleteProjectError) throw deleteProjectError;
+
+      // 캠페인도 함께 삭제 (연관된 다른 프로젝트가 없는 경우)
+      if (project.campaign_id) {
+        // 같은 캠페인을 사용하는 다른 프로젝트가 있는지 확인
+        const { data: otherProjects } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('campaign_id', project.campaign_id)
+          .neq('id', projectId);
+
+        // 다른 프로젝트가 없으면 캠페인도 삭제
+        if (!otherProjects || otherProjects.length === 0) {
+          await supabase
+            .from('campaigns')
+            .delete()
+            .eq('id', project.campaign_id)
+            .eq('user_id', user.id);
+        }
+      }
       
-      // 목록 새로고침
-      fetchProjects();
+      // 상태를 즉시 업데이트 (새로고침 전에 UI 업데이트)
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      
+      // 통계도 즉시 업데이트
+      const updatedProjects = projects.filter(p => p.id !== projectId);
+      const activeCount = updatedProjects.filter(p => p.status !== 'completed').length;
+      const totalLeads = updatedProjects.reduce((acc, p) => acc + (p.leads_count || 0), 0);
+      const totalEmails = updatedProjects.reduce((acc, p) => acc + (p.emails_sent || 0), 0);
+      
+      let conversionRate = 0;
+      if (totalLeads > 0) {
+        const selectedLeads = updatedProjects.reduce((acc, p) => {
+          const candidates = p.data?.step2?.candidates || p.data?.step3?.candidates || [];
+          const selected = Array.isArray(candidates) ? 
+            candidates.filter((c: any) => c.status === 'selected').length : 0;
+          return acc + selected;
+        }, 0);
+        conversionRate = Math.round((selectedLeads / totalLeads) * 100 * 10) / 10;
+      }
+      
+      setStats({
+        totalProjects: updatedProjects.length,
+        activeProjects: activeCount,
+        totalContents: updatedProjects.reduce((acc, p) => acc + (p.content_count || 0), 0),
+        totalEmails: totalEmails,
+        conversionRate: conversionRate,
+        totalLeads: totalLeads,
+      });
+      
     } catch (error) {
       console.error('Error deleting project:', error);
       alert('프로젝트 삭제 중 오류가 발생했습니다.');
+      // 오류 발생 시 목록 새로고침
+      fetchProjects();
     }
   };
 
@@ -293,10 +402,17 @@ export default function CustomerAcquisitionDashboard() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-xl font-bold mb-2">{project.name}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                        {getStatusText(project.status)}
-                      </span>
+                      <h3 className="text-xl font-bold mb-1">
+                        {project.campaigns?.name || project.campaign_name || project.data?.campaign_name || project.data?.step1?.keyword || '제목 없음'}
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
+                          {getStatusText(project.status)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          생성일: {new Date(project.created_at).toLocaleDateString('ko-KR')}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <Link
