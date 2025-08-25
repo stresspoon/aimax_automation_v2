@@ -233,7 +233,8 @@ export default function ProjectsPage() {
     )
   }
 
-  const getPlatformBadge = (platform: string) => {
+  const getPlatformBadge = (platform?: string) => {
+    if (!platform) return null
     const colors: Record<string, string> = {
       instagram: "bg-gradient-to-r from-purple-500 to-pink-500",
       threads: "bg-black",
@@ -255,11 +256,6 @@ export default function ProjectsPage() {
 
   const formatCurrency = (num: number) => {
     return `₩${num.toLocaleString()}`
-  }
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('ko-KR')
   }
 
   if (isLoading) {
@@ -423,10 +419,7 @@ export default function ProjectsPage() {
                   <div>
                     <CardTitle className="text-lg">{project.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      담당자: {project.user?.name || project.user?.email || '알 수 없음'} | 
-                      {project.start_date && project.end_date 
-                        ? ` ${formatDate(project.start_date)} ~ ${formatDate(project.end_date)}`
-                        : ' 기간 미정'}
+                      담당자: {project.user?.name || project.user?.email || '알 수 없음'}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -436,19 +429,6 @@ export default function ProjectsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* 예산 진행률 */}
-                {project.budget && (
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>예산 소진율</span>
-                      <span className="font-medium">
-                        {formatCurrency(project.spent)} / {formatCurrency(project.budget)}
-                      </span>
-                    </div>
-                    <Progress value={project.progress} className="h-2" />
-                  </div>
-                )}
-
                 {/* 프로젝트 진행 상황 */}
                 <div className="grid grid-cols-4 gap-4 text-center">
                   <div>
