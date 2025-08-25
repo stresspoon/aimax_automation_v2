@@ -11,15 +11,23 @@ const BodySchema = z.object({
 })
 
 function buildPrompt({ keyword, contentType, instructions }: { keyword: string; contentType: 'blog' | 'thread'; instructions: string }) {
-  const base = `당신은 한국어 마케팅 카피라이터입니다. 아래 지침을 충실히 따르되, 지나친 과장은 피하고 명확하고 실용적인 톤으로 작성하세요.`
+  const base = `당신은 한국어 콘텐츠 전문가입니다. 사용자의 지침을 충실히 따라 고품질 콘텐츠를 작성하세요.`
+  
   const task = contentType === 'blog'
-    ? `- 형태: 블로그 글(서론/본문/결론, 소제목 포함)
-- 분량: 1,000~1,500자
-- 키워드: "${keyword}"를 자연스럽게 3~5회 포함
-- 마지막에 명확한 CTA 2개 포함`
-    : `- 형태: 소셜 스레드(각 항목 1~2문장), 8~12개 항목으로 번호 매기기(1/, 2/, ...)
-- 키워드: "${keyword}"를 1~2회 자연스럽게 포함
-- 각 항목에 실행 가능한 팁 포함`
+    ? `작성 형식:
+- 블로그 글 (도입부, 본문, 결론 구조)
+- 분량: 1,500~2,000자
+- 키워드 "${keyword}"를 1.5~2% 밀도로 자연스럽게 포함
+- H2, H3 소제목을 명확히 구분
+- 불릿포인트와 번호 목록 활용
+- 마지막에 CTA(Call to Action) 포함`
+    : `작성 형식:
+- 스레드 형식 (5-6줄, 총 150자 이내)
+- 키워드 "${keyword}"를 자연스럽게 1-2회 포함
+- 한 줄씩 띄어쓰기로 구분
+- 임팩트 있는 첫 줄로 시작
+- 마지막은 참여 유도 질문으로 마무리`
+  
   return `${base}
 
 [작성 지침]
@@ -29,8 +37,16 @@ ${instructions}
 ${task}
 
 [출력 형식]
-<title>제목</title>
-<body>본문(마크다운 허용)</body>`
+제목: [여기에 제목 작성]
+
+[본문 시작]
+여기에 일반 텍스트 형식으로 본문을 작성하세요.
+소제목은 줄바꿈 후 명확히 구분해주세요.
+마크다운 기호(#, *, -, \`\`\` 등)는 사용하지 마세요.
+불릿포인트는 • 또는 - 기호를 사용하세요.
+[본문 끝]
+
+중요: 마크다운 형식이 아닌 일반 텍스트로 작성하세요.`
 }
 
 async function generateImages(keyword: string, contentType: 'blog' | 'thread', count: number = 2) {
@@ -254,13 +270,47 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
       }
 
-    // 간단 파서: <title>, <body>
-    const titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i)
-    const bodyMatch = text.match(/<body>([\s\S]*?)<\/body>/i)
-    const title = titleMatch ? titleMatch[1].trim() : '제목'
-    const bodyOut = bodyMatch ? bodyMatch[1].trim() : text
+    // 일반 텍스트 형식 파싱
+    let title = ''
+    let bodyContent = ''
 
-    const combined = `제목: ${title}\n\n${bodyOut}`
+    // "제목:" 으로 시작하는 부분 찾기
+    const titleMatch = text.match(/제목:\s*(.+?)(?:\n|$)/i)
+    if (titleMatch) {
+      title = titleMatch[1].trim()
+    }
+
+    // [본문 시작]과 [본문 끝] 사이의 내용 추출
+    const bodyStartMatch = text.match(/\[본문 시작\]([\s\S]*?)\[본문 끝\]/i)
+    if (bodyStartMatch) {
+      bodyContent = bodyStartMatch[1].trim()
+    } else {
+      // 본문 태그가 없는 경우, 제목 이후 전체를 본문으로 처리
+      const titleEndIndex = text.indexOf('\n', text.indexOf('제목:'))
+      if (titleEndIndex > -1) {
+        bodyContent = text.substring(titleEndIndex).trim()
+      } else {
+        // 구형 형식(<title>, <body>) 처리
+        const oldTitleMatch = text.match(/<title>([\s\S]*?)<\/title>/i)
+        const oldBodyMatch = text.match(/<body>([\s\S]*?)<\/body>/i)
+        if (oldTitleMatch && oldBodyMatch) {
+          title = oldTitleMatch[1].trim()
+          bodyContent = oldBodyMatch[1].trim()
+        } else {
+          bodyContent = text
+        }
+      }
+    }
+
+    // 불필요한 마크다운 기호 제거 (혹시 남아있을 경우를 대비)
+    bodyContent = bodyContent
+      .replace(/#{1,6}\s/g, '')  // 마크다운 헤더 제거
+      .replace(/\*\*(.+?)\*\*/g, '$1')  // 굵은 글씨 마크다운 제거
+      .replace(/\*(.+?)\*/g, '$1')  // 이탤릭 마크다운 제거
+      .replace(/```[\s\S]*?```/g, '')  // 코드 블록 제거
+
+    // 최종 콘텐츠 조합
+    const combined = title ? `제목: ${title}\n\n${bodyContent}` : bodyContent
     
     // Generate images if requested
     let images: string[] = []
