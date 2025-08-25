@@ -1579,8 +1579,12 @@ export default function CustomerAcquisitionPage() {
       // Gmail이 연결되어 있으면 Gmail API 사용, 아니면 기존 방식 사용
       const endpoint = gmailEmail ? '/api/emails/send-gmail' : '/api/emails/send-batch';
       
-      // 대상 필터링
+      // 대상 필터링 - 이미 이메일을 받은 사람은 제외
       const recipients = projectData.step2.candidates.filter(c => {
+        // 이미 이메일을 받은 사람은 제외
+        if (c.emailSent || c.emailSentAt) return false;
+        
+        // 대상 타입에 따른 필터링
         if (projectData.step3.targetType === 'selected') return c.status === 'selected';
         if (projectData.step3.targetType === 'notSelected') return c.status === 'notSelected';
         return true; // 'all'인 경우
@@ -1625,15 +1629,35 @@ export default function CustomerAcquisitionPage() {
         showNotification(data.message || '이메일이 성공적으로 발송되었습니다!', 'success');
       }
       
-      // 발송 수 저장
+      // 발송 수 저장 및 후보자 상태 업데이트
       if (emailsSent > 0) {
-        setProjectData(prev => ({
-          ...prev,
-          step3: {
-            ...prev.step3,
-            emailsSent: (prev.step3.emailsSent || 0) + emailsSent,
-          },
-        }));
+        setProjectData(prev => {
+          // 이메일이 발송된 후보자들을 표시
+          const updatedCandidates = prev.step2.candidates.map(candidate => {
+            // 발송 대상이었던 후보자들에게 emailSentAt 추가
+            const wasRecipient = recipients.some(r => r.email === candidate.email);
+            if (wasRecipient) {
+              return {
+                ...candidate,
+                emailSentAt: new Date().toISOString(),
+                emailSent: true
+              };
+            }
+            return candidate;
+          });
+          
+          return {
+            ...prev,
+            step2: {
+              ...prev.step2,
+              candidates: updatedCandidates
+            },
+            step3: {
+              ...prev.step3,
+              emailsSent: (prev.step3.emailsSent || 0) + emailsSent,
+            },
+          };
+        });
         
         // Step 3 완료 상태 업데이트
         if (projectId) {
@@ -2150,7 +2174,8 @@ export default function CustomerAcquisitionPage() {
                 <h4 className="font-semibold text-text">수집된 후보 ({projectData.step2.candidates.length}명)</h4>
                 <div className="text-sm text-muted-foreground">
                   선정: <span className="font-bold text-green-600">{projectData.step2.candidates.filter(c => c.status === 'selected').length}명</span> | 
-                  탈락: <span className="font-bold text-gray-500">{projectData.step2.candidates.filter(c => c.status === 'notSelected').length}명</span>
+                  탈락: <span className="font-bold text-gray-500">{projectData.step2.candidates.filter(c => c.status === 'notSelected').length}명</span> | 
+                  발송 완료: <span className="font-bold text-blue-600">{projectData.step2.candidates.filter(c => c.emailSent).length}명</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">

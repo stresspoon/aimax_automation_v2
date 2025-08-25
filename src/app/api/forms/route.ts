@@ -157,7 +157,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const { id, title, description, defaultFields, customFields } = await req.json()
+    const body = await req.json()
+    const { id, title, description, defaultFields, customFields } = body
+    
+    console.log('PATCH /api/forms - Received update request:', { 
+      id, 
+      hasDefaultFields: defaultFields !== undefined,
+      hasCustomFields: customFields !== undefined 
+    })
     
     // 업데이트할 데이터 준비
     const updateData: any = {}
@@ -172,13 +179,14 @@ export async function PATCH(req: Request) {
         .eq('id', id)
         .single()
       
-      if (existingForm && existingForm.fields) {
-        updateData.fields = {
-          default: defaultFields !== undefined ? defaultFields : existingForm.fields.default,
-          custom: customFields !== undefined ? customFields : existingForm.fields.custom
-        }
+      // 필드 구조를 완전히 새로 구성
+      updateData.fields = {
+        default: defaultFields !== undefined ? defaultFields : (existingForm?.fields?.default || {}),
+        custom: customFields !== undefined ? customFields : (existingForm?.fields?.custom || {})
       }
     }
+    
+    console.log('PATCH /api/forms - Update data:', JSON.stringify(updateData, null, 2))
     
     const { data: form, error } = await supabase
       .from('forms')
@@ -189,8 +197,11 @@ export async function PATCH(req: Request) {
       .single()
     
     if (error) {
+      console.error('PATCH /api/forms - Update error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+    
+    console.log('PATCH /api/forms - Update successful, form fields:', form?.fields)
     
     return NextResponse.json(form)
     

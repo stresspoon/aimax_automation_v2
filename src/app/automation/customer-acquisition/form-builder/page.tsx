@@ -215,10 +215,20 @@ function FormBuilderContent() {
         })
       })
       
-      if (!res.ok) throw new Error('업데이트 실패')
+      if (!res.ok) {
+        const error = await res.json()
+        console.error('Form update error:', error)
+        throw new Error(error.error || '업데이트 실패')
+      }
+      
+      const updatedForm = await res.json()
+      console.log('Form updated successfully:', updatedForm)
       
       alert('폼이 업데이트되었습니다')
-      loadExistingForm()
+      // 즉시 업데이트된 폼을 반영
+      setForm(updatedForm)
+      // 필요시 재로드
+      await loadExistingForm()
     } catch (error) {
       alert('업데이트에 실패했습니다')
     } finally {

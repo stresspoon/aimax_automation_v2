@@ -25,10 +25,13 @@ const BodySchema = z.object({
 function personalizeContent(template: string, data: Record<string, any>): string {
   let result = template
   
-  // {변수명} 형식을 실제 값으로 치환
+  // {변수명} 형식을 실제 값으로 치환 - 대소문자 구분 없이 처리
   Object.keys(data).forEach(key => {
-    const regex = new RegExp(`\\{${key}\\}`, 'g')
-    result = result.replace(regex, String(data[key] || ''))
+    // {key} 형식과 (key) 형식 모두 지원
+    const regex1 = new RegExp(`\\{${key}\\}`, 'gi')
+    const regex2 = new RegExp(`\\(${key}\\)`, 'gi')
+    result = result.replace(regex1, String(data[key] || ''))
+    result = result.replace(regex2, String(data[key] || ''))
   })
   
   return result
@@ -92,13 +95,20 @@ export async function POST(req: Request) {
             const personalizedSubject = personalizeContent(body.subject, variables)
             const personalizedBody = personalizeContent(body.body, variables)
             
+            // HTML 포맷팅: 줄바꿈을 <br>로 변환하고 연속된 공백 보존
+            const htmlBody = personalizedBody
+              .split('\n')
+              .map(line => line || '&nbsp;') // 빈 줄도 보존
+              .join('<br>')
+              .replace(/  /g, '&nbsp;&nbsp;') // 연속된 공백도 보존
+            
             // 이메일 발송
             const result = await sendEmail({
               to: candidate.email,
               templateId: 'generic',
               payload: {
                 subject: personalizedSubject,
-                html: personalizedBody.replace(/\n/g, '<br>'),
+                html: `<div style="white-space: pre-wrap;">${htmlBody}</div>`,
                 text: personalizedBody,
               },
             })
