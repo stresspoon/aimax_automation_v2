@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,7 +43,6 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
   Check,
   X
 } from 'lucide-react'
@@ -60,6 +59,10 @@ interface User {
   updated_at: string
   campaigns: number
   lastActive: string
+  is_unlimited?: boolean
+  unlimited_reason?: string | null
+  unlimited_until?: string | null
+  last_sign_in_at?: string | null
 }
 
 interface UserStats {
@@ -73,7 +76,6 @@ export default function UsersPage() {
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -91,10 +93,9 @@ export default function UsersPage() {
   const limit = 10
 
   // 사용자 목록 가져오기
-  const fetchUsers = async (showToast = false) => {
+  const fetchUsers = useCallback(async () => {
     try {
-      if (showToast) setIsRefreshing(true)
-      else setIsLoading(true)
+      setIsLoading(true)
 
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -129,12 +130,6 @@ export default function UsersPage() {
         suspendedUsers: suspendedCount
       })
 
-      if (showToast) {
-        toast({
-          title: '성공',
-          description: '사용자 목록이 업데이트되었습니다'
-        })
-      }
     } catch (error) {
       console.error('Users fetch error:', error)
       toast({
@@ -144,9 +139,8 @@ export default function UsersPage() {
       })
     } finally {
       setIsLoading(false)
-      setIsRefreshing(false)
     }
-  }
+  }, [currentPage, limit, searchQuery, roleFilter, statusFilter, planFilter, sortBy, sortOrder, toast])
 
   // 사용자 상태 변경
   const updateUserStatus = async (userId: string, status: string) => {
@@ -274,9 +268,10 @@ export default function UsersPage() {
     }
   }
 
+  // 초기 로드
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, searchQuery, roleFilter, statusFilter, planFilter, sortBy, sortOrder])
+  }, [currentPage, searchQuery, roleFilter, statusFilter, planFilter, sortBy, sortOrder, fetchUsers])
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers(prev => 
@@ -371,18 +366,6 @@ export default function UsersPage() {
           <p className="text-gray-500 mt-2">전체 {totalUsers}명의 사용자</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            onClick={() => fetchUsers(true)}
-            disabled={isRefreshing}
-            variant="outline"
-          >
-            {isRefreshing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            <span className="ml-2">새로고침</span>
-          </Button>
           <Button className="flex items-center gap-2">
             <UserPlus className="w-4 h-4" />
             새 사용자 추가
@@ -566,7 +549,7 @@ export default function UsersPage() {
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>{user.campaigns}</TableCell>
                     <TableCell>{formatDate(user.created_at)}</TableCell>
-                    <TableCell>{formatRelativeTime(user.updated_at)}</TableCell>
+                    <TableCell>{formatRelativeTime(user.last_sign_in_at || user.lastActive || user.updated_at)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

@@ -14,11 +14,5 @@
   "../node_modules/@supabase/storage-js/dist/module/lib/helpers.js -> @supabase/node-fetch": {
     "id": "../node_modules/@supabase/storage-js/dist/module/lib/helpers.js -> @supabase/node-fetch",
     "files": []
-  },
-  "lib/download.ts -> jszip": {
-    "id": "lib/download.ts -> jszip",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_jszip_dist_jszip_min_js.js"
-    ]
   }
 }

@@ -111,7 +111,7 @@ export default function AdminDashboard() {
   }
 
   const getActionIcon = (action: string) => {
-    if (action.includes('캠페인')) return Megaphone
+    if (action.includes('프로젝트')) return Megaphone
     if (action.includes('가입')) return UserPlus
     if (action.includes('다운로드')) return Download
     return Eye
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
       icon: Users,
     },
     {
-      title: '활성 캠페인',
+      title: '활성 프로젝트',
       value: stats?.overview.activeCampaigns || 0,
       change: `전체 ${stats?.overview.totalCampaigns || 0}개`,
       changeType: 'neutral' as const,
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
     {
       title: '전환율',
       value: `${stats?.overview.conversionRate || 0}%`,
-      change: '캠페인 성공률',
+      change: '프로젝트 성공률',
       changeType: 'neutral' as const,
       icon: TrendingUp,
     },
@@ -198,6 +198,31 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* 네비게이션 링크 */}
+      <div className="flex gap-4 mb-6">
+        <Button
+          variant="ghost"
+          onClick={() => window.location.href = '/admin'}
+          className="text-sm font-medium"
+        >
+          대시보드
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => window.location.href = '/admin/users'}
+          className="text-sm font-medium"
+        >
+          사용자 관리
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => window.location.href = '/admin/projects'}
+          className="text-sm font-medium"
+        >
+          프로젝트 모니터링
+        </Button>
+      </div>
+
       {/* 페이지 타이틀 */}
       <div className="flex justify-between items-center">
         <div>

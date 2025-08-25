@@ -1,6 +1,10 @@
 {
   "/api/forms/sync-candidates/route": "app/api/forms/sync-candidates/route.js",
-  "/form/[slug]/page": "app/form/[slug]/page.js",
+  "/api/admin/stats/route": "app/api/admin/stats/route.js",
+  "/api/projects/route": "app/api/projects/route.js",
+  "/page": "app/page.js",
   "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
-  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js"
+  "/signup/page": "app/signup/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/admin/page": "app/admin/page.js"
 }

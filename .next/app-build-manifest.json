@@ -1,5 +1,21 @@
 {
   "pages": {
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/admin/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/layout.js"
+    ],
+    "/admin/users/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/users/page.js"
+    ],
     "/api/forms/sync-candidates/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -10,11 +26,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/projects/route.js"
     ],
-    "/layout": [
+    "/api/admin/users/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/css/app/layout.css",
-      "static/chunks/app/layout.js"
+      "static/chunks/app/api/admin/users/route.js"
+    ],
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
     ],
     "/dashboard/page": [
       "static/chunks/webpack.js",
@@ -26,45 +46,45 @@
       "static/chunks/main-app.js",
       "static/chunks/app/automation/customer-acquisition/dashboard/page.js"
     ],
-    "/automation/customer-acquisition/page": [
+    "/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/automation/customer-acquisition/page.js"
+      "static/chunks/app/login/page.js"
     ],
-    "/api/usage/route": [
+    "/api/auth/login/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/usage/route.js"
+      "static/chunks/app/api/auth/login/route.js"
     ],
-    "/automation/customer-acquisition/form-builder/page": [
+    "/signin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/automation/customer-acquisition/form-builder/page.js"
+      "static/chunks/app/signin/page.js"
     ],
-    "/api/forms/route": [
+    "/api/auth/google/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/forms/route.js"
+      "static/chunks/app/api/auth/google/route.js"
     ],
-    "/form/[slug]/page": [
+    "/projects/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/form/[slug]/page.js"
+      "static/chunks/app/projects/page.js"
     ],
-    "/api/forms/responses/route": [
+    "/admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/forms/responses/route.js"
+      "static/chunks/app/admin/page.js"
     ],
-    "/api/sns/scrape/route": [
+    "/api/admin/stats/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/sns/scrape/route.js"
+      "static/chunks/app/api/admin/stats/route.js"
     ],
-    "/api/ai/generate/route": [
+    "/signup/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/ai/generate/route.js"
+      "static/chunks/app/signup/page.js"
     ]
   }
 }

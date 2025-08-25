@@ -37,12 +37,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 프로필 정보 가져오기
-    const { data: profile } = await supabase
-      .from('profiles')
+    // 프로필 정보 가져오기 (user_profiles 우선, profiles fallback)
+    let profile = null;
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
       .select('*')
       .eq('id', data.user.id)
       .single();
+    
+    if (userProfile) {
+      profile = userProfile;
+    } else {
+      // fallback to profiles table
+      const { data: legacyProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      profile = legacyProfile;
+      
+      // user_profiles에 자동 생성
+      if (legacyProfile) {
+        await supabase.from('user_profiles').upsert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: legacyProfile.full_name || legacyProfile.name,
+          role: legacyProfile.role || 'user',
+          plan: legacyProfile.plan || 'basic',
+          status: legacyProfile.status || 'active',
+          created_at: legacyProfile.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        });
+      }
+    }
 
     return NextResponse.json(
       {

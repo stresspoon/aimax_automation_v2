@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     const enrichedUsers = users?.map(user => ({
       ...user,
       campaigns: campaignCounts[user.id] || 0,
-      lastActive: user.updated_at, // 임시로 updated_at 사용
+      lastActive: user.last_sign_in_at || user.updated_at, // last_sign_in_at이 있으면 사용, 없으면 updated_at 사용
     })) || []
 
     return NextResponse.json({
@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 허용된 필드만 업데이트
-    const allowedFields = ['status', 'role', 'plan']
+    const allowedFields = ['status', 'role', 'plan', 'is_unlimited', 'unlimited_reason', 'unlimited_until']
     const filteredUpdates = Object.keys(updates)
       .filter(key => allowedFields.includes(key))
       .reduce((obj: any, key) => {

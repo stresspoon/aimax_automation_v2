@@ -82,15 +82,21 @@ export async function POST(request: NextRequest) {
         ignoreDuplicates: false
       });
 
-    // profiles 테이블도 업데이트 (호환성을 위해)
+    // profiles 테이블도 업데이트 (호환성을 위해 - 나중에 제거 예정)
     await supabase
       .from('profiles')
-      .update({
+      .upsert({
+        id: data.user.id,
+        email,
+        full_name: name,
         name,
         phone,
-      })
-      .eq('id', data.user.id)
-      .throwOnError();
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: false
+      });
 
     return NextResponse.json(
       {
