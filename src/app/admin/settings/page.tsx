@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { Save, RefreshCw, Globe, Mail, Shield, Database, Bell } from 'lucide-react'
+import { Save, RefreshCw, Globe, Mail, Shield, Database, Bell, Brain } from 'lucide-react'
 
 interface SystemSettings {
   // 일반 설정
@@ -17,6 +18,10 @@ interface SystemSettings {
   site_url?: string
   maintenance_mode?: boolean
   maintenance_message?: string
+  
+  // AI 설정
+  openai_model?: string
+  max_free_trials?: number
   
   // 이메일 설정
   smtp_host?: string
@@ -87,6 +92,14 @@ export default function SettingsPage() {
   }, [])
 
   const saveSetting = async (key: string, value: any) => {
+    // 베타 테스트 중에는 설정 변경 비활성화
+    toast({
+      title: '알림',
+      description: '베타 테스트 중에는 설정을 변경할 수 없습니다.',
+      variant: 'destructive'
+    })
+    return;
+    
     setSaving(true)
     try {
       const response = await fetch('/api/admin/settings', {
@@ -156,6 +169,10 @@ export default function SettingsPage() {
           <TabsTrigger value="general">
             <Globe className="w-4 h-4 mr-2" />
             일반
+          </TabsTrigger>
+          <TabsTrigger value="ai">
+            <Brain className="w-4 h-4 mr-2" />
+            AI 설정
           </TabsTrigger>
           <TabsTrigger value="email">
             <Mail className="w-4 h-4 mr-2" />
@@ -256,6 +273,79 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI 설정</CardTitle>
+              <CardDescription>OpenAI API 및 콘텐츠 생성 관련 설정</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="openai_model">OpenAI 모델</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={settings.openai_model || 'gpt-5-mini'}
+                    onValueChange={(value) => handleInputChange('openai_model', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="모델을 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-5">GPT-5 (최고 성능)</SelectItem>
+                      <SelectItem value="gpt-5-mini">GPT-5-mini (빠르고 효율적)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('openai_model', settings.openai_model || 'gpt-5-mini')}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-500">
+                  GPT-5는 최고 품질의 콘텐츠를 생성하고, GPT-5-mini는 빠르고 효율적입니다.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_free_trials">무료 체험 횟수</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="max_free_trials"
+                    type="number"
+                    value={settings.max_free_trials || 3}
+                    onChange={(e) => handleInputChange('max_free_trials', parseInt(e.target.value))}
+                    placeholder="3"
+                  />
+                  <Button 
+                    size="sm" 
+                    onClick={() => saveSetting('max_free_trials', settings.max_free_trials || 3)}
+                    disabled={saving}
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-500">
+                  0으로 설정하면 무료 체험을 비활성화합니다. -1로 설정하면 무제한입니다.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>API 키 상태</Label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm">
+                    OpenAI API 키는 환경 변수에서 관리됩니다.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Vercel 대시보드 또는 .env.local 파일에서 OPENAI_API_KEY를 설정하세요.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

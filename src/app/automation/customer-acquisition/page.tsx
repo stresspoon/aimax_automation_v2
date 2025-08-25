@@ -7,6 +7,7 @@ import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
+import { contentGuidelines } from '@/lib/contentGuidelines'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -56,10 +57,10 @@ export default function CustomerAcquisitionPage() {
   const [projectData, setProjectData] = useState({
     step1: {
       keyword: "",
+      productDescription: "",
       contentType: "blog" as "blog" | "thread",
-      apiKey: "",
+      contentPurpose: "informative" as "informative" | "sales",
       instructions: "",
-      generateImages: false,
       generatedContent: "",
       generatedImages: [] as string[],
     },
@@ -86,6 +87,9 @@ export default function CustomerAcquisitionPage() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [freeTrialsRemaining, setFreeTrialsRemaining] = useState<number | null>(null);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -234,14 +238,14 @@ export default function CustomerAcquisitionPage() {
               // 전체 데이터 구조 기본값 보장
               const loadedData = {
                 ...projectFromDb.data,
-                step1: projectFromDb.data.step1 || {
-                  keyword: '',
-                  contentType: 'blog',
-                  apiKey: '',
-                  instructions: '',
-                  generateImages: false,
-                  generatedContent: '',
-                  generatedImages: []
+                step1: {
+                  keyword: projectFromDb.data.step1?.keyword || '',
+                  productDescription: projectFromDb.data.step1?.productDescription || '',
+                  contentType: projectFromDb.data.step1?.contentType || 'blog',
+                  contentPurpose: projectFromDb.data.step1?.contentPurpose || 'informative',
+                  instructions: projectFromDb.data.step1?.instructions || '',
+                  generatedContent: projectFromDb.data.step1?.generatedContent || '',
+                  generatedImages: projectFromDb.data.step1?.generatedImages || []
                 },
                 step2: {
                   sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
@@ -296,14 +300,14 @@ export default function CustomerAcquisitionPage() {
             // DB에 저장된 데이터가 있으면 사용 (step2 기본 구조 보장)
             const loadedData = {
               ...projectFromDb.data,
-              step1: projectFromDb.data.step1 || {
-                keyword: '',
-                contentType: 'blog',
-                apiKey: '',
-                instructions: '',
-                generateImages: false,
-                generatedContent: '',
-                generatedImages: []
+              step1: {
+                keyword: projectFromDb.data.step1?.keyword || '',
+                productDescription: projectFromDb.data.step1?.productDescription || '',
+                contentType: projectFromDb.data.step1?.contentType || 'blog',
+                contentPurpose: projectFromDb.data.step1?.contentPurpose || 'informative',
+                instructions: projectFromDb.data.step1?.instructions || '',
+                generatedContent: projectFromDb.data.step1?.generatedContent || '',
+                generatedImages: projectFromDb.data.step1?.generatedImages || []
               },
               step2: {
                 sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
@@ -393,103 +397,51 @@ export default function CustomerAcquisitionPage() {
     return () => clearTimeout(timer);
   }, [projectData, campaignId]);
 
-  // Step 1 시작 시 기본 지침 자동 적용 (블로그 기본 선택)
+  // Step 1 시작 시 기본 지침 자동 적용 (블로그 + 정보성 기본 선택)
   useEffect(() => {
     if (expandedStep === 1) {
       setProjectData((prev) => {
         if (prev.step1.instructions && prev.step1.instructions.trim().length > 0) return prev
-        const type = prev.step1.contentType
-        const defaultGuide = contentGuidelines[type]
+        const type = prev.step1.contentType || 'blog';
+        const purpose = prev.step1.contentPurpose || 'informative';
+        const defaultGuide = contentGuidelines[type][purpose];
         return {
           ...prev,
           step1: {
             ...prev.step1,
-            instructions: defaultGuide,
-          },
+            instructions: defaultGuide
+          }
         }
       })
     }
   }, [expandedStep])
 
-  // 콘텐츠 타입별 작성 지침
-  const contentGuidelines = {
-    blog: `블로그 고객모집 글 작성 가이드:
+  // contentGuidelines는 이미 import됨 - @/lib/contentGuidelines에서 가져옴
 
-1. 제목 작성법
-   • 검색 키워드를 자연스럽게 포함
-   • 숫자나 질문형식 활용 (예: "2024년 최신 ~5가지 방법")
-   • 호기심을 유발하는 제목 구성
-
-2. 도입부 (첫 문단)
-   • 독자의 공감대 형성
-   • 문제 상황 제시
-   • 해결책 암시
-
-3. 본문 구성
-   • 소제목으로 가독성 향상
-   • 구체적인 사례와 데이터 제시
-   • 이미지를 활용한 시각적 설명
-   • 전문성 있는 정보 제공
-
-4. CTA (행동 유도)
-   • 자연스러운 제품/서비스 소개
-   • 구체적인 혜택 제시
-   • 연락처나 링크 명확히 표기
-
-5. SEO 최적화
-   • 키워드 3-5회 자연스럽게 배치
-   • 관련 키워드 활용
-   • 메타 설명 최적화`,
-    thread: `스레드 고객모집 글 작성 가이드:
-
-1. 첫 트윗 (Hook)
-   • 강력한 한 줄로 시작
-   • 숫자, 이모지 활용
-   • 질문이나 충격적 사실 제시
-
-2. 스토리텔링
-   • 개인 경험담 활용
-   • 짧고 임팩트 있는 문장
-   • 각 트윗당 280자 이내
-   • 연결성 있는 내용 구성
-
-3. 가치 전달
-   • 구체적인 팁 제공
-   • 실행 가능한 조언
-   • 빠른 결과를 약속
-
-4. 시각적 요소
-   • 번호 매기기 (1/, 2/, 3/...)
-   • 줄바꿈으로 가독성 향상
-   • 핵심 단어 강조
-
-5. 마무리
-   • 명확한 CTA
-   • 리트윗 유도
-   • 팔로우 요청
-   • DM이나 링크 안내`
+  // 콘텐츠 지침 업데이트 함수
+  const updateContentInstructions = (type: 'blog' | 'thread', purpose: 'informative' | 'sales') => {
+    const instruction = contentGuidelines[type]?.[purpose] || '';
+    setProjectData(prev => ({
+      ...prev,
+      step1: {
+        ...prev.step1,
+        instructions: instruction
+      }
+    }));
   };
 
   // 콘텐츠 타입 변경시 지침 자동 업데이트
   const updateContentType = (type: "blog" | "thread") => {
-    // 현재 지침이 기본 가이드라인과 같거나 비어있을 때만 자동 변경
-    const currentInstructions = projectData.step1.instructions;
-    const currentTypeGuideline = contentGuidelines[projectData.step1.contentType];
-    const newTypeGuideline = contentGuidelines[type];
-    
-    // 사용자가 수정하지 않았거나 비어있으면 새 가이드라인으로 변경
-    const shouldUpdateInstructions = !currentInstructions || 
-                                     currentInstructions.trim() === '' || 
-                                     currentInstructions === currentTypeGuideline;
-    
-    setProjectData({
-      ...projectData,
+    const purpose = projectData.step1.contentPurpose || 'informative';
+    const instruction = contentGuidelines[type]?.[purpose] || '';
+    setProjectData((prev) => ({
+      ...prev,
       step1: {
-        ...projectData.step1,
+        ...prev.step1,
         contentType: type,
-        instructions: shouldUpdateInstructions ? newTypeGuideline : currentInstructions
+        instructions: instruction
       }
-    });
+    }));
   };
 
   const handleStep1Generate = async () => {
@@ -499,24 +451,71 @@ export default function CustomerAcquisitionPage() {
       return;
     }
 
-    if (!projectData.step1.keyword || !projectData.step1.instructions) {
-      showNotification('키워드와 지침을 입력해주세요', 'error')
+    if (!projectData.step1.keyword) {
+      showNotification('키워드를 입력해주세요', 'error')
       return
     }
-    // 이미지 생성은 이제 API 키 없이도 가능합니다
+
+    // 선택한 콘텐츠 타입과 목적에 맞는 지침 가져오기
+    const instructions = contentGuidelines[projectData.step1.contentType][projectData.step1.contentPurpose] || ''
+    
     setLoading(true)
+    setLoadingProgress(0)
+    setLoadingMessage('AI가 콘텐츠를 생성하고 있습니다...')
+    
+    const startTime = Date.now()
+    console.log('[Step1] 콘텐츠 생성 시작:', new Date().toISOString())
+    
+    // 프로그레스 애니메이션 시작
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 90) return prev
+        return prev + Math.random() * 15
+      })
+    }, 1000)
+    
+    // 메시지 업데이트
+    const messageTimeout1 = setTimeout(() => {
+      setLoadingMessage('키워드를 분석하고 있습니다...')
+    }, 3000)
+    
+    const messageTimeout2 = setTimeout(() => {
+      setLoadingMessage('최적의 콘텐츠를 작성하고 있습니다...')
+    }, 7000)
+    
+    const messageTimeout3 = setTimeout(() => {
+      setLoadingMessage('거의 완료되었습니다...')
+    }, 20000)
+    
+    const messageTimeout4 = setTimeout(() => {
+      setLoadingMessage('마무리 작업 중입니다...')
+    }, 35000)
+    
+    // AbortController for cancellation
+    const abortController = new AbortController()
+    setAbortController(abortController)
+    
     try {
+      console.log('[Step1] API 요청 전송:', {
+        keyword: projectData.step1.keyword,
+        contentType: projectData.step1.contentType,
+        instructionsLength: instructions.length
+      })
+      
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey: projectData.step1.apiKey || undefined,
           keyword: projectData.step1.keyword,
           contentType: projectData.step1.contentType,
-          instructions: projectData.step1.instructions,
-          generateImages: projectData.step1.generateImages,
-        })
+          instructions: instructions,
+          generateImages: false  // 명시적으로 false 전달
+        }),
+        signal: abortController.signal
       })
+      const responseTime = Date.now() - startTime
+      console.log('[Step1] API 응답 수신 소요 시간:', responseTime, 'ms')
+      
       const json = await res.json()
       
       if (!res.ok) {
@@ -566,13 +565,42 @@ export default function CustomerAcquisitionPage() {
           .eq('id', projectId);
       }
       
+      // 프로그레스 완료
+      setLoadingProgress(100)
+      setLoadingMessage('완료!')
+      
+      const totalTime = Date.now() - startTime
+      console.log('[Step1] 전체 처리 완료 시간:', totalTime, 'ms')
+      
       showNotification('생성이 완료되었습니다', 'success')
     } catch (e: any) {
-      showNotification(e?.message || '에러가 발생했습니다', 'error')
+      if (e.name === 'AbortError') {
+        showNotification('생성이 취소되었습니다', 'info')
+      } else {
+        showNotification(e?.message || '에러가 발생했습니다', 'error')
+      }
     } finally {
       setLoading(false)
+      setLoadingProgress(0)
+      setLoadingMessage('')
+      clearInterval(progressInterval)
+      clearTimeout(messageTimeout1)
+      clearTimeout(messageTimeout2)
+      clearTimeout(messageTimeout3)
+      clearTimeout(messageTimeout4)
+      setAbortController(null)
     }
   };
+
+  const handleCancelGeneration = () => {
+    if (abortController) {
+      abortController.abort()
+      setLoading(false)
+      setLoadingProgress(0)
+      setLoadingMessage('')
+      setAbortController(null)
+    }
+  }
 
   const handleCopyGenerated = async () => {
     try {
@@ -1729,33 +1757,6 @@ export default function CustomerAcquisitionPage() {
       </div>
       
       <div className="space-y-6">
-        {/* 콘텐츠 타입 선택 */}
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">콘텐츠 타입</label>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => updateContentType("blog")}
-              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
-                projectData.step1.contentType === "blog"
-                  ? "border-primary bg-primary/10 text-primary font-semibold"
-                  : "border-border text-muted-foreground hover:border-primary/50"
-              }`}
-            >
-              블로그 (긴 글)
-            </button>
-            <button
-              onClick={() => updateContentType("thread")}
-              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
-                projectData.step1.contentType === "thread"
-                  ? "border-primary bg-primary/10 text-primary font-semibold"
-                  : "border-border text-muted-foreground hover:border-primary/50"
-              }`}
-            >
-              스레드 (짧은 글)
-            </button>
-          </div>
-        </div>
-
         {/* 키워드 입력 */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">키워드</label>
@@ -1770,64 +1771,139 @@ export default function CustomerAcquisitionPage() {
           />
         </div>
 
-        {/* API 키 */}
+        {/* 제품/서비스 설명 */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Gemini API 키
-            <span className="ml-2 text-xs text-muted-foreground">(선택사항 - 이미지 생성용)</span>
-          </label>
-          <input
-            type="password"
-            value={projectData.step1.apiKey}
-            onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, apiKey: e.target.value } })}
-            placeholder="AIza..."
-            autoComplete="new-password"
-            name="aimax-gemini-api-key"
+          <label className="block text-sm font-medium text-foreground mb-2">제품/서비스 설명</label>
+          <textarea
+            value={projectData.step1.productDescription}
+            onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, productDescription: e.target.value } })}
+            placeholder="소개하고자 하는 제품이나 서비스에 대한 간단한 설명을 입력해주세요"
+            rows={3}
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
 
-        {/* 이미지 생성 옵션 */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="generateImages"
-            checked={projectData.step1.generateImages}
-            onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, generateImages: e.target.checked } })}
-            className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
-          />
-          <label htmlFor="generateImages" className="text-sm text-foreground">
-            이미지도 함께 생성하기
-          </label>
+        {/* 플랫폼 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">플랫폼 선택</label>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => updateContentType("blog")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
+                projectData.step1.contentType === "blog"
+                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              블로그
+            </button>
+            <button
+              onClick={() => updateContentType("thread")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
+                projectData.step1.contentType === "thread"
+                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              스레드
+            </button>
+          </div>
         </div>
 
-
-        {/* 작성 지침 */}
-        {projectData.step1.contentType && (
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-semibold text-foreground">
-                {projectData.step1.contentType === "blog" ? "블로그" : "스레드"} 작성 지침
-              </label>
-              <button onClick={() => setShowGuide(true)} className="text-xs text-primary hover:text-primary/80 font-semibold">지침 수정 가이드</button>
-            </div>
-            <textarea
-              value={projectData.step1.instructions}
-              onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, instructions: e.target.value } })}
-              rows={12}
-              className="w-full px-4 py-3 rounded-lg border border-primary/20 bg-white focus:outline-none focus:border-primary text-sm"
-            />
+        {/* 글 성격 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">글 성격</label>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => {
+                setProjectData({ 
+                  ...projectData, 
+                  step1: { 
+                    ...projectData.step1, 
+                    contentPurpose: "informative"
+                  } 
+                });
+                updateContentInstructions(projectData.step1.contentType, "informative");
+              }}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
+                projectData.step1.contentPurpose === "informative"
+                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              정보성 글
+            </button>
+            <button
+              onClick={() => {
+                setProjectData({ 
+                  ...projectData, 
+                  step1: { 
+                    ...projectData.step1, 
+                    contentPurpose: "sales"
+                  } 
+                });
+                updateContentInstructions(projectData.step1.contentType, "sales");
+              }}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
+                projectData.step1.contentPurpose === "sales"
+                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              판매성 글
+            </button>
           </div>
-        )}
+        </div>
+
+        {/* API 키 입력 필드와 이미지 생성 옵션 제거 - OpenAI API 사용 */}
+        {/* 고급 설정 제거 - 지침은 자동으로 생성 */}
 
         {/* 생성 버튼 */}
-        <button
-          onClick={handleStep1Generate}
-          disabled={loading || !projectData.step1.keyword}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-lg font-semibold transition disabled:opacity-50"
-        >
-          {loading ? "생성 중..." : `글 생성하기 (무료 체험 ${freeTrialsRemaining}/3)`}
-        </button>
+        {!loading ? (
+          <button
+            onClick={handleStep1Generate}
+            disabled={loading || !projectData.step1.keyword}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-lg font-semibold transition disabled:opacity-50"
+          >
+            글 생성하기 {freeTrialsRemaining !== null && `(무료 체험 ${freeTrialsRemaining}/3)`}
+          </button>
+        ) : (
+          <div className="space-y-3">
+            {/* 프로그레스 바 */}
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+                style={{ width: `${loadingProgress}%` }}
+              />
+            </div>
+            
+            {/* 로딩 메시지 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-sm text-muted-foreground">
+                  {loadingMessage || '생성 중...'}
+                </span>
+              </div>
+              
+              {/* 예상 시간 */}
+              <span className="text-xs text-muted-foreground">
+                예상 소요 시간: 30-60초
+              </span>
+            </div>
+            
+            {/* 취소 버튼 */}
+            <button
+              onClick={handleCancelGeneration}
+              className="w-full py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium transition"
+            >
+              취소
+            </button>
+          </div>
+        )}
 
         {/* 생성된 콘텐츠 */}
         {projectData.step1.generatedContent && (
@@ -2400,7 +2476,7 @@ export default function CustomerAcquisitionPage() {
             <button 
               onClick={() => setShowEmailComposer(true)}
               className="text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 rounded font-semibold">
-              Gemini로 자동작성
+              GPT-5로 자동작성
             </button>
           </div>
           <textarea
@@ -2498,17 +2574,7 @@ export default function CustomerAcquisitionPage() {
               </div>
             )}
 
-            {/* API 키 입력 */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Gemini API Key</label>
-              <input
-                type="password"
-                value={projectData.step1.apiKey}
-                onChange={(e) => setProjectData({ ...projectData, step1: { ...projectData.step1, apiKey: e.target.value } })}
-                placeholder="AI... (Step 1에서 사용한 키)"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-primary"
-              />
-            </div>
+            {/* API 키 입력 필드 제거 - 환경 변수에서 자동으로 사용 */}
 
             {/* 미리보기 정보 */}
             <div className="bg-gray-50 rounded-lg p-3 mb-4">
@@ -2533,10 +2599,6 @@ export default function CustomerAcquisitionPage() {
               </button>
               <button 
                 onClick={async () => {
-                  if (!projectData.step1.apiKey) {
-                    showNotification('API 키를 입력해주세요', 'error');
-                    return;
-                  }
                   if (emailComposerType === 'custom' && !emailComposerInstructions) {
                     showNotification('작성 지침을 입력해주세요', 'error');
                     return;
@@ -2561,7 +2623,6 @@ export default function CustomerAcquisitionPage() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        apiKey: projectData.step1.apiKey,
                         candidateInfo: sampleCandidate,
                         emailType: emailComposerType,
                         customInstructions: emailComposerInstructions,
@@ -2591,7 +2652,7 @@ export default function CustomerAcquisitionPage() {
                     setComposingEmail(false);
                   }
                 }}
-                disabled={composingEmail || !projectData.step1.apiKey || (emailComposerType === 'custom' && !emailComposerInstructions)}
+                disabled={composingEmail || (emailComposerType === 'custom' && !emailComposerInstructions)}
                 className="px-4 py-2 rounded bg-primary text-white disabled:opacity-50"
               >
                 {composingEmail ? '생성 중...' : '이메일 생성'}
@@ -2733,7 +2794,7 @@ export default function CustomerAcquisitionPage() {
                     // 완전 삭제: 상태 초기화 후 대시보드로 이동
                     setProjectId(null)
                     setProjectData({
-                      step1: { keyword:'', contentType:'blog', apiKey:'', instructions:'', generateImages:false, generatedContent:'', generatedImages:[] },
+                      step1: { keyword:'', productDescription:'', contentType:'blog', contentPurpose:'informative', instructions:'', generatedContent:'', generatedImages:[] },
                       step2: { formId: null, formUrl: null, sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
                       step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
                     })

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import OpenAI from 'openai'
 
 const BodySchema = z.object({
-  apiKey: z.string().optional(),
   candidateInfo: z.object({
     name: z.string(),
     email: z.string(),
@@ -83,10 +83,14 @@ export async function POST(req: Request) {
     const json = await req.json()
     const body = BodySchema.parse(json)
 
-    const apiKey = body.apiKey || process.env.GEMINI_API_KEY
+    const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI API KEY가 필요합니다.' }, { status: 400 })
+      return NextResponse.json({ error: 'OpenAI API KEY가 설정되지 않았습니다.' }, { status: 400 })
     }
+
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    })
 
     const prompt = buildEmailPrompt({
       candidateInfo: body.candidateInfo,
@@ -95,30 +99,39 @@ export async function POST(req: Request) {
       productInfo: body.productInfo,
     })
 
-    // Use Gemini 2.5 Pro for better quality
-    const model = 'gemini-2.0-flash-exp' // Using 2.0 Flash as 2.5 Pro may not be available yet
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contents: [{ 
-          role: 'user', 
-          parts: [{ text: prompt }] 
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
-      }),
-    })
-
-    if (!res.ok) {
-      const t = await res.text().catch(() => '')
-      return NextResponse.json({ error: `Gemini error: ${res.status} ${t}` }, { status: 400 })
+    // 데이터베이스에서 모델 설정 확인
+    let model = process.env.OPENAI_MODEL || 'gpt-5-mini'
+    
+    try {
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+      const { data: setting } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'openai_model')
+        .single()
+      
+      if (setting?.value) {
+        model = setting.value
+      }
+    } catch (error) {
+      console.log('모델 설정 로드 실패, 기본값 사용:', model)
     }
 
-    const data = await res.json()
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('\n') || ''
+    // GPT-5 새로운 Responses API 사용
+    const response = await openai.responses.create({
+      model: model,
+      instructions: '당신은 전문 마케팅 이메일 작성자입니다. 개인화된 고품질 이메일을 작성해주세요.',
+      input: prompt,
+      reasoning: {
+        effort: 'medium' // 이메일은 중간 수준의 추론
+      },
+      text: {
+        verbosity: 'medium' // 적당한 상세도
+      }
+    })
+
+    const text = response.output_text || ''
     if (!text) {
       return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
     }

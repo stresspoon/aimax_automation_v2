@@ -4,8 +4,17 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, CheckCircle } from 'lucide-react'
 
@@ -39,10 +48,14 @@ export default function PublicFormPage() {
         if (!res.ok) throw new Error('폼을 찾을 수 없습니다')
         
         const data = await res.json()
+        console.log('Loaded form data:', data)
+        console.log('Custom fields:', data.fields?.custom)
         setForm(data)
         
         // 기본값 설정
         const defaults: Record<string, any> = {}
+        
+        // 기본 필드 기본값
         Object.entries(data.fields.default).forEach(([key, field]: [string, any]) => {
           if (field.type === 'checkbox') {
             defaults[key] = false
@@ -50,6 +63,16 @@ export default function PublicFormPage() {
             defaults[key] = ''
           }
         })
+        
+        // 커스텀 필드 기본값
+        Object.entries(data.fields.custom || {}).forEach(([key, field]: [string, any]) => {
+          if (field.type === 'checkbox') {
+            defaults[key] = false
+          } else {
+            defaults[key] = ''
+          }
+        })
+        
         setFormValues(defaults)
       } catch (err) {
         setError((err as Error).message)
@@ -61,6 +84,132 @@ export default function PublicFormPage() {
     loadForm()
   }, [slug])
   
+  // 필드 렌더링 함수
+  const renderField = (key: string, field: any) => {
+    // Textarea
+    if (field.type === 'textarea') {
+      return (
+        <>
+          <Label htmlFor={key}>
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <Textarea
+            id={key}
+            value={formValues[key] || ''}
+            onChange={(e) => 
+              setFormValues(prev => ({ ...prev, [key]: e.target.value }))
+            }
+            placeholder={field.placeholder || ''}
+            required={field.required}
+            rows={4}
+          />
+        </>
+      )
+    }
+    
+    // Select (dropdown)
+    if (field.type === 'select' && field.options) {
+      return (
+        <>
+          <Label htmlFor={key}>
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <Select
+            value={formValues[key] || ''}
+            onValueChange={(value) => 
+              setFormValues(prev => ({ ...prev, [key]: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="선택해주세요" />
+            </SelectTrigger>
+            <SelectContent>
+              {field.options.map((option: string) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      )
+    }
+    
+    // Radio
+    if (field.type === 'radio' && field.options) {
+      return (
+        <>
+          <Label>
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <RadioGroup
+            value={formValues[key] || ''}
+            onValueChange={(value) => 
+              setFormValues(prev => ({ ...prev, [key]: value }))
+            }
+          >
+            {field.options.map((option: string) => (
+              <div key={option} className="flex items-center space-x-2">
+                <RadioGroupItem value={option} id={`${key}-${option}`} />
+                <Label htmlFor={`${key}-${option}`} className="font-normal cursor-pointer">
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </>
+      )
+    }
+    
+    // Checkbox
+    if (field.type === 'checkbox') {
+      return (
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id={key}
+            checked={formValues[key] || false}
+            onCheckedChange={(checked) => 
+              setFormValues(prev => ({ ...prev, [key]: checked }))
+            }
+          />
+          <Label htmlFor={key} className="cursor-pointer">
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+        </div>
+      )
+    }
+    
+    // Default: Input (text, email, tel, url, etc.)
+    return (
+      <>
+        <Label htmlFor={key}>
+          {field.label}
+          {field.required && <span className="text-red-500 ml-1">*</span>}
+        </Label>
+        <Input
+          id={key}
+          type={field.type}
+          value={formValues[key] || ''}
+          onChange={(e) => 
+            setFormValues(prev => ({ ...prev, [key]: e.target.value }))
+          }
+          placeholder={
+            field.placeholder ||
+            (field.type === 'url' ? 'https://...' :
+            field.type === 'email' ? 'example@email.com' :
+            field.type === 'tel' ? '010-0000-0000' :
+            '')
+          }
+          required={field.required}
+        />
+      </>
+    )
+  }
+
   // 폼 제출
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -160,50 +309,32 @@ export default function PublicFormPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 기본 필드 렌더링 */}
-              {Object.entries(form?.fields.default || {})
-                .sort(([, a]: any, [, b]: any) => a.order - b.order)
-                .map(([key, field]: [string, any]) => (
+              {/* 기본 필드와 커스텀 필드 모두 렌더링 */}
+              {(() => {
+                // 모든 필드를 하나의 배열로 합치기
+                const allFields = [
+                  ...Object.entries(form?.fields.default || {}).map(([key, field]: [string, any]) => ({
+                    key,
+                    field,
+                    isCustom: false
+                  })),
+                  ...Object.entries(form?.fields.custom || {}).map(([key, field]: [string, any]) => ({
+                    key,
+                    field,
+                    isCustom: true
+                  }))
+                ]
+                
+                // order로 정렬
+                allFields.sort((a, b) => (a.field.order || 999) - (b.field.order || 999))
+                
+                // 렌더링
+                return allFields.map(({ key, field }) => (
                   <div key={key} className="space-y-2">
-                    {field.type === 'checkbox' ? (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={key}
-                          checked={formValues[key] || false}
-                          onCheckedChange={(checked) => 
-                            setFormValues(prev => ({ ...prev, [key]: checked }))
-                          }
-                        />
-                        <Label htmlFor={key} className="cursor-pointer">
-                          {field.label}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </Label>
-                      </div>
-                    ) : (
-                      <>
-                        <Label htmlFor={key}>
-                          {field.label}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </Label>
-                        <Input
-                          id={key}
-                          type={field.type}
-                          value={formValues[key] || ''}
-                          onChange={(e) => 
-                            setFormValues(prev => ({ ...prev, [key]: e.target.value }))
-                          }
-                          placeholder={
-                            field.type === 'url' ? 'https://...' :
-                            field.type === 'email' ? 'example@email.com' :
-                            field.type === 'tel' ? '010-0000-0000' :
-                            ''
-                          }
-                          required={field.required}
-                        />
-                      </>
-                    )}
+                    {renderField(key, field)}
                   </div>
-                ))}
+                ))
+              })()}
               
               {error && (
                 <p className="text-sm text-red-500">{error}</p>

@@ -3,10 +3,10 @@ import { createClient } from '@/lib/supabase/client'
 export interface ProjectData {
   step1: {
     keyword: string
+    productDescription: string
     contentType: 'blog' | 'thread'
-    apiKey: string
+    contentPurpose: 'informative' | 'sales'
     instructions: string
-    generateImages: boolean
     generatedContent: string
     generatedImages: string[]
   }

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkUsageLimit, incrementUsage } from '@/lib/usage'
+import OpenAI from 'openai'
 
 const BodySchema = z.object({
-  apiKey: z.string().optional(),
   keyword: z.string().min(1),
   contentType: z.enum(['blog', 'thread']),
   instructions: z.string().min(1),
@@ -160,11 +160,17 @@ async function generateImages(keyword: string, contentType: 'blog' | 'thread', c
 }
 
 export async function POST(req: Request) {
+  const startTime = Date.now()
+  console.log('[Generate API] 요청 시작:', new Date().toISOString())
+  
   try {
     // 사용 제한 확인
     let usage = { limit: 3, used: 0, remaining: 3, feature: 'content_generation' }
     try {
+      const usageStartTime = Date.now()
       usage = await checkUsageLimit('content_generation')
+      console.log('[Generate API] 사용량 확인 소요 시간:', Date.now() - usageStartTime, 'ms')
+      
       if (usage.limit !== -1 && usage.remaining <= 0) {
         return NextResponse.json({ 
           error: '무료 체험 횟수를 모두 사용했습니다',
@@ -179,39 +185,74 @@ export async function POST(req: Request) {
     
     const json = await req.json()
     const body = BodySchema.parse(json)
+    console.log('[Generate API] 요청 파라미터:', {
+      keyword: body.keyword,
+      contentType: body.contentType,
+      generateImages: body.generateImages,
+      instructionsLength: body.instructions?.length
+    })
 
-    const apiKey = body.apiKey || process.env.GEMINI_API_KEY
+    const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI API KEY가 필요합니다.' }, { status: 400 })
+      return NextResponse.json({ error: 'OpenAI API KEY가 설정되지 않았습니다.' }, { status: 400 })
     }
+
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    })
 
     const prompt = buildPrompt({ keyword: body.keyword, contentType: body.contentType, instructions: body.instructions })
 
-    // Gemini-2.5-pro 모델을 텍스트 생성에 사용
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 8192,
+    // 데이터베이스에서 모델 설정 확인, 없으면 환경 변수 사용
+    let model = process.env.OPENAI_MODEL || 'gpt-5-mini'
+    
+    try {
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+      const { data: setting } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'openai_model')
+        .single()
+      
+      if (setting?.value) {
+        model = setting.value
+      }
+    } catch (error) {
+      // 설정을 가져오지 못하면 기본값 사용
+      console.log('모델 설정 로드 실패, 기본값 사용:', model)
+    }
+    
+    try {
+      console.log('[Generate API] OpenAI API 호출 시작 (모델: ' + model + ')')
+      const openaiStartTime = Date.now()
+      
+      // GPT-5 새로운 Responses API 사용 (타임아웃 설정)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃
+      
+      const response = await openai.responses.create({
+        model: model,
+        instructions: '당신은 한국어 마케팅 카피라이터입니다. 주어진 지침에 따라 고품질의 마케팅 콘텐츠를 작성해주세요.',
+        input: prompt,
+        reasoning: {
+          effort: body.contentType === 'blog' ? 'medium' : 'low' // 속도 개선을 위해 추론 수준 조정
+        },
+        text: {
+          verbosity: body.contentType === 'blog' ? 'medium' : 'low' // 적절한 상세도로 조정
         }
-      }),
-    })
+      }, {
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      console.log('[Generate API] OpenAI API 응답 소요 시간:', Date.now() - openaiStartTime, 'ms')
 
-    if (!res.ok) {
-      const t = await res.text().catch(() => '')
-      return NextResponse.json({ error: `Gemini error: ${res.status} ${t}` }, { status: 400 })
-    }
-
-    const data = await res.json()
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('\n') || ''
-    if (!text) {
-      return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
-    }
+      const text = response.output_text || ''
+      if (!text) {
+        return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
+      }
 
     // 간단 파서: <title>, <body>
     const titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i)
@@ -224,7 +265,12 @@ export async function POST(req: Request) {
     // Generate images if requested
     let images: string[] = []
     if (body.generateImages) {
+      console.log('[Generate API] 이미지 생성 시작')
+      const imageStartTime = Date.now()
       images = await generateImages(body.keyword, body.contentType)
+      console.log('[Generate API] 이미지 생성 소요 시간:', Date.now() - imageStartTime, 'ms')
+    } else {
+      console.log('[Generate API] 이미지 생성 건너뜀 (generateImages: false)')
     }
     
     // 사용 횟수 증가
@@ -266,12 +312,23 @@ export async function POST(req: Request) {
       console.error('활동 로그 기록 실패:', logError)
     }
     
+    const totalTime = Date.now() - startTime
+    console.log('[Generate API] 전체 처리 시간:', totalTime, 'ms')
+    console.log('[Generate API] 응답 완료:', new Date().toISOString())
+    
     return NextResponse.json({ 
       content: combined, 
       images,
       usage: updatedUsage 
     })
+    } catch (openaiError) {
+      console.error('OpenAI API 오류:', openaiError)
+      return NextResponse.json({ 
+        error: openaiError instanceof Error ? openaiError.message : 'OpenAI API 오류가 발생했습니다.' 
+      }, { status: 400 })
+    }
   } catch (err) {
+    console.error('요청 처리 오류:', err)
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }
 }
