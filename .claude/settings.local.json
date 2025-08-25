@@ -40,7 +40,8 @@
       "Bash(npx supabase migration:*)",
       "Bash(gh pr create:*)",
       "Bash(git pull:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npx supabase:*)"
     ],
     "deny": [],
     "ask": []

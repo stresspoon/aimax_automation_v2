@@ -1,5 +1,8 @@
 {
   "/api/forms/sync-candidates/route": "app/api/forms/sync-candidates/route.js",
   "/api/projects/route": "app/api/projects/route.js",
-  "/automation/customer-acquisition/form-builder/page": "app/automation/customer-acquisition/form-builder/page.js"
+  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/users/page": "app/admin/users/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js"
 }

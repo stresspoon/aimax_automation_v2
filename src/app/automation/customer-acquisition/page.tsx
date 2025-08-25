@@ -2467,6 +2467,9 @@ export default function CustomerAcquisitionPage() {
             placeholder="예: {이름}님, 특별한 제안이 있습니다"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
+          <p className="mt-1 text-xs text-muted-foreground">
+            템플릿 변수 사용 가능: <code className="bg-muted px-1 rounded">{"{이름}"}</code>, <code className="bg-muted px-1 rounded">{"{이메일}"}</code>
+          </p>
         </div>
 
         {/* 이메일 본문 */}
@@ -2486,9 +2489,18 @@ export default function CustomerAcquisitionPage() {
             rows={8}
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            {`{이름}`}, {`{이메일}`} 등의 변수를 사용할 수 있습니다
-          </p>
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800 font-medium mb-1">템플릿 변수 사용법:</p>
+            <p className="text-xs text-blue-700">
+              <code className="bg-white px-1 py-0.5 rounded">{"{이름}"}</code> - 수신자 이름<br />
+              <code className="bg-white px-1 py-0.5 rounded">{"{이메일}"}</code> - 수신자 이메일<br />
+              <code className="bg-white px-1 py-0.5 rounded">{"{전화번호}"}</code> - 전화번호<br />
+              <code className="bg-white px-1 py-0.5 rounded">{"{상태}"}</code> - 선정/미달 상태
+            </p>
+            <p className="text-xs text-yellow-700 mt-2 font-semibold">
+              ⚠️ 중괄호 {} 를 반드시 사용하세요!
+            </p>
+          </div>
         </div>
 
         {/* 발송 버튼 */}

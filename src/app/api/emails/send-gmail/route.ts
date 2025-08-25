@@ -53,16 +53,24 @@ export async function POST(req: Request) {
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
       try {
-        // 본문에서 템플릿 변수 치환 - {{name}}과 {이름} 모두 지원
+        // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 모두 지원
+        let processedSubject = subject
+          .replace(/\{\{name\}\}/g, recipient.name || '고객님')
+          .replace(/\{이름\}/g, recipient.name || '고객님')
+          .replace(/\{\{email\}\}/g, recipient.email || '')
+          .replace(/\{이메일\}/g, recipient.email || '')
+        
         let processedBody = body
           .replace(/\{\{name\}\}/g, recipient.name || '고객님')
           .replace(/\{이름\}/g, recipient.name || '고객님')
+          .replace(/\{\{email\}\}/g, recipient.email || '')
+          .replace(/\{이메일\}/g, recipient.email || '')
         
         // 이메일 메시지 생성
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipient.email}`,
-          `Subject: =?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`,
+          `Subject: =?UTF-8?B?${Buffer.from(processedSubject, 'utf-8').toString('base64')}?=`,
           replyTo ? `Reply-To: ${replyTo}` : '',
           'MIME-Version: 1.0',
           'Content-Type: text/html; charset=utf-8',
@@ -79,8 +87,9 @@ export async function POST(req: Request) {
         
         // 디버깅용 로그
         console.log('Sending email to:', recipient.email)
-        console.log('Subject (decoded):', subject)
-        console.log('Name in body:', recipient.name || '고객님')
+        console.log('Subject (original):', subject)
+        console.log('Subject (processed):', processedSubject)
+        console.log('Name:', recipient.name || '고객님')
         
         // Gmail API로 발송
         const result = await gmail.users.messages.send({
@@ -113,7 +122,7 @@ export async function POST(req: Request) {
           results.map(r => ({
             user_id: user.id,
             recipient: r.recipient,
-            subject,
+            subject: subject, // 원본 제목 저장 (템플릿 포함)
             status: r.status,
             message_id: r.messageId,
             sent_at: new Date().toISOString(),
