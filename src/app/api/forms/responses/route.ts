@@ -6,11 +6,13 @@ import { parseMetrics, normalizeUrl } from '@/lib/sns/scrape'
 async function processResponseInBackground(responseId: string) {
   console.log('🔄 Background processing started for:', responseId)
   
-  const supabase = await createClient()
+  // 백그라운드 처리는 service role 클라이언트 사용
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const adminSupabase = createAdminClient()
   
   try {
     // 응답 데이터 가져오기
-    const { data: response } = await supabase
+    const { data: response } = await adminSupabase
       .from('form_responses_temp')
       .select('*')
       .eq('id', responseId)
@@ -19,7 +21,7 @@ async function processResponseInBackground(responseId: string) {
     if (!response) return
     
     // 폼 정보 가져오기
-    const { data: form } = await supabase
+    const { data: form } = await adminSupabase
       .from('forms')
       .select('*')
       .eq('id', response.form_id)
@@ -94,8 +96,8 @@ async function processResponseInBackground(responseId: string) {
     console.log('✅ SNS Check Result:', snsResult)
     console.log('✅ Selection:', isSelected ? '선정' : '탈락')
     
-    // 결과 업데이트
-    await supabase
+    // 결과 업데이트 - admin client 사용
+    await adminSupabase
       .from('form_responses_temp')
       .update({
         sns_check_result: snsResult,
@@ -106,8 +108,8 @@ async function processResponseInBackground(responseId: string) {
       })
       .eq('id', responseId)
     
-    // 처리 큐에서 제거
-    await supabase
+    // 처리 큐에서 제거 - admin client 사용
+    await adminSupabase
       .from('processing_queue')
       .delete()
       .eq('response_id', responseId)
@@ -115,8 +117,8 @@ async function processResponseInBackground(responseId: string) {
   } catch (error) {
     console.error('Processing error:', error)
     
-    // 에러 상태로 업데이트
-    await supabase
+    // 에러 상태로 업데이트 - admin client 사용
+    await adminSupabase
       .from('form_responses_temp')
       .update({
         status: 'error',
@@ -129,11 +131,12 @@ async function processResponseInBackground(responseId: string) {
 // POST: 폼 응답 제출
 export async function POST(req: Request) {
   try {
+    // 폼 응답 제출은 공개 API이므로 일반 클라이언트 사용
     const supabase = await createClient()
     const data = await req.json()
     const { formId, ...responseData } = data
     
-    // 폼 확인
+    // 폼 확인 (공개 폼 조회)
     const { data: form, error: formError } = await supabase
       .from('forms')
       .select('*')
@@ -142,11 +145,16 @@ export async function POST(req: Request) {
       .single()
     
     if (formError || !form) {
+      console.error('Form not found:', formError)
       return NextResponse.json({ error: '폼을 찾을 수 없습니다' }, { status: 404 })
     }
     
+    // 중복 체크를 위해 service role 클라이언트 사용 (RLS 우회)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminSupabase = createAdminClient()
+    
     // 중복 체크 (이메일 기준)
-    const { data: existingResponse } = await supabase
+    const { data: existingResponse } = await adminSupabase
       .from('form_responses_temp')
       .select('id')
       .eq('form_id', formId)
@@ -160,8 +168,8 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
     
-    // 응답 저장
-    const { data: response, error: responseError } = await supabase
+    // 응답 저장 - admin client 사용으로 RLS 우회
+    const { data: response, error: responseError } = await adminSupabase
       .from('form_responses_temp')
       .insert({
         form_id: formId,
@@ -175,16 +183,25 @@ export async function POST(req: Request) {
       .single()
     
     if (responseError) {
-      return NextResponse.json({ error: responseError.message }, { status: 500 })
+      console.error('Failed to insert response:', responseError)
+      return NextResponse.json({ 
+        error: `응답 저장 실패: ${responseError.message}`,
+        details: responseError
+      }, { status: 500 })
     }
     
-    // 처리 큐에 추가
-    await supabase
+    // 처리 큐에 추가 - admin client 사용
+    const { error: queueError } = await adminSupabase
       .from('processing_queue')
       .insert({
         response_id: response.id,
         priority: 1
       })
+    
+    if (queueError) {
+      console.error('Failed to add to queue:', queueError)
+      // 큐 추가 실패는 치명적이지 않으므로 계속 진행
+    }
     
     // SNS 체크를 즉시 실행 (백그라운드)
     console.log('🚀 Starting immediate SNS check for response:', response.id)
