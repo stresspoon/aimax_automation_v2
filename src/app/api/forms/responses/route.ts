@@ -240,6 +240,7 @@ export async function POST(req: Request) {
       .from('form_responses_temp')
       .insert({
         form_id: formId,
+        project_id: form.project_id, // 폼의 project_id를 응답에도 저장
         email: responseData.email,
         name: responseData.name,
         phone: responseData.phone,
@@ -296,6 +297,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const formId = searchParams.get('formId')
   const status = searchParams.get('status')
+  const projectId = searchParams.get('projectId')
   
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -304,14 +306,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
+  // projectId 정리
+  const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
+  
   let query = supabase
     .from('form_responses_temp')
     .select(`
       *,
-      forms!inner(user_id)
+      forms!inner(user_id, project_id)
     `)
     .eq('forms.user_id', user.id)
     .order('created_at', { ascending: false })
+  
+  // projectId로 필터링
+  if (cleanProjectId) {
+    query = query.eq('project_id', cleanProjectId)
+  } else {
+    // projectId가 null인 경우 - project_id가 null인 응답만 반환 (전역 응답)
+    query = query.is('project_id', null)
+  }
   
   if (formId) {
     query = query.eq('form_id', formId)

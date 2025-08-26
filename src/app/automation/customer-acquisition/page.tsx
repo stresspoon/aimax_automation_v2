@@ -828,7 +828,7 @@ export default function CustomerAcquisitionPage() {
               
               // formId를 사용해서 pending 응답들 가져오기
               if (formData.formId) {
-                const responsesRes = await fetch(`/api/forms/responses?formId=${formData.formId}`)
+                const responsesRes = await fetch(`/api/forms/responses?formId=${formData.formId}&projectId=${projectId || ''}`)
                 if (responsesRes.ok) {
                   const responsesData = await responsesRes.json()
                   const pendingIds = responsesData
