@@ -40,6 +40,8 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   const [newFieldLabel, setNewFieldLabel] = useState('')
   const [newFieldType, setNewFieldType] = useState('text')
   const [candidates, setCandidates] = useState<any[]>([])
+  const [responses, setResponses] = useState<any[]>([])
+  const [loadingResponses, setLoadingResponses] = useState(false)
   
   // 기본 필드 설정 (활성화 여부 포함)
   const [defaultFields, setDefaultFields] = useState<FormField[]>([
@@ -279,25 +281,79 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     setCustomFields(customFields.filter((_, i) => i !== index))
   }
   
+  // 응답 데이터 가져오기
+  const fetchResponses = async () => {
+    if (!form?.id) return
+    
+    setLoadingResponses(true)
+    try {
+      const res = await fetch(`/api/forms/responses?formId=${form.id}&projectId=${projectId || ''}`)
+      if (res.ok) {
+        const data = await res.json()
+        setResponses(data)
+      }
+    } catch (error) {
+      console.error('응답 데이터 조회 실패:', error)
+    } finally {
+      setLoadingResponses(false)
+    }
+  }
+  
+  // 폼이 로드되면 응답 데이터도 가져오기
+  useEffect(() => {
+    if (form?.id) {
+      fetchResponses()
+    }
+  }, [form?.id])
+  
   // 엑셀 다운로드
   const downloadExcel = () => {
-    if (candidates.length === 0) {
+    if (responses.length === 0) {
       alert('다운로드할 데이터가 없습니다')
       return
     }
     
     // 데이터 준비
-    const excelData = candidates.map(candidate => ({
-      '성함': candidate.name || '',
-      '연락처': candidate.phone || '',
-      '이메일': candidate.email || '',
-      '신청 경로': candidate.source || '',
-      '스레드 팔로워': candidate.threadsFollowers || 0,
-      '인스타그램 팔로워': candidate.instagramFollowers || 0,
-      '블로그 이웃': candidate.blogNeighbors || 0,
-      '선정 여부': candidate.status === 'selected' ? '선정' : '탈락',
-      '신청일시': new Date(candidate.created_at).toLocaleString('ko-KR'),
-      ...Object.entries(candidate.data || {}).reduce((acc, [key, value]) => {
+    const excelData = responses.map(response => ({
+      '성함': response.name || response.data?.name || '',
+      '연락처': response.phone || response.data?.phone || '',
+      '이메일': response.email || response.data?.email || '',
+      '신청 경로': response.data?.source || '',
+      '스레드 URL': response.data?.threadsUrl || '',
+      '스레드 팔로워': (() => {
+        const url = response.data?.threadsUrl
+        const followers = response.sns_check_result?.threads?.followers
+        const hasError = response.sns_check_result?.threads?.error
+        
+        if (!url) return '입력누락'
+        if (hasError || (url && followers === 0)) return '입력오류'
+        return followers || 0
+      })(),
+      '인스타그램 URL': response.data?.instagramUrl || '',
+      '인스타그램 팔로워': (() => {
+        const url = response.data?.instagramUrl
+        const followers = response.sns_check_result?.instagram?.followers
+        const hasError = response.sns_check_result?.instagram?.error
+        
+        if (!url) return '입력누락'
+        if (hasError || (url && followers === 0)) return '입력오류'
+        return followers || 0
+      })(),
+      '블로그 URL': response.data?.blogUrl || '',
+      '블로그 이웃': (() => {
+        const url = response.data?.blogUrl
+        const neighbors = response.sns_check_result?.blog?.neighbors
+        const hasError = response.sns_check_result?.blog?.error
+        
+        if (!url) return '입력누락'
+        if (hasError || (url && neighbors === 0)) return '입력오류'
+        return neighbors || 0
+      })(),
+      '선정 여부': response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기',
+      '처리 상태': response.status === 'completed' ? '완료' : response.status === 'processing' ? '처리중' : '대기',
+      '선정 사유': response.selection_reason || '',
+      '신청일시': new Date(response.created_at).toLocaleString('ko-KR'),
+      ...Object.entries(response.data || {}).reduce((acc, [key, value]) => {
         if (key.startsWith('custom_')) {
           const field = customFields.find(f => f.name === key)
           if (field) {
@@ -485,6 +541,45 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                   </div>
                 </div>
               )}
+              
+              {/* 응답 데이터 섹션 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>응답 데이터 ({responses.length}개)</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={fetchResponses}
+                      disabled={loadingResponses}
+                    >
+                      {loadingResponses ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        '새로고침'
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={downloadExcel}
+                      disabled={responses.length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      엑셀 다운로드
+                    </Button>
+                  </div>
+                </div>
+                {responses.length > 0 && (
+                  <Alert>
+                    <AlertDescription>
+                      총 {responses.length}명이 신청했습니다.
+                      선정: {responses.filter(r => r.is_selected === true).length}명,
+                      탈락: {responses.filter(r => r.is_selected === false).length}명,
+                      대기: {responses.filter(r => r.is_selected === null).length}명
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
               
               {/* 폼 수정 */}
               <div className="space-y-2">

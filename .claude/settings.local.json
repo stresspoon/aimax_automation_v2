@@ -41,7 +41,8 @@
       "Bash(gh pr create:*)",
       "Bash(git pull:*)",
       "Bash(tree:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(npm run clean:*)"
     ],
     "deny": [],
     "ask": []
