@@ -29,69 +29,136 @@ async function processResponseInBackground(responseId: string) {
     
     if (!form) return
     
-    // SNS 체크
+    // SNS 체크 - 기본 필드와 커스텀 필드 모두 체크
     const snsResult: any = {
       threads: { followers: 0, checked: false },
       instagram: { followers: 0, checked: false },
-      blog: { neighbors: 0, checked: false }
+      blog: { neighbors: 0, checked: false },
+      custom: {} // 커스텀 SNS 필드 결과
     }
     
-    // Threads 체크
-    if (response.data?.threadsUrl) {
-      try {
-        const url = normalizeUrl(response.data.threadsUrl, 'threads')
-        const metrics = await parseMetrics(url)
-        snsResult.threads = {
-          url: response.data.threadsUrl,
-          followers: metrics.followers || 0,
-          checked: true
+    // URL 패턴으로 SNS 타입 감지
+    const detectSNSType = (url: string): 'threads' | 'instagram' | 'blog' | null => {
+      if (!url) return null
+      const lowerUrl = url.toLowerCase()
+      if (lowerUrl.includes('threads.net') || lowerUrl.includes('thread')) return 'threads'
+      if (lowerUrl.includes('instagram.com') || lowerUrl.includes('insta')) return 'instagram'
+      if (lowerUrl.includes('blog.naver.com') || lowerUrl.includes('tistory.com') || lowerUrl.includes('blog')) return 'blog'
+      return null
+    }
+    
+    // 모든 필드를 순회하면서 SNS URL 체크
+    for (const [fieldName, fieldValue] of Object.entries(response.data || {})) {
+      // URL 타입 필드이거나 URL 패턴을 포함하는 경우
+      if (typeof fieldValue === 'string' && 
+          (fieldName.toLowerCase().includes('url') || 
+           fieldName.toLowerCase().includes('link') ||
+           fieldValue.includes('http'))) {
+        
+        const snsType = detectSNSType(fieldValue)
+        
+        // 기본 필드 체크
+        if (fieldName === 'threadsUrl' || snsType === 'threads') {
+          try {
+            const url = normalizeUrl(fieldValue, 'threads')
+            const metrics = await parseMetrics(url)
+            if (fieldName === 'threadsUrl') {
+              snsResult.threads = {
+                url: fieldValue,
+                followers: metrics.followers || 0,
+                checked: true
+              }
+            } else {
+              // 커스텀 필드로 저장
+              snsResult.custom[fieldName] = {
+                type: 'threads',
+                url: fieldValue,
+                followers: metrics.followers || 0,
+                checked: true
+              }
+            }
+          } catch (err) {
+            console.error(`Threads check error for ${fieldName}:`, err)
+          }
+        } else if (fieldName === 'instagramUrl' || snsType === 'instagram') {
+          try {
+            const url = normalizeUrl(fieldValue, 'instagram')
+            const metrics = await parseMetrics(url)
+            if (fieldName === 'instagramUrl') {
+              snsResult.instagram = {
+                url: fieldValue,
+                followers: metrics.followers || 0,
+                checked: true
+              }
+            } else {
+              // 커스텀 필드로 저장
+              snsResult.custom[fieldName] = {
+                type: 'instagram',
+                url: fieldValue,
+                followers: metrics.followers || 0,
+                checked: true
+              }
+            }
+          } catch (err) {
+            console.error(`Instagram check error for ${fieldName}:`, err)
+          }
+        } else if (fieldName === 'blogUrl' || snsType === 'blog') {
+          try {
+            const url = normalizeUrl(fieldValue, 'blog')
+            const metrics = await parseMetrics(url)
+            if (fieldName === 'blogUrl') {
+              snsResult.blog = {
+                url: fieldValue,
+                neighbors: metrics.neighbors || 0,
+                checked: true
+              }
+            } else {
+              // 커스텀 필드로 저장
+              snsResult.custom[fieldName] = {
+                type: 'blog',
+                url: fieldValue,
+                neighbors: metrics.neighbors || 0,
+                checked: true
+              }
+            }
+          } catch (err) {
+            console.error(`Blog check error for ${fieldName}:`, err)
+          }
         }
-      } catch (err) {
-        console.error('Threads check error:', err)
       }
     }
     
-    // Instagram 체크
-    if (response.data?.instagramUrl) {
-      try {
-        const url = normalizeUrl(response.data.instagramUrl, 'instagram')
-        const metrics = await parseMetrics(url)
-        snsResult.instagram = {
-          url: response.data.instagramUrl,
-          followers: metrics.followers || 0,
-          checked: true
-        }
-      } catch (err) {
-        console.error('Instagram check error:', err)
-      }
-    }
-    
-    // Blog 체크
-    if (response.data?.blogUrl) {
-      try {
-        const url = normalizeUrl(response.data.blogUrl, 'blog')
-        const metrics = await parseMetrics(url)
-        snsResult.blog = {
-          url: response.data.blogUrl,
-          neighbors: metrics.neighbors || 0,
-          checked: true
-        }
-      } catch (err) {
-        console.error('Blog check error:', err)
-      }
-    }
-    
-    // 선정 기준 확인
+    // 선정 기준 확인 - 기본 필드와 커스텀 필드 모두 확인
     const criteria = form.settings?.selectionCriteria || {
       threads: 500,
       blog: 300,
       instagram: 1000
     }
     
-    const isSelected = 
-      (snsResult.threads.followers >= criteria.threads) ||
-      (snsResult.instagram.followers >= criteria.instagram) ||
-      (snsResult.blog.neighbors >= criteria.blog)
+    // 기본 필드 체크
+    let isSelected = 
+      (snsResult.threads.checked && snsResult.threads.followers >= criteria.threads) ||
+      (snsResult.instagram.checked && snsResult.instagram.followers >= criteria.instagram) ||
+      (snsResult.blog.checked && snsResult.blog.neighbors >= criteria.blog)
+    
+    // 커스텀 필드도 체크
+    if (!isSelected && snsResult.custom) {
+      for (const customField of Object.values(snsResult.custom)) {
+        const field = customField as any
+        if (field.checked) {
+          if (field.type === 'threads' && field.followers >= criteria.threads) {
+            isSelected = true
+            break
+          } else if (field.type === 'instagram' && field.followers >= criteria.instagram) {
+            isSelected = true
+            break
+          } else if (field.type === 'blog' && field.neighbors >= criteria.blog) {
+            isSelected = true
+            break
+          }
+        }
+      }
+    }
     
     console.log('✅ SNS Check Result:', snsResult)
     console.log('✅ Selection:', isSelected ? '선정' : '탈락')
