@@ -198,10 +198,11 @@ async function processResponseInBackground(responseId: string) {
 // POST: 폼 응답 제출
 export async function POST(req: Request) {
   try {
-    // 폼 응답 제출은 공개 API이므로 일반 클라이언트 사용
-    const supabase = await createClient()
     const data = await req.json()
     const { formId, ...responseData } = data
+    
+    // 폼 응답 제출은 공개 API이므로 일반 클라이언트 사용
+    const supabase = await createClient()
     
     // 폼 확인 (공개 폼 조회)
     const { data: form, error: formError } = await supabase
