@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
 import { contentGuidelines } from '@/lib/contentGuidelines'
+import * as XLSX from 'xlsx'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -2282,6 +2283,35 @@ export default function CustomerAcquisitionPage() {
                   className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
                 >
                   새로고침
+                </button>
+                <button
+                  onClick={() => {
+                    const rows = (projectData.step2.candidates || []).map((c: any) => ({
+                      이름: c.name || '',
+                      이메일: c.email || '',
+                      연락처: c.phone || '',
+                      Threads: c.threads ?? '',
+                      블로그: c.blog ?? '',
+                      인스타그램: c.instagram ?? '',
+                      상태: c.status === 'selected' ? '선정' : '미달',
+                      스레드URL: c.threadsUrl || '',
+                      인스타URL: c.instagramUrl || '',
+                      블로그URL: c.blogUrl || '',
+                      신청경로: c.source || ''
+                    }))
+                    if (rows.length === 0) {
+                      alert('다운로드할 데이터가 없습니다')
+                      return
+                    }
+                    const ws = XLSX.utils.json_to_sheet(rows)
+                    const wb = XLSX.utils.book_new()
+                    XLSX.utils.book_append_sheet(wb, ws, '지원자')
+                    const fileName = `지원자_${new Date().toISOString().slice(0,10)}.xlsx`
+                    XLSX.writeFile(wb, fileName)
+                  }}
+                  className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
+                >
+                  엑셀 다운로드
                 </button>
               </div>
             </div>

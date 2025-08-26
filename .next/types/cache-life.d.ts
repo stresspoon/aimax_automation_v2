@@ -14,12 +14,12 @@ declare module 'next/cache' {
     /**
      * Cache this `"use cache"` for a timespan defined by the `"default"` profile.
      * ```
-     *   stale:      300 seconds (5 minutes)
+     *   stale:      180 seconds (3 minutes)
      *   revalidate: 900 seconds (15 minutes)
      *   expire:     never
      * ```
      * 
-     * This cache may be stale on clients for 5 minutes before checking with the server.
+     * This cache may be stale on clients for 3 minutes before checking with the server.
      * If the server receives a new request after 15 minutes, start revalidating new values in the background.
      * It lives for the maximum age of the server cache. If this entry has no traffic for a while, it may serve an old value the next request.
      */
