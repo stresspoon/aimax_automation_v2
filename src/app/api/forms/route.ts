@@ -41,8 +41,12 @@ export async function GET(req: Request) {
     .eq('user_id', user.id)
   
   // projectId가 있으면 해당 프로젝트의 폼만 조회
+  // null인 경우에는 project_id가 null인 폼만 조회
   if (cleanProjectId) {
     query = query.eq('project_id', cleanProjectId)
+  } else {
+    // projectId가 null인 경우 - project_id가 null인 폼만 반환 (전역 폼)
+    query = query.is('project_id', null)
   }
   
   const { data: forms, error } = await query.order('created_at', { ascending: false })

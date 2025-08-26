@@ -71,11 +71,20 @@ function FormBuilderContent() {
   
   const loadExistingForm = async () => {
     try {
+      // projectId가 있을 때만 해당 프로젝트의 폼을 로드
+      if (!projectId || projectId === 'null' || projectId === 'undefined') {
+        // projectId가 없으면 폼을 로드하지 않음
+        return
+      }
+      
       const res = await fetch(`/api/forms?projectId=${projectId}`)
       if (res.ok) {
         const forms = await res.json()
-        if (forms && forms.length > 0) {
-          const existingForm = forms[0]
+        // 정확히 현재 projectId와 일치하는 폼만 필터링
+        const projectForms = forms.filter((f: any) => f.project_id === projectId)
+        
+        if (projectForms && projectForms.length > 0) {
+          const existingForm = projectForms[0]
           setForm(existingForm)
           setFormTitle(existingForm.title || '')
           setFormDescription(existingForm.description || '')
