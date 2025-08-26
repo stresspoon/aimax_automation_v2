@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkUsageLimit, incrementUsage } from '@/lib/usage'
+import { contentGuidelines } from '@/lib/contentGuidelines'
 import OpenAI from 'openai'
 
 const BodySchema = z.object({
@@ -11,30 +12,20 @@ const BodySchema = z.object({
 })
 
 function buildPrompt({ keyword, contentType, instructions }: { keyword: string; contentType: 'blog' | 'thread'; instructions: string }) {
-  const base = `당신은 한국어 콘텐츠 전문가입니다. 사용자의 지침을 충실히 따라 고품질 콘텐츠를 작성하세요.`
+  // instructions에서 정보성/판매성 구분
+  const isInformative = instructions.includes('정보') || instructions.includes('가이드') || instructions.includes('설명')
+  const guidanceType = isInformative ? 'informative' : 'sales'
   
-  const task = contentType === 'blog'
-    ? `작성 형식:
-- 블로그 글 (도입부, 본문, 결론 구조)
-- 분량: 1,500~2,000자
-- 키워드 "${keyword}"를 1.5~2% 밀도로 자연스럽게 포함
-- H2, H3 소제목을 명확히 구분
-- 불릿포인트와 번호 목록 활용
-- 마지막에 CTA(Call to Action) 포함`
-    : `작성 형식:
-- 스레드 형식 (5-6줄, 총 150자 이내)
-- 키워드 "${keyword}"를 자연스럽게 1-2회 포함
-- 한 줄씩 띄어쓰기로 구분
-- 임팩트 있는 첫 줄로 시작
-- 마지막은 참여 유도 질문으로 마무리`
+  // contentGuidelines에서 적절한 가이드라인 선택
+  const baseGuideline = contentGuidelines[contentType][guidanceType]
   
-  return `${base}
+  return `${baseGuideline}
+
+[핵심 키워드]
+${keyword}
 
 [작성 지침]
 ${instructions}
-
-[작업 규격]
-${task}
 
 [출력 형식]
 제목: [여기에 제목 작성]
@@ -220,7 +211,7 @@ export async function POST(req: Request) {
     const prompt = buildPrompt({ keyword: body.keyword, contentType: body.contentType, instructions: body.instructions })
 
     // 데이터베이스에서 모델 설정 확인, 없으면 환경 변수 사용
-    let model = process.env.OPENAI_MODEL || 'gpt-5-mini'
+    let model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
     
     try {
       const { createClient } = await import('@/lib/supabase/server')
@@ -243,20 +234,24 @@ export async function POST(req: Request) {
       console.log('[Generate API] OpenAI API 호출 시작 (모델: ' + model + ')')
       const openaiStartTime = Date.now()
       
-      // GPT-5 새로운 Responses API 사용 (타임아웃 설정)
+      // OpenAI Chat Completions API 사용 (타임아웃 설정)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃
       
-      const response = await openai.responses.create({
+      const response = await openai.chat.completions.create({
         model: model,
-        instructions: '당신은 한국어 마케팅 카피라이터입니다. 주어진 지침에 따라 고품질의 마케팅 콘텐츠를 작성해주세요.',
-        input: prompt,
-        reasoning: {
-          effort: body.contentType === 'blog' ? 'medium' : 'low' // 속도 개선을 위해 추론 수준 조정
-        },
-        text: {
-          verbosity: body.contentType === 'blog' ? 'medium' : 'low' // 적절한 상세도로 조정
-        }
+        messages: [
+          {
+            role: 'system',
+            content: '당신은 한국어 마케팅 카피라이터입니다. 주어진 지침에 따라 고품질의 마케팅 콘텐츠를 작성해주세요.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: body.contentType === 'blog' ? 3000 : 500,
       }, {
         signal: controller.signal
       })
@@ -265,7 +260,7 @@ export async function POST(req: Request) {
       
       console.log('[Generate API] OpenAI API 응답 소요 시간:', Date.now() - openaiStartTime, 'ms')
 
-      const text = response.output_text || ''
+      const text = response.choices[0]?.message?.content || ''
       if (!text) {
         return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
       }
