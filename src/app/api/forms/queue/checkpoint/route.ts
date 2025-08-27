@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // 주기적 체크포인트: 누락/중단 건 복구 및 재큐잉
-export async function POST() {
+export async function POST(req: Request) {
+  // Secret header check
+  const secret = process.env.CRON_SECRET
+  const given = req.headers.get('x-cron-secret') || new URL(req.url).searchParams.get('token')
+  if (!secret || given !== secret) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
   const admin = createAdminClient()
 
   try {

@@ -1,0 +1,20 @@
+name: Queue Checkpoint
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  run-checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call checkpoint endpoint
+        run: |
+          curl -sS -X POST "$BASE_URL/api/forms/queue/checkpoint" \
+            -H "x-cron-secret: $CRON_SECRET"
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+

@@ -6,9 +6,5 @@
   },
   "env": {
     "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
-  },
-  "crons": [
-    { "path": "/api/forms/queue/worker", "schedule": "* * * * *" },
-    { "path": "/api/forms/queue/checkpoint", "schedule": "*/2 * * * *" }
-  ]
+  }
 }

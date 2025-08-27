@@ -1,0 +1,20 @@
+name: Queue Worker
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  run-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call worker endpoint
+        run: |
+          curl -sS -X POST "$BASE_URL/api/forms/queue/worker" \
+            -H "x-cron-secret: $CRON_SECRET"
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+

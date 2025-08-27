@@ -12,7 +12,13 @@ type QueueItem = {
   max_retries: number
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  // Secret header check
+  const secret = process.env.CRON_SECRET
+  const given = req.headers.get('x-cron-secret') || new URL(req.url).searchParams.get('token')
+  if (!secret || given !== secret) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
   const admin = createAdminClient()
 
   try {
