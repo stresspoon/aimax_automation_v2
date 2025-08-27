@@ -315,11 +315,12 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       }, 2000)
       return () => clearInterval(timer)
     }
+    return undefined
   }, [form?.id])
 
   // Realtime: 프로젝트 범위 응답 변경 감지 후 즉시 갱신
   useEffect(() => {
-    if (!projectId) return
+    if (!projectId) return undefined
     const supabase = createSbClient()
     const channel = supabase
       .channel(`responses-project-${projectId}`)
