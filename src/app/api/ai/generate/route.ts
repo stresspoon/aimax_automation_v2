@@ -251,7 +251,8 @@ export async function POST(req: Request) {
           }
         ],
         temperature: 0.7,
-        max_tokens: body.contentType === 'blog' ? 3000 : 500,
+        // gpt-5 계열: max_tokens 대신 max_completion_tokens 사용
+        ...(model.startsWith('gpt-5') ? { max_completion_tokens: body.contentType === 'blog' ? 3000 : 500 } : { max_tokens: body.contentType === 'blog' ? 3000 : 500 }),
       }, {
         signal: controller.signal
       })

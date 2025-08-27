@@ -293,8 +293,8 @@ export default function CustomerAcquisitionDashboard() {
             <p className="text-2xl font-bold text-primary">{stats.activeProjects}</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-card p-4 rounded-lg border">
-            <p className="text-sm text-muted-foreground mb-1">작성된 콘텐츠</p>
-            <p className="text-2xl font-bold">{stats.totalContents}</p>
+            <p className="text-sm text-muted-foreground mb-1">모집된 총 인원</p>
+            <p className="text-2xl font-bold">{stats.totalLeads}</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card p-4 rounded-lg border">
             <p className="text-sm text-muted-foreground mb-1">발송된 이메일</p>
@@ -304,10 +304,7 @@ export default function CustomerAcquisitionDashboard() {
             <p className="text-sm text-muted-foreground mb-1">전환율</p>
             <p className="text-2xl font-bold">{stats.conversionRate}%</p>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-card p-4 rounded-lg border">
-            <p className="text-sm text-muted-foreground mb-1">총 리드</p>
-            <p className="text-2xl font-bold">{stats.totalLeads}</p>
-          </motion.div>
+          {/* 기존 '총 리드' 카드는 '모집된 총 인원' 카드로 대체되어 제거 */}
         </div>
 
         <div className="bg-card rounded-lg border">
