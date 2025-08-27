@@ -36,12 +36,30 @@ export async function GET(req: Request) {
     // 프로젝트의 모든 폼 응답 가져오기 (프로젝트 스코프 강제)
     const formIds = forms.map(f => f.id)
     console.log('Fetching responses for forms:', formIds)
-    const { data: responses, error } = await supabase
-      .from('form_responses_temp')
-      .select('*')
-      .in('form_id', formIds)
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
+    let responses: any[] | null = null
+    let error: any = null
+    try {
+      const q = await supabase
+        .from('form_responses_temp')
+        .select('*')
+        .in('form_id', formIds)
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+      responses = q.data
+      error = q.error
+      if (error && /project_id/.test(error.message || '')) {
+        // 컬럼 미존재 등 호환 이슈 시 project_id 필터 없이 재조회 (폼 범위로 충분히 격리됨)
+        const q2 = await supabase
+          .from('form_responses_temp')
+          .select('*')
+          .in('form_id', formIds)
+          .order('created_at', { ascending: false })
+        responses = q2.data
+        error = q2.error
+      }
+    } catch (e) {
+      error = e
+    }
     console.log(`Found ${responses?.length || 0} responses for project ${projectId}`)
     
     if (error) {
