@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +34,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
+import { createClient as createSbClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,7 +88,7 @@ export default function ProjectsPage() {
   const limit = 10
 
   // 프로젝트 목록 가져오기
-  const fetchProjects = async (showToast = false) => {
+  const fetchProjects = useCallback(async (showToast = false) => {
     try {
       if (showToast) setIsRefreshing(true)
       else setIsLoading(true)
@@ -144,7 +145,7 @@ export default function ProjectsPage() {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentPage, searchQuery, statusFilter, platformFilter, toast])
 
   // 프로젝트 상태 변경
   const updateProjectStatus = async (projectId: string, status: string) => {
@@ -209,7 +210,29 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects()
-  }, [currentPage, searchQuery, statusFilter, platformFilter])
+  }, [fetchProjects])
+
+  // Realtime 구독: projects/forms/form_responses_temp 변경 시 리스트 갱신
+  useEffect(() => {
+    const supabase = createSbClient()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const schedule = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => fetchProjects(), 500)
+    }
+
+    const channel = supabase
+      .channel('admin-projects-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forms' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'form_responses_temp' }, schedule)
+      .subscribe()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchProjects])
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
