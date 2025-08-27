@@ -303,6 +303,16 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   useEffect(() => {
     if (form?.id) {
       fetchResponses()
+      // 짧은 기간 폴링(상태 완료 시점 반영)
+      const start = Date.now()
+      const timer = setInterval(() => {
+        if (Date.now() - start > 30000) { // 30초 제한
+          clearInterval(timer)
+          return
+        }
+        fetchResponses()
+      }, 2000)
+      return () => clearInterval(timer)
     }
   }, [form?.id])
   
@@ -627,10 +637,29 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
                   <Label>수집된 데이터</Label>
                   <Badge>{candidates.length}명</Badge>
                 </div>
-                <Button onClick={downloadExcel} variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  엑셀 다운로드
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!form?.id) return
+                      try {
+                        await fetch(`/api/forms/process`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ responseId: null })
+                        })
+                      } catch {}
+                      fetchResponses()
+                    }}
+                  >
+                    재검사
+                  </Button>
+                  <Button onClick={downloadExcel} variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    엑셀 다운로드
+                  </Button>
+                </div>
               </div>
             </div>
           )}
