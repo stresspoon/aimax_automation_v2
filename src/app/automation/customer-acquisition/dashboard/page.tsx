@@ -235,10 +235,25 @@ export default function CustomerAcquisitionDashboard() {
   };
 
   const kpiText = (project: any) => {
-    const leads = project.leads_count || 0;
+    const leads = project.leads_count || 0; // DB 모집 수로도 노출
+    const dbCollected = leads;
     const emails = project.emails_sent || 0;
     const updated = project.updated_at ? new Date(project.updated_at).toLocaleString('ko-KR') : '-';
-    return `리드 ${leads} · 발송 ${emails} · 업데이트 ${updated}`;
+    return (
+      <div className="text-sm">
+        <span>DB모집 </span>
+        <span className="text-primary font-semibold">{dbCollected}</span>
+        <span className="mx-1">·</span>
+        <span>리드 </span>
+        <span className="text-primary font-semibold">{leads}</span>
+        <span className="mx-1">·</span>
+        <span>발송 </span>
+        <span className="text-primary font-semibold">{emails}</span>
+        <span className="mx-1">·</span>
+        <span>업데이트 </span>
+        <span className="text-primary font-semibold">{updated}</span>
+      </div>
+    );
   };
 
   return (
@@ -322,7 +337,7 @@ export default function CustomerAcquisitionDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-xl font-bold mb-1">{project.campaigns?.name || project.campaign_name || project.data?.campaign_name || '제목 없음'}</h3>
-                      <div className="text-sm text-muted-foreground">{kpiText(project)}</div>
+                      <div>{kpiText(project)}</div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <Link href={`/automation/customer-acquisition?projectId=${project.id}`} className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg font-semibold transition">
