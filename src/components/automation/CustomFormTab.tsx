@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import * as XLSX from 'xlsx'
+import { createClient as createSbClient } from '@/lib/supabase/client'
 
 interface CustomFormTabProps {
   projectId: string | null
@@ -315,6 +316,26 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       return () => clearInterval(timer)
     }
   }, [form?.id])
+
+  // Realtime: 프로젝트 범위 응답 변경 감지 후 즉시 갱신
+  useEffect(() => {
+    if (!projectId) return
+    const supabase = createSbClient()
+    const channel = supabase
+      .channel(`responses-project-${projectId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'form_responses_temp',
+        filter: `project_id=eq.${projectId}`,
+      }, () => {
+        fetchResponses()
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [projectId, form?.id])
   
   // 엑셀 다운로드
   const downloadExcel = () => {
