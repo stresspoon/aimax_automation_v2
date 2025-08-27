@@ -17,7 +17,6 @@ export default function RootLayout({
         {children}
         <footer className="border-t mt-12">
           <div className="max-w-5xl mx-auto px-4 py-6 text-sm text-muted-foreground flex items-center justify-between">
-            <span>© {new Date().getFullYear()} AIMAX. All rights reserved.</span>
             <nav className="flex items-center gap-4">
               <a href="/privacy" className="hover:text-foreground">개인정보처리방침</a>
               <a href="/terms" className="hover:text-foreground">서비스 이용약관</a>
