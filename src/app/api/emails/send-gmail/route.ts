@@ -30,18 +30,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '필수 정보가 누락되었습니다' }, { status: 400 })
     }
     
+    // 환경변수 검증
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET envs')
+      return NextResponse.json({ error: '서버 환경설정(Google Client)이 누락되었습니다' }, { status: 500 })
+    }
+    if (!process.env.NEXT_PUBLIC_BASE_URL) {
+      console.warn('NEXT_PUBLIC_BASE_URL is not set - gmail-callback may be misconfigured')
+    }
     // OAuth2 클라이언트 설정
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.NEXT_PUBLIC_BASE_URL}/auth/gmail-callback`
+      `${process.env.NEXT_PUBLIC_BASE_URL || ''}/auth/gmail-callback`
     )
     
     // 토큰 설정
     oauth2Client.setCredentials({
-      access_token: gmailConnection.access_token,
       refresh_token: gmailConnection.refresh_token,
+      access_token: gmailConnection.access_token,
     })
+
+    // 토큰 유효성 사전 확인(자동 갱신 유도)
+    try {
+      await oauth2Client.getAccessToken()
+    } catch (tokenErr: any) {
+      const msg = tokenErr?.message || ''
+      console.error('Gmail token refresh error:', msg)
+      // 클라이언트 불일치/만료 등은 재연결 유도
+      return NextResponse.json({ error: 'Gmail 토큰이 유효하지 않습니다. Gmail을 다시 연결해주세요.' }, { status: 401 })
+    }
     
     // Gmail API 초기화
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
