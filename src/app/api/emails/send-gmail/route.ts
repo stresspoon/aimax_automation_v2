@@ -24,10 +24,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Gmail이 연결되지 않았습니다' }, { status: 400 })
     }
     
-    const { recipients, subject, body, replyTo } = await req.json()
+    const requestBody = await req.json()
+    console.log('[Gmail API] Request body:', JSON.stringify(requestBody, null, 2))
+    
+    const { recipients, subject, body, replyTo } = requestBody
     
     if (!recipients || !subject || !body) {
+      console.error('[Gmail API] Missing required fields:', { 
+        hasRecipients: !!recipients, 
+        hasSubject: !!subject, 
+        hasBody: !!body,
+        recipientsLength: Array.isArray(recipients) ? recipients.length : 'not array'
+      })
       return NextResponse.json({ error: '필수 정보가 누락되었습니다' }, { status: 400 })
+    }
+    
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      console.error('[Gmail API] Invalid recipients:', recipients)
+      return NextResponse.json({ error: '수신자 정보가 올바르지 않습니다' }, { status: 400 })
     }
     
     // 환경변수 검증
@@ -70,13 +84,27 @@ export async function POST(req: Request) {
     
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
-      const recipientEmail = recipient?.email || ''
+      const recipientEmail = recipient?.email || recipient
+      
+      // 이메일 주소 검증
+      if (!recipientEmail || typeof recipientEmail !== 'string' || !recipientEmail.includes('@')) {
+        console.error('[Gmail API] Invalid email address:', recipientEmail)
+        errors.push({
+          recipient: String(recipientEmail),
+          status: 'failed',
+          error: '유효하지 않은 이메일 주소',
+        })
+        continue
+      }
+      
       try {
         // 디버깅 로그
         console.log('Processing recipient:', recipient)
         
-        // 수신자 정보 확인 - candidates에서 가져올 수도 있음
-        const recipientName = recipient.name || recipient.username || '고객님'
+        // 수신자 정보 확인 - recipient이 객체인 경우와 문자열인 경우 모두 처리
+        const recipientName = (typeof recipient === 'object') 
+          ? (recipient.name || recipient.username || '고객님')
+          : '고객님'
         
         // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 모두 지원
         let processedSubject = subject
@@ -135,32 +163,26 @@ export async function POST(req: Request) {
           },
         })
 
-        // 보낸편지함 라벨 확인(실제 발송 여부 검증)
-        let sentConfirmed = false
+        // 보낸편지함 라벨 확인은 참고용 경고 로그로만 남김 (일부 계정에서 지연될 수 있음)
         try {
           if (result.data.id) {
             const sentMsg = await gmail.users.messages.get({ userId: 'me', id: result.data.id })
             const labels = sentMsg.data.labelIds || []
-            sentConfirmed = Array.isArray(labels) && labels.includes('SENT')
+            const sentConfirmed = Array.isArray(labels) && labels.includes('SENT')
+            if (!sentConfirmed) {
+              console.warn(`SENT 라벨이 즉시 확인되지 않았습니다: ${recipientEmail}`)
+            }
           }
         } catch (verifyErr) {
-          console.warn('Gmail sent verification failed:', (verifyErr as any)?.message || verifyErr)
+          console.warn('Gmail sent verification check failed:', (verifyErr as any)?.message || verifyErr)
         }
 
-        if (sentConfirmed) {
-          results.push({
-            recipient: recipientEmail,
-            status: 'success',
-            messageId: result.data.id,
-          })
-        } else {
-          console.error(`Gmail did not confirm SENT label for ${recipientEmail}`)
-          errors.push({
-            recipient: recipientEmail,
-            status: 'failed',
-            error: 'Gmail이 보낸편지함으로 확인되지 않았습니다(SENT 라벨 누락).',
-          })
-        }
+        // Gmail API 호출 성공 시 성공으로 간주
+        results.push({
+          recipient: recipientEmail,
+          status: 'success',
+          messageId: result.data.id,
+        })
       } catch (error: any) {
         const detailed = error?.response?.data?.error?.message || error?.message || String(error)
         console.error(`Email send error for ${recipientEmail}:`, detailed)
@@ -188,23 +210,14 @@ export async function POST(req: Request) {
         )
     }
     
-    // 전부 실패한 경우 에러 코드로 반환해 클라이언트가 실패 팝업을 표시하도록 함
-    if (results.length === 0) {
-      return NextResponse.json({
-        success: false,
-        sent: 0,
-        failed: errors.length,
-        results,
-        errors,
-      }, { status: 400 })
-    }
-
+    // 항상 200으로 결과 요약 반환 (클라이언트가 sent/failed에 따라 메시지 표시)
     return NextResponse.json({
       success: errors.length === 0,
       sent: results.length,
       failed: errors.length,
       results,
       errors,
+      ...(results.length === 0 ? { error: '모든 수신자에게 발송에 실패했습니다.' } : {}),
     })
   } catch (error: any) {
     console.error('Gmail send error:', error)
