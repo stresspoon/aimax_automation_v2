@@ -107,6 +107,8 @@ export async function POST(req: Request) {
           `Subject: =?UTF-8?B?${Buffer.from(processedSubject, 'utf-8').toString('base64')}?=`,
           replyTo ? `Reply-To: ${replyTo}` : '',
           'MIME-Version: 1.0',
+          `Date: ${new Date().toUTCString()}`,
+          'Content-Transfer-Encoding: 7bit',
           'Content-Type: text/html; charset=utf-8',
           '',
           processedBody
@@ -132,18 +134,40 @@ export async function POST(req: Request) {
             raw: encodedMessage,
           },
         })
-        
-        results.push({
-          recipient: recipientEmail,
-          status: 'success',
-          messageId: result.data.id,
-        })
+
+        // 보낸편지함 라벨 확인(실제 발송 여부 검증)
+        let sentConfirmed = false
+        try {
+          if (result.data.id) {
+            const sentMsg = await gmail.users.messages.get({ userId: 'me', id: result.data.id })
+            const labels = sentMsg.data.labelIds || []
+            sentConfirmed = Array.isArray(labels) && labels.includes('SENT')
+          }
+        } catch (verifyErr) {
+          console.warn('Gmail sent verification failed:', (verifyErr as any)?.message || verifyErr)
+        }
+
+        if (sentConfirmed) {
+          results.push({
+            recipient: recipientEmail,
+            status: 'success',
+            messageId: result.data.id,
+          })
+        } else {
+          console.error(`Gmail did not confirm SENT label for ${recipientEmail}`)
+          errors.push({
+            recipient: recipientEmail,
+            status: 'failed',
+            error: 'Gmail이 보낸편지함으로 확인되지 않았습니다(SENT 라벨 누락).',
+          })
+        }
       } catch (error: any) {
-        console.error(`Email send error for ${recipientEmail}:`, error)
+        const detailed = error?.response?.data?.error?.message || error?.message || String(error)
+        console.error(`Email send error for ${recipientEmail}:`, detailed)
         errors.push({
           recipient: recipientEmail,
           status: 'failed',
-          error: error.message || '발송 실패',
+          error: detailed || '발송 실패',
         })
       }
     }
@@ -164,8 +188,19 @@ export async function POST(req: Request) {
         )
     }
     
+    // 전부 실패한 경우 에러 코드로 반환해 클라이언트가 실패 팝업을 표시하도록 함
+    if (results.length === 0) {
+      return NextResponse.json({
+        success: false,
+        sent: 0,
+        failed: errors.length,
+        results,
+        errors,
+      }, { status: 400 })
+    }
+
     return NextResponse.json({
-      success: true,
+      success: errors.length === 0,
       sent: results.length,
       failed: errors.length,
       results,
