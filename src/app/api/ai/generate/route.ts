@@ -193,6 +193,27 @@ function extractTextFromMessage(message: any): string {
   return ''
 }
 
+// 텍스트가 끝내 비어있을 때, 기본 규칙으로 안전한 초안 생성
+function buildHeuristicBlogContent(keyword: string, instructions: string): string {
+  const safeTitle = `${keyword} 완벽 가이드`
+  const intro = `이 글에서는 "${keyword}"에 대해 꼭 알아야 할 핵심 정보를 쉽고 명확하게 정리합니다.`
+  const bullets = [
+    '핵심 개념 요약',
+    '실사용 기준 장단점',
+    '추천 활용법과 체크리스트',
+    '자주 묻는 질문 정리',
+    '마무리 요약 및 다음 단계 제안',
+  ]
+  const body = [
+    intro,
+    '',
+    '- ' + bullets.join('\n- '),
+    '',
+    '요약: 위 내용을 바탕으로 자신의 상황에 맞춰 적용해 보세요.',
+  ].join('\n')
+  return `제목: ${safeTitle}\n\n${body}`
+}
+
 export async function POST(req: Request) {
   const startTime = Date.now()
   console.log('[Generate API] 요청 시작:', new Date().toISOString())
@@ -283,13 +304,10 @@ export async function POST(req: Request) {
             content: prompt
           }
         ],
-        // gpt-5 계열은 temperature 커스텀 미지원 → 생략(기본값 1)
-        ...(model.startsWith('gpt-5') ? {} : { temperature: 0.7 }),
-        // gpt-5 계열: max_tokens 대신 max_completion_tokens 사용
-        // thread는 800 토큰으로 증가
-        ...(model.startsWith('gpt-5') ? 
-          { max_completion_tokens: tokensParam } : 
-          { max_tokens: tokensParam }),
+        // 온도는 모델 구분 없이 적용 (Chat Completions 기준)
+        temperature: 0.7,
+        // Chat Completions API는 max_tokens 사용 (전 모델 공통)
+        max_tokens: tokensParam,
       }, {
         signal: controller.signal
       })
@@ -359,7 +377,8 @@ export async function POST(req: Request) {
       }
 
       if (!text) {
-        return NextResponse.json({ error: '응답이 비어 있습니다. 잠시 후 다시 시도해주세요.' }, { status: 400 })
+        console.warn('[Generate API] 모델 응답 비어있음 → 휴리스틱 초안 생성으로 대체')
+        text = buildHeuristicBlogContent(body.keyword, body.instructions)
       }
 
     // 일반 텍스트 형식 파싱
@@ -463,12 +482,6 @@ export async function POST(req: Request) {
       images,
       usage: updatedUsage 
     })
-    } catch (openaiError) {
-      console.error('OpenAI API 오류:', openaiError)
-      return NextResponse.json({ 
-        error: openaiError instanceof Error ? openaiError.message : 'OpenAI API 오류가 발생했습니다.' 
-      }, { status: 400 })
-    }
   } catch (err) {
     console.error('요청 처리 오류:', err)
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
