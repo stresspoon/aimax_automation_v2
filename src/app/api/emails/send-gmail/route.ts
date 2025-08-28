@@ -70,13 +70,13 @@ export async function POST(req: Request) {
     
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
+      const recipientEmail = recipient?.email || ''
       try {
         // 디버깅 로그
         console.log('Processing recipient:', recipient)
         
         // 수신자 정보 확인 - candidates에서 가져올 수도 있음
         const recipientName = recipient.name || recipient.username || '고객님'
-        const recipientEmail = recipient.email
         
         // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 모두 지원
         let processedSubject = subject
