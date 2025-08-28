@@ -71,25 +71,39 @@ export async function POST(req: Request) {
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
       try {
+        // 디버깅 로그
+        console.log('Processing recipient:', recipient)
+        
+        // 수신자 정보 확인 - candidates에서 가져올 수도 있음
+        const recipientName = recipient.name || recipient.username || '고객님'
+        const recipientEmail = recipient.email
+        
         // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 모두 지원
         let processedSubject = subject
-          .replace(/\{\{name\}\}/g, recipient.name || '고객님')
-          .replace(/\{이름\}/g, recipient.name || '고객님')
-          .replace(/\{\{email\}\}/g, recipient.email || '')
-          .replace(/\{이메일\}/g, recipient.email || '')
+          .replace(/\{\{name\}\}/g, recipientName)
+          .replace(/\{이름\}/g, recipientName)
+          .replace(/\{name\}/g, recipientName)  // {name} 형식도 추가
+          .replace(/\{\{email\}\}/g, recipientEmail || '')
+          .replace(/\{이메일\}/g, recipientEmail || '')
+          .replace(/\{email\}/g, recipientEmail || '')  // {email} 형식도 추가
         
         let processedBody = body
-          .replace(/\{\{name\}\}/g, recipient.name || '고객님')
-          .replace(/\{이름\}/g, recipient.name || '고객님')
-          .replace(/\{\{email\}\}/g, recipient.email || '')
-          .replace(/\{이메일\}/g, recipient.email || '')
+          .replace(/\{\{name\}\}/g, recipientName)
+          .replace(/\{이름\}/g, recipientName)
+          .replace(/\{name\}/g, recipientName)  // {name} 형식도 추가
+          .replace(/\{\{email\}\}/g, recipientEmail || '')
+          .replace(/\{이메일\}/g, recipientEmail || '')
+          .replace(/\{email\}/g, recipientEmail || '')  // {email} 형식도 추가
           // 줄바꿈을 HTML <br> 태그로 변환
           .replace(/\n/g, '<br/>')
+        
+        console.log('Processed subject:', processedSubject)
+        console.log('Processed body (first 100 chars):', processedBody.substring(0, 100))
         
         // 이메일 메시지 생성
         const message = [
           `From: ${gmailConnection.email}`,
-          `To: ${recipient.email}`,
+          `To: ${recipientEmail}`,
           `Subject: =?UTF-8?B?${Buffer.from(processedSubject, 'utf-8').toString('base64')}?=`,
           replyTo ? `Reply-To: ${replyTo}` : '',
           'MIME-Version: 1.0',
@@ -120,14 +134,14 @@ export async function POST(req: Request) {
         })
         
         results.push({
-          recipient: recipient.email,
+          recipient: recipientEmail,
           status: 'success',
           messageId: result.data.id,
         })
       } catch (error: any) {
-        console.error(`Email send error for ${recipient.email}:`, error)
+        console.error(`Email send error for ${recipientEmail}:`, error)
         errors.push({
-          recipient: recipient.email,
+          recipient: recipientEmail,
           status: 'failed',
           error: error.message || '발송 실패',
         })
