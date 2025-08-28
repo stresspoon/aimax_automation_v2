@@ -257,13 +257,17 @@ export async function POST(req: Request) {
       console.log('모델 설정 로드 실패, 기본값 사용:', model)
     }
     
+    let text = ''
+    
     try {
       console.log('[Generate API] OpenAI API 호출 시작 (모델: ' + model + ')')
       const openaiStartTime = Date.now()
       
       // OpenAI Chat Completions API 사용 (타임아웃 설정)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃
+      // 블로그는 60초, 기타는 30초 타임아웃
+      const timeoutMs = body.contentType === 'blog' ? 60000 : 30000
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
       
       const tokensParam = body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500
 
@@ -295,18 +299,48 @@ export async function POST(req: Request) {
       console.log('[Generate API] OpenAI API 응답 소요 시간:', Date.now() - openaiStartTime, 'ms')
 
       const primaryMessage = response.choices?.[0]?.message
-      let text = extractTextFromMessage(primaryMessage)
-
-      // 거부 사유가 있는 경우 사용자에게 명확히 전달
-      const refusal = (primaryMessage as any)?.refusal
-      if (!text && refusal) {
-        return NextResponse.json({ error: `모델이 요청을 거부했습니다: ${refusal}` }, { status: 400 })
+      text = extractTextFromMessage(primaryMessage)
+    } catch (error: any) {
+      // gpt-5-mini 모델 오류 또는 타임아웃 시 폴백
+      console.error('[Generate API] 1차 시도 실패:', error.message)
+      
+      if (error.message?.includes('timeout') || error.message?.includes('abort')) {
+        return NextResponse.json({ error: '요청 시간이 초과되었습니다. 더 짧은 콘텐츠로 다시 시도해주세요.' }, { status: 408 })
       }
-
-      // 1차 시도에서 텍스트가 비어있는 경우, 안정적인 폴백 모델로 1회 재시도
-      if (!text) {
+      
+      // 모델 오류 시 gpt-4o-mini로 재시도
+      if (model.includes('gpt-5')) {
+        try {
+          console.log('[Generate API] gpt-4o-mini로 폴백 시도')
+          const fallbackModel = 'gpt-4o-mini'
+          const tokensParam = body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500
+          
+          const retryResponse = await openai.chat.completions.create({
+            model: fallbackModel,
+            messages: [
+              { role: 'system', content: '당신은 한국어 마케팅 카피라이터입니다. 주어진 지침에 따라 고품질의 마케팅 콘텐츠를 작성해주세요.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: tokensParam,
+          })
+          
+          const retryMessage = retryResponse.choices?.[0]?.message
+          text = extractTextFromMessage(retryMessage)
+        } catch (fallbackError) {
+          console.error('[Generate API] 폴백도 실패:', fallbackError)
+          throw fallbackError
+        }
+      } else {
+        throw error
+      }
+    }
+    
+    // 텍스트가 여전히 비어있는 경우 추가 폴백
+    if (!text) {
         try {
           const fallbackModel = 'gpt-4o-mini'
+          const fallbackTokens = body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500
           console.warn('[Generate API] 빈 응답 감지, 폴백 모델로 재시도:', fallbackModel)
           const retry = await openai.chat.completions.create({
             model: fallbackModel,
@@ -315,7 +349,7 @@ export async function POST(req: Request) {
               { role: 'user', content: prompt }
             ],
             temperature: 0.7,
-            max_tokens: tokensParam,
+            max_tokens: fallbackTokens,
           })
           const retryMessage = retry.choices?.[0]?.message
           text = extractTextFromMessage(retryMessage)
