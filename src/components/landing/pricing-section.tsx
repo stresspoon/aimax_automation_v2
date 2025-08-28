@@ -90,7 +90,7 @@ export function PricingSection() {
         {pricingPlans.map((plan) => (
           <div
             key={plan.name}
-            className={`flex-1 p-4 overflow-hidden rounded-xl flex flex-col justify-start items-start gap-6 ${plan.popular ? "bg-primary shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]" : "bg-card"}`}
+            className={`flex-1 p-4 overflow-hidden rounded-xl flex flex-col justify-between items-start gap-6 ${plan.popular ? "bg-primary shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]" : "bg-card"} h-full min-h-[420px]`}
             style={plan.popular ? {} : { outline: "1px solid hsl(var(--border))", outlineOffset: "-1px" }}
           >
             <div className="self-stretch flex flex-col justify-start items-start gap-6">
@@ -157,7 +157,7 @@ export function PricingSection() {
                 </div>
               </Button>
             </div>
-            <div className="self-stretch flex flex-col justify-start items-start gap-4">
+            <div className="self-stretch flex flex-col justify-start items-start gap-4 mt-auto">
               <div
                 className={`self-stretch text-sm font-medium leading-tight ${plan.popular ? "text-primary-foreground/70" : "text-muted-foreground"}`}
               >

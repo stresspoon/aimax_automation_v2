@@ -1,3 +1,4 @@
+"use client"
 import AiCodeReviews from "./bento/ai-code-reviews"
 import RealtimeCodingPreviews from "./bento/real-time-previews"
 import OneClickIntegrationsIllustration from "./bento/one-click-integrations-illustration"
@@ -5,12 +6,9 @@ import MCPConnectivityIllustration from "./bento/mcp-connectivity-illustration"
 import EasyDeployment from "./bento/easy-deployment"
 import ParallelCodingAgents from "./bento/parallel-agents"
 import type { FC } from "react"
+ 
 
-interface BentoCardProps {
-  title: string
-  description: string
-  Component: FC
-}
+interface BentoCardProps { title: string; description: string; Component: FC }
 
 const BentoCard = ({ title, description, Component }: BentoCardProps) => (
   <div className="overflow-hidden rounded-2xl border border-foreground/10 flex flex-col justify-start items-start relative">
@@ -29,7 +27,7 @@ const BentoCard = ({ title, description, Component }: BentoCardProps) => (
     <div className="self-stretch p-6 flex flex-col justify-start items-start gap-2 relative z-10">
       <div className="self-stretch flex flex-col justify-start items-start gap-1.5">
         <p className="self-stretch text-foreground text-lg font-normal leading-7">
-          {title} <br />
+          <span className="text-primary text-[1.3rem] md:text-2xl font-bold">{title}</span> <br />
           <span className="text-muted-foreground">{description}</span>
         </p>
       </div>
@@ -41,10 +39,11 @@ const BentoCard = ({ title, description, Component }: BentoCardProps) => (
 )
 
 export function BentoSection() {
+
   const cards = [
     {
       title: "AI 콘텐츠 생성",
-      description: "Gemini AI로 SEO 최적화된 블로그/스레드 자동 생성",
+      description: "GPT-5로 SEO 최적화된 블로그/스레드 자동 생성",
       Component: AiCodeReviews,
     },
     {
@@ -54,7 +53,7 @@ export function BentoSection() {
     },
     {
       title: "원클릭 통합",
-      description: "구글폼, 구글시트, Gmail 완벽 연동",
+      description: "폼, 시트, Gmail 완벽 연동",
       Component: OneClickIntegrationsIllustration,
     },
     {
@@ -81,7 +80,7 @@ export function BentoSection() {
         <div className="self-stretch py-8 md:py-14 flex flex-col justify-center items-center gap-2 z-10">
           <div className="flex flex-col justify-start items-center gap-4">
             <h2 className="w-full max-w-[655px] text-center text-foreground text-4xl md:text-6xl font-semibold leading-tight md:leading-[66px]">
-              한 명이 팀처럼, 모든 마케팅 자동화
+              마케팅 팀을 소유하세요.
             </h2>
             <p className="w-full max-w-[600px] text-center text-muted-foreground text-lg md:text-xl font-medium leading-relaxed">
               복잡한 마케팅 업무를 AI가 대신합니다. 당신은 전략에만 집중하세요

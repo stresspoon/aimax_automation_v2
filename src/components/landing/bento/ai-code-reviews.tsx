@@ -5,228 +5,91 @@ const AiCodeReviews: React.FC = () => {
     "--ai-primary-color": "hsl(var(--primary))",
     "--ai-background-color": "hsl(var(--background))",
     "--ai-text-color": "hsl(var(--foreground))",
-    "--ai-text-dark": "hsl(var(--primary-foreground))",
-    "--ai-border-color": "hsl(var(--border))",
-    "--ai-border-main": "hsl(var(--foreground) / 0.1)",
-    "--ai-highlight-primary": "hsl(var(--primary) / 0.12)",
-    "--ai-highlight-header": "hsl(var(--accent) / 0.2)",
+    "--ai-muted": "hsl(var(--muted-foreground))",
+    "--ai-border": "hsl(var(--border))",
+    "--ai-glass": "hsl(var(--card) / 0.2)",
   }
 
   return (
     <div
-      style={
-        {
-          width: "100%",
-          height: "100%",
-          position: "relative",
-          background: "transparent",
-          ...themeVars,
-        } as React.CSSProperties
-      }
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        background: "transparent",
+        ...themeVars,
+      } as React.CSSProperties}
       role="img"
-      aria-label="AI Code Reviews interface showing code suggestions with apply buttons"
+      aria-label="AI Content generation showing keywords to blog/thread outputs"
     >
-      {/* Background Message Box (Blurred) */}
       <div
         style={{
           position: "absolute",
-          top: "30px",
-          left: "50%",
-          transform: "translateX(-50%) scale(0.9)",
-          width: "340px",
-          height: "205.949px",
-          background: "linear-gradient(180deg, var(--ai-background-color) 0%, transparent 100%)",
-          opacity: 0.6,
-          borderRadius: "8.826px",
-          border: "0.791px solid var(--ai-border-color)",
-          overflow: "hidden",
-          backdropFilter: "blur(16px)",
+          inset: 0,
+          display: "grid",
+          gridTemplateColumns: "1fr 1.5fr",
+          gap: "16px",
+          padding: "16px",
+          boxSizing: "border-box",
         }}
       >
         <div
-          className="border rounded-lg bg-card"
           style={{
-            padding: "7.355px 8.826px",
-            height: "100%",
-            boxSizing: "border-box",
-            overflow: "hidden",
+            border: "1px solid var(--ai-border)",
+            borderRadius: 10,
+            background: "linear-gradient(180deg, var(--ai-glass) 0%, transparent 100%)",
+            padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
           }}
         >
-          <div
-            style={{
-              fontFamily: "'Geist Mono', 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-              fontSize: "9.562px",
-              lineHeight: "14.711px",
-              letterSpacing: "-0.2942px",
-              color: "hsl(var(--muted-foreground))",
-              width: "100%",
-              maxWidth: "320px",
-              margin: 0,
-            }}
-          >
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>switch (type) {"{"}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> case &apos;success&apos;:</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> return {"{"}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {"          border: theme === 'dark' ? 'border-[rgba(34,197,94,0.4)]' : 'border-green-200',"}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> icon: (</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'            <svg className={\'baseIconClasses\'} fill="none" viewBox="0 0 14 14">'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> &lt;path</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                d="M3.85156 7.875L6.47656 10.5L10.8516 3.5"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                stroke="var(--ai-primary-color)"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                strokeLinecap="round"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                strokeLinejoin="round"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>{'                strokeWidth="1.5"'}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> /&gt;</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> &lt;/svg&gt;</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "var(--ai-muted)", fontSize: 12 }}>키워드 입력</span>
+            <span style={{ background: "var(--ai-primary-color)", color: "hsl(var(--primary-foreground))", borderRadius: 6, padding: "2px 6px", fontSize: 10 }}>GPT-5</span>
           </div>
-        </div>
-      </div>
-
-      {/* Foreground Message Box (Main) */}
-      <div
-        style={{
-          position: "absolute",
-          top: "51.336px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "340px",
-          height: "221.395px",
-          background: "var(--ai-background-color)",
-          backdropFilter: "blur(16px)",
-          borderRadius: "9.488px",
-          border: "1px solid var(--ai-border-main)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          className="bg-card border border-border"
-          style={{
-            padding: "9.488px",
-            height: "100%",
-            boxSizing: "border-box",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              width: "100%",
-              top: "47.67px",
-              height: "33.118px",
-              background: "hsl(var(--foreground) / 0.08)",
-              zIndex: 1,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              width: "100%",
-              top: "80.791px",
-              height: "45.465px",
-              background: "var(--ai-highlight-primary)",
-              zIndex: 1,
-            }}
-          />
-          <div
-            style={{
-              fontFamily: "'Geist Mono', 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-              fontSize: "10.279px",
-              lineHeight: "15.814px",
-              letterSpacing: "-0.3163px",
-              color: "var(--ai-text-color)",
-              width: "100%",
-              maxWidth: "320px",
-              position: "relative",
-              zIndex: 2,
-              margin: 0,
-            }}
-          >
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>switch (type) {"{"}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> case &apos;success&apos;:</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> return {"{"}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {"          border: theme === 'dark' ? 'border-[rgba(34,197,94,0.4)]' : 'border-green-200',"}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> icon: (</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'            <svg className={\'baseIconClasses\'} fill="none" viewBox="0 0 14 14">'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> &lt;path</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                d="M3.85156 7.875L6.47656 10.5L10.8516 3.5"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>{'                stroke="#22C55E"'}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                strokeLinecap="round"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>
-              {'                strokeLinejoin="round"'}
-            </p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}>{'                strokeWidth="1.5"'}</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> /&gt;</p>
-            <p style={{ margin: 0, whiteSpace: "pre-wrap", fontWeight: 400 }}> &lt;/svg&gt;</p>
+          <div style={{ border: "1px solid var(--ai-border)", borderRadius: 8, padding: 8 }}>
+            <div style={{ color: "var(--ai-text-color)", fontSize: 12 }}>메인: 네이버 블로그 SEO</div>
+            <div style={{ color: "var(--ai-muted)", fontSize: 12 }}>연관: 키워드 밀도, 클릭 유도 제목, 내부링크</div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {["블로그", "스레드", "인스타 캡션"].map((t) => (
+              <span key={t} style={{ border: "1px solid var(--ai-border)", borderRadius: 999, padding: "2px 8px", fontSize: 11, color: "var(--ai-muted)" }}>{t}</span>
+            ))}
           </div>
           <button
             style={{
-              position: "absolute",
-              top: "calc(50% + 29.745px)",
-              right: "20px",
-              transform: "translateY(-50%)",
-              zIndex: 3,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "3.953px",
+              marginTop: "auto",
+              alignSelf: "flex-end",
               background: "var(--ai-primary-color)",
-              color: "var(--ai-text-dark)",
+              color: "hsl(var(--primary-foreground))",
               border: "none",
-              cursor: "pointer",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              transition: "all 0.2s ease",
-              padding: "3.163px 6.326px",
-              borderRadius: "5.535px",
-              fontSize: "10.279px",
-              lineHeight: "15.814px",
-              letterSpacing: "-0.3163px",
-              boxShadow:
-                "0px 26.093px 7.116px rgba(0, 0, 0, 0), 0px 16.605px 6.326px rgba(0, 0, 0, 0.01), 0px 9.488px 5.535px rgba(0, 0, 0, 0.05), 0px 3.953px 3.953px rgba(0, 0, 0, 0.09), 0px 0.791px 2.372px rgba(0, 0, 0, 0.1)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontSize: 12,
+              cursor: "default",
             }}
           >
-            <span
-              style={{
-                fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                fontWeight: 500,
-              }}
-            >
-              Apply changes
-            </span>
-            <span
-              style={{
-                fontFamily: "'SF Pro', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-                fontWeight: 500,
-              }}
-            >
-              ⌘Y
-            </span>
+            생성하기
           </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 12 }}>
+          {[{ title: "블로그 초안", accent: true }, { title: "스레드 요약", accent: false }].map((b, i) => (
+            <div key={i} style={{ position: "relative", border: "1px solid var(--ai-border)", borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg, var(--ai-glass) 0%, transparent 100%)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10 }}>
+                <span style={{ color: "var(--ai-text-color)", fontSize: 13, fontWeight: 600 }}>{b.title}</span>
+                <span style={{ color: "var(--ai-muted)", fontSize: 11 }}>SEO 최적화</span>
+              </div>
+              <div style={{ padding: 10, paddingTop: 0, fontSize: 12, color: "var(--ai-text-color)" }}>
+                <div style={{ height: 10, background: "hsl(var(--foreground)/0.08)", borderRadius: 4, marginBottom: 6 }} />
+                <div style={{ height: 10, background: "hsl(var(--foreground)/0.08)", borderRadius: 4, width: "92%", marginBottom: 6 }} />
+                <div style={{ height: 10, background: "hsl(var(--foreground)/0.08)", borderRadius: 4, width: "85%", marginBottom: 6 }} />
+                <div style={{ height: 10, background: "hsl(var(--foreground)/0.08)", borderRadius: 4, width: "88%" }} />
+              </div>
+              <div style={{ position: "absolute", left: 10, bottom: 10, right: 10, height: 10, background: "hsl(var(--primary)/0.15)", borderRadius: 999 }} />
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -168,6 +168,34 @@ const OneClickIntegrationsIllustration: React.FC<OneClickIntegrationsIllustratio
     </svg>
   )
 
+  // Minimal source app icons
+  const FormIcon = (
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="5" y="6" width="26" height="24" rx="4" stroke={themeColors.primaryColor} strokeWidth="2" fill="none"/>
+      <rect x="9" y="11" width="18" height="3" rx="1.5" fill={themeColors.primaryColor} opacity="0.7"/>
+      <rect x="9" y="17" width="14" height="3" rx="1.5" fill={themeColors.primaryColor} opacity="0.5"/>
+      <rect x="9" y="23" width="10" height="3" rx="1.5" fill={themeColors.primaryColor} opacity="0.3"/>
+    </svg>
+  )
+
+  const SheetIcon = (
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="5" y="6" width="26" height="24" rx="4" stroke={themeColors.primaryColor} strokeWidth="2" fill="none"/>
+      {Array.from({length:3}).map((_,r)=> (
+        <rect key={`r${r}`} x={9} y={11 + r*6} width={18} height={3} rx={1.5} fill={themeColors.primaryColor} opacity={`${0.7 - r*0.2}` as unknown as number}/>
+      ))}
+      <path d="M15 10 V30" stroke={themeColors.primaryColor} strokeWidth="1.5" opacity="0.4"/>
+      <path d="M21 10 V30" stroke={themeColors.primaryColor} strokeWidth="1.5" opacity="0.4"/>
+    </svg>
+  )
+
+  const GmailIcon = (
+    <svg width="36" height="28" viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="4" width="34" height="23" rx="4" stroke={themeColors.primaryColor} strokeWidth="2" fill="none"/>
+      <path d="M3 6 L18 17 L33 6" stroke={themeColors.primaryColor} strokeWidth="2" fill="none"/>
+    </svg>
+  )
+
   // Define the grid items with their respective logos and properties
   const gridItems = Array(40)
     .fill(null)
@@ -200,52 +228,34 @@ const OneClickIntegrationsIllustration: React.FC<OneClickIntegrationsIllustratio
     <div
       className={`w-full h-full relative ${className}`}
       role="img"
-      aria-label="One-click integrations illustration showing a grid of connected squares"
+      aria-label="One-click forms/sheets/gmail integrations illustration"
     >
-      {/* Background radial gradient */}
-      <div
-        style={{
-          width: "377.33px",
-          height: "278.08px",
-          left: "0px",
-          top: "24px",
-          position: "absolute",
-          background: `radial-gradient(ellipse 103.87% 77.04% at 52.56% -1.80%, 
-            ${themeColors.foregroundColor}00 0%, 
-            ${themeColors.foregroundColor}F5 15%, 
-            ${themeColors.foregroundColor}66 49%, 
-            ${themeColors.foregroundColor}F5 87%, 
-            ${themeColors.foregroundColor}00 100%)`,
-        }}
-      />
+      {/* Flow lines */}
+      <svg width="380" height="220" viewBox="0 0 380 220" style={{ position: "absolute", top: 20, left: 0 }}>
+        <path d="M60,50 C140,50 140,170 220,170 C300,170 300,110 360,110" stroke={themeColors.primaryColor} strokeWidth="2" fill="none" opacity="0.3" />
+        <path d="M60,90 C140,90 140,150 220,150 C300,150 300,130 360,130" stroke={themeColors.primaryColor} strokeWidth="2" fill="none" opacity="0.2" />
+      </svg>
 
-      {/* Main content container with backdrop blur */}
-      <div
-        style={{
-          width: "377px",
-          height: "265px",
-          left: "0.34px",
-          top: "43.42px",
-          position: "absolute",
-          backdropFilter: "blur(7.91px)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-start",
-          alignItems: "center",
-          gap: "16px",
-        }}
-      >
-        {/* Render rows of logo boxes */}
-        {Array.from({ length: 4 }).map((_, rowIndex) => (
-          <div
-            key={rowIndex}
-            style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", gap: "16px" }}
-          >
-            {gridItems.slice(rowIndex * 10, (rowIndex + 1) * 10).map((item, colIndex) => (
-              <LogoBox key={colIndex} {...item} />
-            ))}
-          </div>
-        ))}
+      {/* Source icons: Form / Sheet / Gmail */}
+      <div style={{ position: "absolute", top: 40, left: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        <LogoBox isGradientBg logoSvg={FormIcon} />
+        <LogoBox isGradientBg logoSvg={SheetIcon} />
+        <LogoBox isGradientBg logoSvg={GmailIcon} />
+      </div>
+
+      {/* Destination: Central card */}
+      <div style={{ position: "absolute", top: 90, left: 150, width: 210, height: 110, border: `1px solid ${themeColors.borderColor}`, borderRadius: 12, background: "linear-gradient(180deg, hsl(var(--card)/0.2) 0%, transparent 100%)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", gap: 8, padding: 12 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[60, 90, 40, 70].map((w, i) => (
+            <div key={i} style={{ height: 8, width: w, background: "hsl(var(--foreground)/0.08)", borderRadius: 4 }} />
+          ))}
+        </div>
+        <div style={{ height: 8, background: themeColors.primaryColor, borderRadius: 999, opacity: 0.25 }} />
+        <div style={{ display: "flex", gap: 6 }}>
+          {[80, 50, 90].map((w, i) => (
+            <div key={i} style={{ height: 8, width: w, background: "hsl(var(--foreground)/0.08)", borderRadius: 4 }} />
+          ))}
+        </div>
       </div>
     </div>
   )

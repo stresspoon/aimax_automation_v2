@@ -10,147 +10,151 @@ interface DeploymentEasyProps {
 }
 
 const DeploymentEasy: React.FC<DeploymentEasyProps> = ({ width = "100%", height = "100%", className = "" }) => {
-  /* ------------------------------------------------------------
-   * Theme-based design tokens using global CSS variables
-   * ---------------------------------------------------------- */
+  // Theme tokens
   const themeVars = {
-    "--deploy-primary-color": "hsl(var(--primary))",
-    "--deploy-background-color": "hsl(var(--background))",
-    "--deploy-text-color": "hsl(var(--foreground))",
-    "--deploy-text-secondary": "hsl(var(--muted-foreground))",
-    "--deploy-border-color": "hsl(var(--border))",
+    "--select-primary": "hsl(var(--primary))",
+    "--select-bg": "hsl(var(--background))",
+    "--select-text": "hsl(var(--foreground))",
+    "--select-muted": "hsl(var(--muted-foreground))",
+    "--select-border": "hsl(var(--border))",
+    "--select-glass": "hsl(var(--card) / 0.2)",
   } as React.CSSProperties
 
-  /* ------------------------------------------------------------
-   * Console log output (static for demo) – can be replaced via props
-   * ---------------------------------------------------------- */
-  const logLines = [
-    "[16:37:25.637] Running build in Washington, D.C., USA (East) – iad1",
-    "[16:37:25.638] Build machine configuration: 2 cores, 8 GB",
-    "[16:37:25.653] Retrieving list of deployment files...",
-    "[16:37:25.741] Previous build caches not available",
-    "[16:37:25.979] Downloading 84 deployment files...",
-    '[16:37:29.945] Running "vercel build"',
-    "[16:37:30.561] Vercel CLI 44.5.0",
-    '[16:37:30.880] Running "install" command: `bun install`...',
-    "[16:37:30.914] bun install v1.2.19 (aad3abea)",
-    "[16:37:30.940] Resolving dependencies",
-    "[16:37:34.436] Resolved, downloaded and extracted [1116]",
-    '[16:37:34.436] warn: incorrect peer dependency "react@19.1.0"',
-    "[16:37:37.265] Saved lockfile",
-    "[16:37:39.076] Next.js anonymous telemetry notice",
-    "[16:37:39.137] ▲ Next.js 15.2.4",
-    "[16:37:41.439] ✓ Compiled successfully",
-    "[16:37:53.979] ✓ Generated static pages",
-    "[16:38:00.585] ○ (Static) prerendered as static content",
-    "[16:38:01.099] Build Completed in /vercel/output [30s]",
-    "🚀 Deployment complete – Easy!",
+  // Demo candidates
+  const candidates = [
+    { name: "@brand_studio", followers: 15200 },
+    { name: "@min_works", followers: 980 },
+    { name: "@daily_market", followers: 4100 },
+    { name: "@mkt_lab", followers: 7200 },
+    { name: "@local_shop", followers: 620 },
+    { name: "@beauty_pick", followers: 13400 },
+    { name: "@edu_creator", followers: 2450 },
+    { name: "@design_hub", followers: 870 },
   ]
+  const threshold = 1000
+  const filtered = candidates.filter((c) => c.followers >= threshold)
 
   return (
     <div
       className={`w-full h-full flex items-center justify-center p-4 relative ${className}`}
-      style={{
-        width,
-        height,
-        position: "relative",
-        background: "transparent",
-        ...themeVars,
-      }}
+      style={{ width, height, position: "relative", background: "transparent", ...themeVars }}
       role="img"
-      aria-label="Deployment console output with Deploy on Vercel button"
+      aria-label="Follower threshold filtering visualization"
     >
-      {/* -------------------------------------------------------- */}
-      {/* Console / Terminal panel                                */}
-      {/* -------------------------------------------------------- */}
+      {/* Container */}
       <div
         style={{
           position: "absolute",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "340px",
-          height: "239px",
-          background: "linear-gradient(180deg, var(--deploy-background-color) 0%, transparent 100%)",
-          backdropFilter: "blur(7.907px)",
-          borderRadius: "10px",
+          width: 340,
+          height: 239,
+          background: "linear-gradient(180deg, var(--select-bg) 0%, transparent 100%)",
+          backdropFilter: "blur(8px)",
+          borderRadius: 10,
           overflow: "hidden",
+          border: "1px solid var(--select-border)",
         }}
       >
-        {/* Inner translucent panel – replicates subtle overlay */}
+        {/* Header */}
         <div
           style={{
-            position: "absolute",
-            inset: "2px",
-            borderRadius: "8px",
-            background: "hsl(var(--foreground) / 0.08)",
-          }}
-        />
-
-        {/* Log text */}
-        <div
-          style={{
-            position: "relative",
-            padding: "8px",
-            height: "100%",
-            overflow: "hidden",
-            fontFamily: "'Geist Mono', 'SF Mono', Monaco, Consolas, 'Liberation Mono', monospace",
-            fontSize: "10px",
-            lineHeight: "16px",
-            color: "var(--deploy-text-color)",
-            whiteSpace: "pre",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 12px",
+            borderBottom: "1px solid var(--select-border)",
           }}
         >
-          {logLines.map((line, index) => (
-            <p key={index} style={{ margin: 0 }}>
-              {line}
-            </p>
-          ))}
+          <span style={{ color: "var(--select-muted)", fontSize: 12 }}>필터</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { label: "≥ 1,000", active: true },
+              { label: "≥ 5,000", active: false },
+              { label: "≥ 10,000", active: false },
+            ].map((chip) => (
+              <span
+                key={chip.label}
+                style={{
+                  border: `1px solid ${chip.active ? "var(--select-primary)" : "var(--select-border)"}`,
+                  color: chip.active ? "var(--select-primary)" : "var(--select-muted)",
+                  background: chip.active ? "hsl(var(--primary) / 0.08)" : "var(--select-glass)",
+                  borderRadius: 999,
+                  padding: "3px 8px",
+                  fontSize: 11,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {chip.label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Inner border overlay */}
+        {/* List */}
+        <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+          {candidates.map((c) => {
+            const ok = c.followers >= threshold
+            return (
+              <div
+                key={c.name}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  border: `1px solid ${ok ? "var(--select-primary)" : "var(--select-border)"}`,
+                  background: ok ? "hsl(var(--primary) / 0.06)" : "linear-gradient(180deg, var(--select-glass) 0%, transparent 100%)",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 999, background: ok ? "var(--select-primary)" : "hsl(var(--foreground)/0.15)" }} />
+                  <span style={{ color: "var(--select-text)", fontSize: 12 }}>{c.name}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: ok ? "var(--select-primary)" : "var(--select-muted)", fontSize: 12 }}>{c.followers.toLocaleString()} 팔로워</span>
+                  {ok && (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3.5 7.5L6 10l4.5-6" stroke="var(--select-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Summary */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
-            border: "0.791px solid var(--deploy-border-color)",
-            borderRadius: "10px",
-            pointerEvents: "none",
+            bottom: 8,
+            left: 12,
+            right: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
-        />
+        >
+          <span style={{ color: "var(--select-muted)", fontSize: 12 }}>
+            대상 {candidates.length}명 → 필터 후 {filtered.length}명
+          </span>
+          <span
+            style={{
+              color: "var(--select-primary)",
+              background: "hsl(var(--primary)/0.08)",
+              border: "1px solid var(--select-primary)",
+              borderRadius: 999,
+              fontSize: 11,
+              padding: "3px 8px",
+            }}
+          >
+            정확 매칭
+          </span>
+        </div>
       </div>
-
-      {/* -------------------------------------------------------- */}
-      {/* Call-to-action button                                   */}
-      {/* -------------------------------------------------------- */}
-      <button
-        style={{
-          position: "absolute",
-          top: "calc(50% + 57.6px)",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "6.375px",
-          padding: "5.1px 10.2px",
-          background: "var(--deploy-primary-color)",
-          color: "hsl(var(--primary-foreground))",
-          border: "none",
-          cursor: "pointer",
-          borderRadius: "8.925px",
-          fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          fontSize: "16.575px",
-          lineHeight: "25.5px",
-          letterSpacing: "-0.51px",
-          fontWeight: 500,
-          whiteSpace: "nowrap",
-          boxShadow:
-            "0px 42.075px 11.475px rgba(0, 0, 0, 0), 0px 26.775px 10.2px rgba(0, 0, 0, 0.01), 0px 15.3px 8.925px rgba(0, 0, 0, 0.05), 0px 6.375px 6.375px rgba(0, 0, 0, 0.09), 0px 1.275px 3.825px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        🚀 Deploy on Vercel
-      </button>
     </div>
   )
 }
