@@ -83,6 +83,8 @@ export async function POST(req: Request) {
           .replace(/\{이름\}/g, recipient.name || '고객님')
           .replace(/\{\{email\}\}/g, recipient.email || '')
           .replace(/\{이메일\}/g, recipient.email || '')
+          // 줄바꿈을 HTML <br> 태그로 변환
+          .replace(/\n/g, '<br/>')
         
         // 이메일 메시지 생성
         const message = [

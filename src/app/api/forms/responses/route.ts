@@ -80,6 +80,15 @@ async function processResponseInBackground(responseId: string) {
             }
           } catch (err) {
             console.error(`Threads check error for ${fieldName}:`, err)
+            // 에러가 발생해도 체크 시도했음을 기록
+            if (fieldName === 'threadsUrl') {
+              snsResult.threads = {
+                url: fieldValue,
+                followers: 0,
+                checked: true,
+                error: (err as Error).message
+              }
+            }
           }
         } else if (fieldName === 'instagramUrl' || snsType === 'instagram') {
           try {
@@ -102,6 +111,15 @@ async function processResponseInBackground(responseId: string) {
             }
           } catch (err) {
             console.error(`Instagram check error for ${fieldName}:`, err)
+            // 에러가 발생해도 체크 시도했음을 기록
+            if (fieldName === 'instagramUrl') {
+              snsResult.instagram = {
+                url: fieldValue,
+                followers: 0,
+                checked: true,
+                error: (err as Error).message
+              }
+            }
           }
         } else if (fieldName === 'blogUrl' || snsType === 'blog') {
           try {

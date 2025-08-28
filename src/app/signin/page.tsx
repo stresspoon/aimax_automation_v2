@@ -39,12 +39,18 @@ function SignInForm() {
 
       toast.success('로그인 성공!')
       
-      // 관리자 이메일 체크
-      if (email.endsWith('@aimax.kr') || email === 'admin@aimax.kr') {
-        router.push('/admin')
-      } else {
-        router.push(redirect)
-      }
+      // 세션 갱신을 위해 페이지 새로고침
+      router.refresh()
+      
+      // 약간의 지연 후 리다이렉트 (세션 갱신 완료를 위해)
+      setTimeout(() => {
+        // 관리자 이메일 체크
+        if (email.endsWith('@aimax.kr') || email === 'admin@aimax.kr') {
+          router.push('/admin')
+        } else {
+          router.push(redirect)
+        }
+      }, 100)
     } catch (error) {
       toast.error('로그인 중 오류가 발생했습니다')
     } finally {
