@@ -166,6 +166,33 @@ async function generateImages(keyword: string, contentType: 'blog' | 'thread', c
   return images
 }
 
+// OpenAI Chat Completions 응답에서 텍스트를 안전하게 추출
+function extractTextFromMessage(message: any): string {
+  if (!message) return ''
+  const content = (message as any).content
+  if (typeof content === 'string') {
+    return content.trim()
+  }
+  if (Array.isArray(content)) {
+    try {
+      const joined = content
+        .map((part: any) => {
+          if (!part) return ''
+          if (typeof part === 'string') return part
+          if (typeof part.text === 'string') return part.text
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+      return joined
+    } catch {
+      return ''
+    }
+  }
+  return ''
+}
+
 export async function POST(req: Request) {
   const startTime = Date.now()
   console.log('[Generate API] 요청 시작:', new Date().toISOString())
@@ -238,6 +265,8 @@ export async function POST(req: Request) {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃
       
+      const tokensParam = body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500
+
       const response = await openai.chat.completions.create({
         model: model,
         messages: [
@@ -255,8 +284,8 @@ export async function POST(req: Request) {
         // gpt-5 계열: max_tokens 대신 max_completion_tokens 사용
         // thread는 800 토큰으로 증가
         ...(model.startsWith('gpt-5') ? 
-          { max_completion_tokens: body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500 } : 
-          { max_tokens: body.contentType === 'blog' ? 3000 : body.contentType === 'thread' ? 800 : 500 }),
+          { max_completion_tokens: tokensParam } : 
+          { max_tokens: tokensParam }),
       }, {
         signal: controller.signal
       })
@@ -265,9 +294,38 @@ export async function POST(req: Request) {
       
       console.log('[Generate API] OpenAI API 응답 소요 시간:', Date.now() - openaiStartTime, 'ms')
 
-      const text = response.choices[0]?.message?.content || ''
+      const primaryMessage = response.choices?.[0]?.message
+      let text = extractTextFromMessage(primaryMessage)
+
+      // 거부 사유가 있는 경우 사용자에게 명확히 전달
+      const refusal = (primaryMessage as any)?.refusal
+      if (!text && refusal) {
+        return NextResponse.json({ error: `모델이 요청을 거부했습니다: ${refusal}` }, { status: 400 })
+      }
+
+      // 1차 시도에서 텍스트가 비어있는 경우, 안정적인 폴백 모델로 1회 재시도
       if (!text) {
-        return NextResponse.json({ error: '응답이 비어 있습니다.' }, { status: 400 })
+        try {
+          const fallbackModel = 'gpt-4o-mini'
+          console.warn('[Generate API] 빈 응답 감지, 폴백 모델로 재시도:', fallbackModel)
+          const retry = await openai.chat.completions.create({
+            model: fallbackModel,
+            messages: [
+              { role: 'system', content: '당신은 한국어 마케팅 카피라이터입니다. 주어진 지침에 따라 고품질의 마케팅 콘텐츠를 작성해주세요.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: tokensParam,
+          })
+          const retryMessage = retry.choices?.[0]?.message
+          text = extractTextFromMessage(retryMessage)
+        } catch (fallbackErr) {
+          console.error('[Generate API] 폴백 모델 재시도 실패:', fallbackErr)
+        }
+      }
+
+      if (!text) {
+        return NextResponse.json({ error: '응답이 비어 있습니다. 잠시 후 다시 시도해주세요.' }, { status: 400 })
       }
 
     // 일반 텍스트 형식 파싱
