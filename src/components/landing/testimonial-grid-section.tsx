@@ -3,52 +3,52 @@ import Image from "next/image"
 const testimonials = [
   {
     quote:
-      "AIMAX 도입 후 마케팅 인건비가 70% 절감되었고, 매출은 오히려 200% 증가했습니다. 한 명이 팀처럼 일하는 게 정말 가능하더군요.",
-    name: "김민수",
-    company: "스마트커머스",
+      "외부 대행사에 의존하지 않고도 직접 마케팅 시스템을 구축할 수 있다는 사실이 현실이 되었습니다.",
+    name: "김O수",
+    company: "뷰티브랜드 운영",
     avatar: "/images/avatars/annette-black.png",
     type: "large-teal",
   },
   {
-    quote: "복잡한 마케팅 프로세스를 AIMAX가 자동으로 처리해주니 핵심 업무에만 집중할 수 있게 되었습니다.",
-    name: "박지영",
-    company: "뷰티브랜드",
+    quote: "AI 가 너무 막강해져서 너무 자동화되어서 결과가 뚝딱 나오니 '이렇게 해도 되는건가' 하는 생각이들정도 입니다.",
+    name: "이O호",
+    company: "마케팅 대행사",
     avatar: "/images/avatars/dianne-russell.png",
     type: "small-dark",
   },
   {
-    quote: "광고 제작부터 고객 관리까지 모든 것이 자동화되어 업무 효율이 300% 향상되었습니다.",
-    name: "이준호",
-    company: "테크스타트업",
+    quote: "사람일을 대신 맡길수 있어서 너무 좋았고 블로그 글 ,콘텐츠기획, sns 글작성등 그리고 수익화까지 AI를 통해서 할수 있는 부분이 매력적입니다.",
+    name: "김O수",
+    company: "뷰티브랜드 운영",
     avatar: "/images/avatars/cameron-williamson.png",
     type: "small-dark",
   },
   {
-    quote: "AIMAX 덕분에 마케팅 대행사 없이도 전문적인 마케팅이 가능해졌습니다. 비용 절감 효과가 놀랍습니다.",
-    name: "최수진",
-    company: "로컬비즈니스",
+    quote: "몇 시간 걸리던 블로그 글 작성도 AI로 단 몇 분 만에 가능했고, 콘텐츠 기획부터 디자인, 마케팅까지 혼자서도 해낼 수 있어서 행복합니다.",
+    name: "이O호",
+    company: "마케팅 대행사",
     avatar: "/images/avatars/robert-fox.png",
     type: "small-dark",
   },
   {
-    quote: "처음엔 반신반의했지만, 지금은 AIMAX 없는 마케팅은 상상할 수 없습니다. 정말 혁신적이에요.",
-    name: "정태현",
-    company: "온라인쇼핑몰",
+    quote: "글쓰기 뿐만이라 정말 1명의 기획자, 아니 그 이상을 일해줄 AI 직원을 찾았습니다.",
+    name: "김O수",
+    company: "뷰티브랜드 운영",
     avatar: "/images/avatars/darlene-robertson.png",
     type: "small-dark",
   },
   {
-    quote: "데이터 기반 마케팅이 이렇게 쉬울 줄 몰랐습니다. AIMAX가 알아서 최적화까지 해주니 정말 편해요.",
-    name: "한소영",
-    company: "패션브랜드",
+    quote: "'멀티유즈'라는 개념 덕분에 반복 작업을 크게 줄이고 효율적으로 다양한 채널에 콘텐츠를 배포 가능하니 이보다 효율적일 수 없네요.",
+    name: "이O호",
+    company: "마케팅 대행사",
     avatar: "/images/avatars/cody-fisher.png",
     type: "small-dark",
   },
   {
     quote:
-      "AIMAX로 마케팅 자동화를 구축한 후, 매출이 지속적으로 성장하고 있습니다. 시간이 갈수록 더 똑똑해지는 시스템이 정말 신기해요.",
-    name: "오성민",
-    company: "서비스업체",
+      "가장 인상 깊었던 건 블로그·SNS 통합 자동화 기능이었어요. 키워드만 던지면 블로그 글 → 스레드 → 인스타용 캡션까지 일괄 생성! 일주일 걸리던 콘텐츠 루틴이 10분으로 단축됐습니다.",
+    name: "김O수",
+    company: "뷰티브랜드 운영",
     avatar: "/images/avatars/albert-flores.png",
     type: "large-light",
   },
@@ -102,9 +102,9 @@ const TestimonialCard = ({ quote, name, company, avatar, type }: TestimonialCard
     )
   } else {
     cardClasses += " bg-card outline outline-1 outline-border outline-offset-[-1px]"
-    quoteClasses += " text-foreground/80 text-[17px] font-normal leading-6"
+    quoteClasses += " text-primary/90 text-[17px] font-normal leading-6"
     nameClasses += " text-foreground text-sm font-normal leading-[22px]"
-    companyClasses += " text-muted-foreground text-sm font-normal leading-[22px]"
+    companyClasses += " text-primary/70 text-sm font-normal leading-[22px]"
     cardHeight = "h-[244px]"
   }
 

@@ -9,48 +9,43 @@ export function PricingSection() {
 
   const pricingPlans = [
     {
-      name: "Starter",
+      name: "무료",
       monthlyPrice: "₩0",
       annualPrice: "₩0",
-      description: "소규모 비즈니스 시작용",
+      description: "프로젝트 1개 / 글쓰기 10회 / 메일발송 일 500회",
       features: [
-        "기본 자동화 기능",
-        "월 100건 콘텐츠 생성",
-        "이메일 지원",
-        "기본 템플릿",
+        "프로젝트 1개 제한",
+        "글쓰기 10회",
+        "메일발송 일 500회",
       ],
       buttonText: "무료로 시작하기",
       buttonClass: "bg-secondary text-secondary-foreground hover:bg-secondary/90",
     },
     {
-      name: "Growth",
+      name: "프로",
       monthlyPrice: "₩99,000",
-      annualPrice: "₩79,000",
-      description: "성장하는 비즈니스를 위한",
+      annualPrice: "₩990,000",
+      description: "글쓰기 100회 / 프로젝트 무제한 / 메일발송 일 500회",
       features: [
-        "모든 자동화 기능",
-        "무제한 콘텐츠 생성",
-        "우선 지원",
-        "프리미엄 템플릿",
-        "API 접근",
+        "글쓰기 100회",
+        "프로젝트 무제한",
+        "메일발송 일 500회",
+        "연간 결제 99만원 (2개월 무료)",
       ],
       buttonText: "지금 시작하기",
       buttonClass: "bg-primary text-primary-foreground hover:bg-primary/90",
       popular: true,
     },
     {
-      name: "Enterprise",
-      monthlyPrice: "맞춤 견적",
-      annualPrice: "맞춤 견적",
-      description: "대기업을 위한 맞춤형 솔루션",
+      name: "엔터프라이즈",
+      monthlyPrice: "준비중",
+      annualPrice: "준비중",
+      description: "디자인/영상 자동화 포함(준비중)",
       features: [
-        "전담 계정 관리",
-        "맞춤 온보딩",
-        "SLA 보장",
-        "커스텀 통합",
-        "전용 서버",
+        "디자인 자동화 포함 (준비중)",
+        "영상 자동화 포함 (준비중)",
       ],
-      buttonText: "영업팀 문의",
+      buttonText: "문의하기",
       buttonClass: "bg-secondary text-secondary-foreground hover:bg-secondary/90",
     },
   ]
@@ -60,7 +55,7 @@ export function PricingSection() {
       <div className="self-stretch relative flex flex-col justify-center items-center gap-2 py-0">
         <div className="flex flex-col justify-start items-center gap-4">
           <h2 className="text-center text-foreground text-4xl md:text-5xl font-semibold leading-tight md:leading-[40px]">
-            인건비 한 달치로, 1년간 팀을 소유하세요
+            한 명의 인건비로 1년 간 팀을 소유하세요
           </h2>
           <p className="self-stretch text-center text-muted-foreground text-sm font-medium leading-tight">
             개인부터 기업까지, 당신의 비즈니스 규모에 맞는 <br /> 마케팅 자동화 솔루션을 선택하세요.

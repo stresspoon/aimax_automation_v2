@@ -3,7 +3,7 @@ export function ProblemSection() {
     <section className="w-full px-5 py-16 md:py-24 flex flex-col justify-center items-center">
       <div className="max-w-4xl mx-auto text-center space-y-8">
         <h2 className="text-4xl md:text-5xl font-bold text-foreground leading-tight">
-          당신의 마케팅, 아직도 사람 손에만 맡기고 있나요?
+          마케팅, 아직도 사람 손에만 맡기고 있나요?
         </h2>
 
         <div className="grid md:grid-cols-3 gap-8 mt-12">
@@ -12,7 +12,7 @@ export function ProblemSection() {
               <div className="w-8 h-8 bg-primary rounded-full"></div>
             </div>
             <h3 className="text-xl font-semibold text-foreground">고정비 부담</h3>
-            <p className="text-muted-foreground">인건비, 마케팅 대행료, 운영비로 인한 지속적인 비용 부담</p>
+            <p className="text-muted-foreground">인건비, 마케팅 대행료, 운영비로<br/>인한 지속적인 비용 부담</p>
           </div>
 
           <div className="space-y-4">
@@ -20,7 +20,7 @@ export function ProblemSection() {
               <div className="w-8 h-8 bg-primary rounded-full"></div>
             </div>
             <h3 className="text-xl font-semibold text-foreground">AI 활용의 장벽</h3>
-            <p className="text-muted-foreground">AI를 알아도 못 쓰는 이유 - 체계적인 프로세스의 부재</p>
+            <p className="text-muted-foreground">AI를 알아도 못 쓰는 이유<br/>체계적인 프로세스의 부재</p>
           </div>
 
           <div className="space-y-4">
@@ -28,7 +28,7 @@ export function ProblemSection() {
               <div className="w-8 h-8 bg-primary rounded-full"></div>
             </div>
             <h3 className="text-xl font-semibold text-foreground">성장 한계</h3>
-            <p className="text-muted-foreground">사람이 늘어나야만 매출이 늘어나는 구조적 한계</p>
+            <p className="text-muted-foreground">사람이 늘어나야만<br/>매출이 늘어나는 구조적 한계</p>
           </div>
         </div>
 
@@ -56,7 +56,7 @@ export function ProblemSection() {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">월 비용</span>
-                  <span className="text-green-600">90만원</span>
+                  <span className="text-green-600">9.9만원</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">광고 관리</span>
