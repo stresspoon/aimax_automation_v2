@@ -1987,7 +1987,7 @@ export default function CustomerAcquisitionPage() {
         </button>
         
         {/* 폼 URL 표시 (폼이 생성된 경우) */}
-        {projectData.step2.formUrl && (
+        {projectData.step2.formUrl ? (
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm text-green-700 mb-2">폼이 생성되었습니다!</p>
             <div className="flex gap-2">
@@ -2013,6 +2013,12 @@ export default function CustomerAcquisitionPage() {
                 열기
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              폼 링크가 비어 있습니다. 아래 버튼으로 폼을 생성한 뒤, 다시 이 화면으로 돌아오면 링크가 표시됩니다.
+            </p>
           </div>
         )}
       </div>

@@ -46,7 +46,18 @@ export async function GET(req: Request) {
     query = query.eq('project_id', cleanProjectId)
   }
   
-  const { data: forms, error } = await query.order('created_at', { ascending: false })
+  let { data: forms, error } = await query.order('created_at', { ascending: false })
+  // 프로젝트 기준으로 없으면 전역 폼으로 폴백
+  if (!error && cleanProjectId && (!forms || forms.length === 0)) {
+    const fallback = await supabase
+      .from('forms')
+      .select('*')
+      .eq('user_id', user.id)
+      .is('project_id', null)
+      .order('created_at', { ascending: false })
+    forms = fallback.data || []
+    // fallback.error는 굳이 전파하지 않고 빈 배열로 처리
+  }
   
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
