@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { logActivity } from '@/lib/activity-logger'
@@ -15,17 +16,20 @@ export async function GET(request: NextRequest) {
     }
 
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabase = hasServiceKey
+      ? createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return cookieStore.get(name)?.value
+              },
+            },
+          }
+        )
+      : await createSupabaseClient()
 
     // 설정 조회
     const { data: settings, error } = await supabase
@@ -74,17 +78,20 @@ export async function POST(request: NextRequest) {
     }
 
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabase = hasServiceKey
+      ? createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return cookieStore.get(name)?.value
+              },
+            },
+          }
+        )
+      : await createSupabaseClient()
 
     // 기존 설정 확인
     const { data: existing } = await supabase
