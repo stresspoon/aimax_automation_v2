@@ -1,4 +1,5 @@
 {
+  "/api/admin/settings/route": "app/api/admin/settings/route.js",
   "/admin/settings/page": "app/admin/settings/page.js",
   "/admin/users/page": "app/admin/users/page.js"
 }
