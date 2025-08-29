@@ -128,7 +128,9 @@ export async function POST(req: Request) {
         console.log('Processed subject:', processedSubject)
         console.log('Processed body (first 100 chars):', processedBody.substring(0, 100))
         
-        // 이메일 메시지 생성
+        // 이메일 메시지 생성 (UTF-8 인코딩 개선)
+        const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipientEmail}`,
@@ -136,10 +138,14 @@ export async function POST(req: Request) {
           replyTo ? `Reply-To: ${replyTo}` : '',
           'MIME-Version: 1.0',
           `Date: ${new Date().toUTCString()}`,
-          'Content-Transfer-Encoding: 7bit',
-          'Content-Type: text/html; charset=utf-8',
+          `Content-Type: multipart/alternative; boundary="${boundary}"`,
           '',
-          processedBody
+          `--${boundary}`,
+          'Content-Type: text/html; charset=UTF-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          Buffer.from(processedBody, 'utf-8').toString('base64'),
+          `--${boundary}--`
         ].filter(Boolean).join('\r\n')
         
         // Gmail API용 Base64 인코딩 (URL-safe)
@@ -150,10 +156,11 @@ export async function POST(req: Request) {
           .replace(/=+$/, '')
         
         // 디버깅용 로그
-        console.log('Sending email to:', recipient.email)
-        console.log('Subject (original):', subject)
-        console.log('Subject (processed):', processedSubject)
-        console.log('Name:', recipient.name || '고객님')
+        console.log('[Gmail] Sending email to:', recipientEmail)
+        console.log('[Gmail] Subject (original):', subject)
+        console.log('[Gmail] Subject (processed):', processedSubject)
+        console.log('[Gmail] Name:', recipientName)
+        console.log('[Gmail] Message structure created with boundary:', boundary)
         
         // Gmail API로 발송
         const result = await gmail.users.messages.send({
