@@ -1590,6 +1590,9 @@ export default function CustomerAcquisitionPage() {
   };
 
   const handleStep3Send = async () => {
+    console.log('[handleStep3Send] emailSubject:', projectData.step3.emailSubject);
+    console.log('[handleStep3Send] emailBody:', projectData.step3.emailBody);
+    
     if (!projectData.step3.emailSubject || !projectData.step3.emailBody) {
       showNotification('제목과 본문을 입력해주세요', 'error');
       return;
@@ -1621,19 +1624,24 @@ export default function CustomerAcquisitionPage() {
         return true; // 'all'인 경우
       });
       
+      const requestBody = {
+        recipients: recipients,
+        subject: projectData.step3.emailSubject,
+        body: projectData.step3.emailBody,
+        replyTo: projectData.step3.senderEmail,
+        // 기존 API와의 호환성을 위해
+        candidates: recipients,
+        targetType: projectData.step3.targetType,
+        projectId: projectId,
+      };
+      
+      console.log('[handleStep3Send] Sending to API:', endpoint);
+      console.log('[handleStep3Send] Request body:', requestBody);
+      
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: recipients,
-          subject: projectData.step3.emailSubject,
-          body: projectData.step3.emailBody,
-          replyTo: projectData.step3.senderEmail,
-          // 기존 API와의 호환성을 위해
-          candidates: recipients,
-          targetType: projectData.step3.targetType,
-          projectId: projectId,
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       const data = await res.json();

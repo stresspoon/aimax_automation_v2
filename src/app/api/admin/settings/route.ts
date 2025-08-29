@@ -31,14 +31,21 @@ export async function GET(request: NextRequest) {
         )
       : await createSupabaseClient()
 
-    // 설정 조회
+    // 설정 조회 - 테이블이 없는 경우도 정상 처리
     const { data: settings, error } = await supabase
       .from('system_settings')
       .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
-      throw error
+      // 테이블이 없는 경우는 조용히 처리
+      if (error.code === 'PGRST205') {
+        // system_settings 테이블이 없는 경우 - 기본값 반환
+        return NextResponse.json({})
+      }
+      // 다른 에러는 로그 출력
+      console.warn('system_settings fetch error:', error)
+      return NextResponse.json({})
     }
 
     // 설정을 키-값 형태로 변환

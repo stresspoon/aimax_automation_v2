@@ -33,6 +33,7 @@ export interface ProjectData {
     emailSubject: string
     emailBody: string
     senderEmail: string
+    emailsSent?: number
   }
 }
 
