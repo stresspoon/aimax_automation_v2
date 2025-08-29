@@ -4,11 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 // GET: 폼 응답을 candidates 형식으로 변환하여 반환
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const projectId = searchParams.get('projectId')
-  
-  if (!projectId) {
-    return NextResponse.json({ error: 'Project ID required' }, { status: 400 })
-  }
+  const rawProjectId = searchParams.get('projectId')
+  // 'null' / 'undefined' 문자열 정리
+  const projectId = rawProjectId && rawProjectId !== 'null' && rawProjectId !== 'undefined' ? rawProjectId : null
   
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,13 +16,15 @@ export async function GET(req: Request) {
   }
   
   try {
-    // 프로젝트의 폼만 찾기(폴백 제거)
+    // 프로젝트의 폼만 찾기 (projectId 없으면 전역 폼)
     console.log('Sync candidates - Looking for forms with projectId:', projectId, 'userId:', user.id)
-    const { data: forms, error: formsError } = await supabase
-      .from('forms')
-      .select('id')
-      .eq('project_id', projectId)
-      .eq('user_id', user.id)
+    let formsQuery = supabase.from('forms').select('id').eq('user_id', user.id)
+    if (projectId) {
+      formsQuery = formsQuery.eq('project_id', projectId)
+    } else {
+      formsQuery = formsQuery.is('project_id', null)
+    }
+    const { data: forms, error: formsError } = await formsQuery
     if (formsError) {
       console.error('Forms query error:', formsError)
       return NextResponse.json({ error: formsError.message }, { status: 500 })
@@ -39,12 +39,11 @@ export async function GET(req: Request) {
     let responses: any[] | null = null
     let error: any = null
     try {
-      const q = await supabase
-        .from('form_responses_temp')
-        .select('*')
-        .in('form_id', formIds)
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
+      let base = supabase.from('form_responses_temp').select('*').in('form_id', formIds)
+      if (projectId) {
+        base = base.eq('project_id', projectId)
+      }
+      const q = await base.order('created_at', { ascending: false })
       responses = q.data
       error = q.error
       if (error && /project_id/.test(error.message || '')) {
