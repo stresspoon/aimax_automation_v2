@@ -89,6 +89,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 무료 플랜 사용자의 프로젝트 생성 제한 확인 (1개 제한 + 삭제 후 재생성 방지)
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('subscription_status, project_created_once')
+        .eq('id', user.id)
+        .single()
+
+      const isFree = !profile || profile.subscription_status === 'free'
+      if (isFree) {
+        // 이미 한 번이라도 생성한 적이 있으면 차단
+        if (profile?.project_created_once) {
+          return NextResponse.json({ error: '무료 플랜은 프로젝트를 한 번만 생성할 수 있습니다.' }, { status: 403 })
+        }
+        // 현재 보유 프로젝트 수 확인 (삭제 전제 포함 방지용)
+        const { count } = await supabase
+          .from('projects')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+        if ((count || 0) >= 1) {
+          return NextResponse.json({ error: '무료 플랜은 프로젝트 1개만 보유할 수 있습니다.' }, { status: 403 })
+        }
+      }
+    } catch (limitErr) {
+      console.warn('프로젝트 생성 제한 확인 실패:', limitErr)
+    }
+
     // Check if project already exists for this campaign and type
     const { data: existing } = await supabase
       .from('projects')
@@ -140,6 +167,16 @@ export async function POST(request: NextRequest) {
         )
       }
       project = created
+
+      // 무료 플랜인 경우 생성 이력 플래그 설정
+      try {
+        await supabase
+          .from('user_profiles')
+          .update({ project_created_once: true })
+          .eq('id', user.id)
+      } catch (flagErr) {
+        console.warn('project_created_once 플래그 업데이트 실패:', flagErr)
+      }
     }
 
     return NextResponse.json(project, { status: existing ? 200 : 201 })

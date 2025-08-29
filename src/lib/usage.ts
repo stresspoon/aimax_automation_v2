@@ -17,7 +17,7 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   }
 
   // 무료 플랜 제한
-  const FREE_LIMIT = 3
+  const FREE_LIMIT = 10
   
   // 사용자의 프로필 정보 조회 (구독 상태 및 무제한 권한 확인)
   const { data: profile, error: profileError } = await supabase

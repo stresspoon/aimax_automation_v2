@@ -128,6 +128,7 @@ export async function DELETE(
       )
     }
 
+    // 삭제 후에도 무료 플랜 재생성은 금지되도록 플래그는 유지
     return NextResponse.json({ message: 'Project deleted successfully' })
   } catch {
     return NextResponse.json(
