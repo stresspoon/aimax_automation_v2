@@ -189,6 +189,32 @@ function FormBuilderContent() {
       setForm(data.form)
       generateQRCode(data.form.slug)
       
+      // 프로젝트 데이터에 formId/formUrl 반영 (DB 관리 페이지 표시용)
+      try {
+        if (cleanProjectId) {
+          const projRes = await fetch(`/api/projects/${cleanProjectId}`)
+          if (projRes.ok) {
+            const project = await projRes.json()
+            const currentData = project?.data || {}
+            const mergedData = {
+              ...currentData,
+              step2: {
+                ...(currentData.step2 || {}),
+                formId: data.form.id,
+                formUrl: `${window.location.origin}/form/${data.form.slug}`,
+              },
+            }
+            await fetch(`/api/projects/${cleanProjectId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: mergedData })
+            })
+          }
+        }
+      } catch (e) {
+        console.error('프로젝트에 폼 정보 반영 실패:', e)
+      }
+
       alert('폼이 생성되었습니다!')
     } catch (error) {
       alert('폼 생성에 실패했습니다')
@@ -255,6 +281,36 @@ function FormBuilderContent() {
       setForm(updatedForm)
       // 필요시 재로드
       await loadExistingForm()
+
+      // 프로젝트 데이터의 formUrl이 없으면 보강
+      try {
+        const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
+        if (cleanProjectId) {
+          const projRes = await fetch(`/api/projects/${cleanProjectId}`)
+          if (projRes.ok) {
+            const project = await projRes.json()
+            const currentData = project?.data || {}
+            const hasUrl = !!currentData?.step2?.formUrl
+            if (!hasUrl && updatedForm?.slug) {
+              const mergedData = {
+                ...currentData,
+                step2: {
+                  ...(currentData.step2 || {}),
+                  formId: updatedForm.id,
+                  formUrl: `${window.location.origin}/form/${updatedForm.slug}`,
+                },
+              }
+              await fetch(`/api/projects/${cleanProjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: mergedData })
+              })
+            }
+          }
+        }
+      } catch (e) {
+        console.error('프로젝트 폼 URL 보강 실패:', e)
+      }
     } catch (error) {
       alert('업데이트에 실패했습니다')
     } finally {
