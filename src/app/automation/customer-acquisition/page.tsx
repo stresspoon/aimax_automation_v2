@@ -1974,7 +1974,22 @@ export default function CustomerAcquisitionPage() {
       {/* 폼 생성/수정 버튼 */}
       <div className="mb-6 space-y-4">
         <button
-          onClick={() => router.push(`/automation/customer-acquisition/form-builder?projectId=${projectId}`)}
+          onClick={async () => {
+            try {
+              let pid = projectId
+              if (!pid && campaignId) {
+                const result = await saveProjectData(campaignId, projectData)
+                if (result?.id) {
+                  pid = result.id
+                  setProjectId(result.id)
+                }
+              }
+              router.push(`/automation/customer-acquisition/form-builder?projectId=${pid ?? ''}`)
+            } catch (e) {
+              console.error('폼 빌더 진입 전 프로젝트 생성 실패:', e)
+              router.push(`/automation/customer-acquisition/form-builder?projectId=${projectId ?? ''}`)
+            }
+          }}
           className="w-full py-3 px-4 bg-[#131313] hover:bg-[#131313]/90 text-[#FFFFFF] font-semibold rounded-lg transition flex items-center justify-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
