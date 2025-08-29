@@ -92,14 +92,6 @@ export default function SettingsPage() {
   }, [])
 
   const saveSetting = async (key: string, value: any) => {
-    // 베타 테스트 중에는 설정 변경 비활성화
-    toast({
-      title: '알림',
-      description: '베타 테스트 중에는 설정을 변경할 수 없습니다.',
-      variant: 'destructive'
-    })
-    return;
-    
     setSaving(true)
     try {
       const response = await fetch('/api/admin/settings', {
@@ -115,6 +107,8 @@ export default function SettingsPage() {
       }
 
       setSettings(prev => ({ ...prev, [key]: value }))
+      // 저장 후 최신값 다시 가져오기
+      await fetchSettings()
       
       toast({
         title: '저장 완료',
