@@ -86,19 +86,25 @@ export async function POST(request: NextRequest) {
 
     const cookieStore = await cookies()
     const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabase = hasServiceKey
-      ? createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          {
-            cookies: {
-              get(name: string) {
-                return cookieStore.get(name)?.value
-              },
-            },
-          }
-        )
-      : await createSupabaseClient()
+
+    // 서비스 키가 없으면 저장 불가 – 명시적으로 안내
+    if (!hasServiceKey) {
+      return NextResponse.json(
+        { error: '서버 환경변수 SUPABASE_SERVICE_ROLE_KEY가 없어 설정을 저장할 수 없습니다.' },
+        { status: 503 }
+      )
+    }
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
 
     // 기존 설정 확인
     const { data: existing } = await supabase
@@ -122,7 +128,12 @@ export async function POST(request: NextRequest) {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        if ((error as any).code === 'PGRST205') {
+          return NextResponse.json({ error: 'system_settings 테이블이 없습니다.' }, { status: 409 })
+        }
+        throw error
+      }
       result = data
 
       await logActivity('settings.update', {
@@ -146,7 +157,12 @@ export async function POST(request: NextRequest) {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        if ((error as any).code === 'PGRST205') {
+          return NextResponse.json({ error: 'system_settings 테이블이 없습니다.' }, { status: 409 })
+        }
+        throw error
+      }
       result = data
 
       await logActivity('settings.update', {

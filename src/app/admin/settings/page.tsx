@@ -103,7 +103,8 @@ export default function SettingsPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save setting')
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to save setting')
       }
 
       setSettings(prev => ({ ...prev, [key]: value }))
