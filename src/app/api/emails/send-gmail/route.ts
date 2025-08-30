@@ -201,20 +201,40 @@ export async function POST(req: Request) {
       }
     }
     
-    // 발송 기록 저장
-    if (results.length > 0) {
-      await supabase
-        .from('email_logs')
-        .insert(
-          results.map(r => ({
-            user_id: user.id,
-            recipient: r.recipient,
-            subject: subject, // 원본 제목 저장 (템플릿 포함)
-            status: r.status,
-            message_id: r.messageId,
-            sent_at: new Date().toISOString(),
-          }))
-        )
+    // 발송 기록 저장: public.emails_sent 테이블에 성공/실패 모두 기록
+    try {
+      const preview = (body || '').slice(0, 200)
+      const rows = [
+        ...results.map((r: any) => ({
+          profile_id: user.id,
+          project_id: requestBody.projectId || null,
+          to_email: r.recipient,
+          subject: subject,
+          body: preview,
+          provider: 'gmail',
+          provider_message_id: r.messageId || null,
+          status: 'sent',
+          error_message: null,
+          created_at: new Date().toISOString(),
+        })),
+        ...errors.map((e: any) => ({
+          profile_id: user.id,
+          project_id: requestBody.projectId || null,
+          to_email: e.recipient,
+          subject: subject,
+          body: preview,
+          provider: 'gmail',
+          provider_message_id: null,
+          status: 'failed',
+          error_message: e.error || '발송 실패',
+          created_at: new Date().toISOString(),
+        })),
+      ]
+      if (rows.length > 0) {
+        await supabase.from('emails_sent').insert(rows)
+      }
+    } catch (logErr) {
+      console.error('Failed to insert emails_sent logs (gmail):', logErr)
     }
     
     // 항상 200으로 결과 요약 반환 (클라이언트가 sent/failed에 따라 메시지 표시)

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkUsageLimit, incrementUsage } from '@/lib/usage'
+import { assertWriteQuota, logUsage, checkUsageLimit, incrementUsage } from '@/lib/usage'
 import { contentGuidelines } from '@/lib/contentGuidelines'
 import OpenAI from 'openai'
 
@@ -219,23 +219,18 @@ export async function POST(req: Request) {
   console.log('[Generate API] 요청 시작:', new Date().toISOString())
   
   try {
-    // 사용 제한 확인
+    // 사용 제한 확인 (헬퍼 사용)
     let usage = { limit: 3, used: 0, remaining: 3, feature: 'content_generation' }
     try {
+      await assertWriteQuota('content_generation')
       const usageStartTime = Date.now()
       usage = await checkUsageLimit('content_generation')
       console.log('[Generate API] 사용량 확인 소요 시간:', Date.now() - usageStartTime, 'ms')
-      
-      if (usage.limit !== -1 && usage.remaining <= 0) {
-        return NextResponse.json({ 
-          error: '무료 체험 횟수를 모두 사용했습니다',
-          usage,
-          needsUpgrade: true 
-        }, { status: 429 })
-      }
     } catch (usageError) {
-      console.error('사용량 확인 오류:', usageError)
-      // 사용량 확인 실패 시에도 계속 진행 (기본 제한 적용)
+      return NextResponse.json({ 
+        error: '무료 체험 횟수를 모두 사용했습니다',
+        needsUpgrade: true 
+      }, { status: 429 })
     }
     
     const json = await req.json()
@@ -434,11 +429,12 @@ export async function POST(req: Request) {
       console.log('[Generate API] 이미지 생성 건너뜀 (generateImages: false)')
     }
     
-    // 사용 횟수 증가
+    // 사용 로그 기록
     try {
       await incrementUsage('content_generation')
+      await logUsage('content_generation', { contentType: body.contentType, keyword: body.keyword })
     } catch (incError) {
-      console.error('사용 횟수 증가 오류:', incError)
+      console.error('사용 로그 기록 오류:', incError)
     }
     
     // 남은 사용 횟수 확인

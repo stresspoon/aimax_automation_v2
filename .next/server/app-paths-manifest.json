@@ -1,5 +1,11 @@
 {
-  "/api/admin/settings/route": "app/api/admin/settings/route.js",
-  "/admin/settings/page": "app/admin/settings/page.js",
-  "/admin/users/page": "app/admin/users/page.js"
+  "/api/projects/route": "app/api/projects/route.js",
+  "/api/forms/sync-candidates/route": "app/api/forms/sync-candidates/route.js",
+  "/api/auth/gmail/route": "app/api/auth/gmail/route.js",
+  "/api/usage/route": "app/api/usage/route.js",
+  "/api/forms/route": "app/api/forms/route.js",
+  "/automation/customer-acquisition/form-builder/page": "app/automation/customer-acquisition/form-builder/page.js",
+  "/automation/customer-acquisition/page": "app/automation/customer-acquisition/page.js",
+  "/automation/customer-acquisition/dashboard/page": "app/automation/customer-acquisition/dashboard/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }

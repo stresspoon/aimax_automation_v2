@@ -16,8 +16,15 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
     throw new Error('인증이 필요합니다')
   }
 
-  // 무료 플랜 제한
-  const FREE_LIMIT = 10
+  // 플랜별 제한
+  const FREE_LIMITS: Record<string, number> = {
+    content_generation: 10,
+    project_create: 1,
+  }
+  const PRO_LIMITS: Record<string, number> = {
+    content_generation: 100,
+    project_create: -1, // 무제한
+  }
   
   // 사용자의 프로필 정보 조회 (구독 상태 및 무제한 권한 확인)
   const { data: profile, error: profileError } = await supabase
@@ -73,15 +80,11 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
     }
   }
   
-  // 유료 구독자는 무제한
-  if (profile?.subscription_status === 'active' || profile?.subscription_status === 'premium') {
-    return {
-      feature,
-      limit: -1, // 무제한
-      used: 0,
-      remaining: -1
-    }
-  }
+  // 플랜별 한도 계산
+  const plan = profile?.subscription_plan || profile?.subscription_status || 'free'
+  const isPro = plan?.toLowerCase().includes('pro') || profile?.subscription_status === 'active' || profile?.subscription_status === 'premium'
+  const planLimits = isPro ? PRO_LIMITS : FREE_LIMITS
+  const planLimit = planLimits[feature] ?? (isPro ? -1 : 10)
   
   // 무료 사용자의 사용 횟수 확인
   const today = new Date()
@@ -101,11 +104,11 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   }
   
   const used = logs?.length || 0
-  const remaining = Math.max(0, FREE_LIMIT - used)
+  const remaining = planLimit === -1 ? -1 : Math.max(0, planLimit - used)
   
   return {
     feature,
-    limit: FREE_LIMIT,
+    limit: planLimit,
     used,
     remaining
   }
@@ -124,7 +127,7 @@ export async function incrementUsage(feature: string = 'content_generation'): Pr
   const usage = await checkUsageLimit(feature)
   
   if (usage.limit !== -1 && usage.remaining <= 0) {
-    throw new Error('무료 사용 횟수를 초과했습니다')
+    throw new Error('플랜 사용 한도를 초과했습니다')
   }
   
   // 사용 로그 기록
@@ -161,4 +164,24 @@ export async function getUserSubscriptionStatus() {
     .single()
   
   return profile
+}
+
+// 새 헬퍼: 한도 초과 시 예외
+export async function assertWriteQuota(feature: string): Promise<void> {
+  const usage = await checkUsageLimit(feature)
+  if (usage.limit !== -1 && usage.remaining <= 0) {
+    throw new Error('플랜 사용 한도를 초과했습니다')
+  }
+}
+
+// 새 헬퍼: 사용 기록 공통화 (metadata 병합)
+export async function logUsage(feature: string, metadata?: Record<string, any>): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return
+  await supabase.from('usage_logs').insert({
+    user_id: user.id,
+    feature,
+    metadata: { ...(metadata || {}), timestamp: new Date().toISOString() }
+  })
 }

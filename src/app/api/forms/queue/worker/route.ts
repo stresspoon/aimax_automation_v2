@@ -22,11 +22,17 @@ export async function POST(req: Request) {
   const admin = createAdminClient()
 
   try {
-    // 1) 활성 대상 큐 로드
+    const workerId = `worker-${Math.random().toString(36).slice(2, 10)}`
+    const nowIso = new Date().toISOString()
+    const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString() // 10m
+
+    // 1) 활성 대상 큐 로드 (락 되지 않았거나 스테일 락 회수)
     const { data: jobs, error: jobsError } = await admin
       .from('processing_queue')
       .select('*')
-      .lte('next_retry_at', new Date().toISOString())
+      .lte('next_retry_at', nowIso)
+      .is('locked_by', null)
+      .eq('state', 'queued')
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
       .limit(BATCH)
@@ -45,7 +51,20 @@ export async function POST(req: Request) {
       // 간단한 동시성 제한: 순번 대기
       await new Promise(res => setTimeout(res, slot * 0))
 
-      // 2) 락: pending/에러 상태에서만 집어올리기
+      // 2) 큐 락 (다른 워커와 충돌 방지)
+      const { data: lockedQueue, error: lockQueueError } = await admin
+        .from('processing_queue')
+        .update({ locked_by: workerId, locked_at: nowIso, state: 'locked' })
+        .eq('id', job.id)
+        .is('locked_by', null)
+        .select('id, response_id, retry_count, max_retries')
+        .single()
+
+      if (lockQueueError || !lockedQueue) {
+        return
+      }
+
+      // 3) 응답 레코드 락: pending/에러 상태에서만 집어올리기
       const { data: lock, error: lockError } = await admin
         .from('form_responses_temp')
         .update({ status: 'processing' })
@@ -60,7 +79,7 @@ export async function POST(req: Request) {
       }
 
       try {
-        // 3) SNS 체크 실행 (기본 필드만 우선)
+        // 4) SNS 체크 실행 (기본 필드만 우선)
         const payload: any = lock.data || {}
         const result: any = {
           threads: { followers: 0, checked: false },
@@ -92,12 +111,12 @@ export async function POST(req: Request) {
           tryCheck('blogUrl'),
         ])
 
-        // 4) 선정 기준(기본값) 평가
+        // 5) 선정 기준(기본값) 평가
         const isSelected = (result.threads.checked && result.threads.followers >= 500) ||
           (result.instagram.checked && result.instagram.followers >= 1000) ||
           (result.blog.checked && result.blog.neighbors >= 300)
 
-        // 5) 결과 저장 & 큐 제거
+        // 6) 결과 저장 & 큐 제거
         await admin
           .from('form_responses_temp')
           .update({
@@ -128,12 +147,12 @@ export async function POST(req: Request) {
             .eq('id', job.response_id)
           await admin
             .from('processing_queue')
-            .delete()
+            .update({ state: 'dead', locked_by: null, locked_at: null, error_message: e?.message || 'dead' })
             .eq('id', job.id)
         } else {
           await admin
             .from('processing_queue')
-            .update({ retry_count: retry, next_retry_at: next, error_message: e?.message || 'retry' })
+            .update({ retry_count: retry, next_retry_at: next, error_message: e?.message || 'retry', locked_by: null, locked_at: null, state: 'queued' })
             .eq('id', job.id)
           await admin
             .from('form_responses_temp')

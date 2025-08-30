@@ -18,9 +18,9 @@ export async function GET(req: Request) {
     .select('*')
     .eq('user_id', user.id)
   
-  // Get all responses
+  // Get all responses from view
   const { data: responses } = await supabase
-    .from('form_responses_temp')
+    .from('form_responses')
     .select('*')
   
   // Get responses grouped by form_id

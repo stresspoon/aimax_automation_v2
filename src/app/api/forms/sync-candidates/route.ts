@@ -33,29 +33,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ candidates: [], totalResponses: 0, formIds: [], message: '해당 프로젝트의 폼이 없습니다' })
     }
     
-    // 프로젝트의 모든 폼 응답 가져오기 (프로젝트 스코프 강제)
+    // 프로젝트의 모든 폼 응답 가져오기 (public.form_responses 뷰 기준)
     const formIds = forms.map(f => f.id)
     console.log('Fetching responses for forms:', formIds)
     let responses: any[] | null = null
     let error: any = null
     try {
-      let base = supabase.from('form_responses_temp').select('*').in('form_id', formIds)
-      if (projectId) {
-        base = base.eq('project_id', projectId)
-      }
-      const q = await base.order('created_at', { ascending: false })
-      responses = q.data
-      error = q.error
-      if (error && /project_id/.test(error.message || '')) {
-        // 컬럼 미존재 등 호환 이슈 시 project_id 필터 없이 재조회 (폼 범위로 충분히 격리됨)
-        const q2 = await supabase
-          .from('form_responses_temp')
-          .select('*')
-          .in('form_id', formIds)
-          .order('created_at', { ascending: false })
-        responses = q2.data
-        error = q2.error
-      }
+      const { data, error: viewError } = await supabase
+        .from('form_responses')
+        .select('*')
+        .in('form_id', formIds)
+        .order('created_at', { ascending: false })
+      responses = data
+      error = viewError
     } catch (e) {
       error = e
     }

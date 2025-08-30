@@ -138,38 +138,30 @@ export async function POST(req: Request) {
       }
     }
     
-    // 프로젝트에 발송 로그 저장
-    if (body.projectId) {
-      try {
-        const supabase = await createClient()
-        const { data: project } = await supabase
-          .from('projects')
-          .select('data')
-          .eq('id', body.projectId)
-          .single()
-        
-        const currentData = project?.data || {}
-        const emailLogs = currentData.emailLogs || []
-        emailLogs.push({
-          sentAt: new Date().toISOString(),
-          targetType: body.targetType,
+    // 발송 기록 저장: public.emails_sent에 반드시 INSERT (성공/실패 모두)
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const preview = (text: string) => (text || '').slice(0, 200)
+        const rows = sentLogs.map(l => ({
+          profile_id: user.id,
+          project_id: body.projectId || null,
+          to_email: l.email,
           subject: body.subject,
-          logs: sentLogs,
-        })
-        
-        await supabase
-          .from('projects')
-          .update({ 
-            data: { 
-              ...currentData, 
-              emailLogs,
-              lastEmailSentAt: new Date().toISOString(),
-            } 
-          })
-          .eq('id', body.projectId)
-      } catch (err) {
-        console.error('Failed to save email logs:', err)
+          body: preview(body.body),
+          provider: 'sendgrid',
+          provider_message_id: null,
+          status: l.status === 'success' ? 'sent' : 'failed',
+          error_message: l.error || null,
+          created_at: new Date().toISOString(),
+        }))
+        if (rows.length > 0) {
+          await supabase.from('emails_sent').insert(rows)
+        }
       }
+    } catch (logErr) {
+      console.error('Failed to insert emails_sent logs:', logErr)
     }
     
     const successCount = sentLogs.filter(l => l.status === 'success').length

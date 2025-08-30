@@ -357,36 +357,43 @@ export async function GET(req: Request) {
   // projectId 정리
   const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
   
-  let query = supabase
-    .from('form_responses_temp')
-    .select(`
-      *,
-      forms!inner(user_id, project_id)
-    `)
-    .eq('forms.user_id', user.id)
-    .order('created_at', { ascending: false })
-  
-  // projectId로 필터링
-  if (cleanProjectId) {
-    query = query.eq('project_id', cleanProjectId)
-  } else {
-    // projectId가 null인 경우 - project_id가 null인 응답만 반환 (전역 응답)
-    query = query.is('project_id', null)
+  try {
+    // 1) 사용자 소유의 폼 ID 목록 로드 (프로젝트 스코프 반영)
+    let formsQuery = supabase.from('forms').select('id').eq('user_id', user.id)
+    if (cleanProjectId) {
+      formsQuery = formsQuery.eq('project_id', cleanProjectId)
+    } else {
+      formsQuery = formsQuery.is('project_id', null)
+    }
+    const { data: forms, error: formsError } = await formsQuery
+    if (formsError) {
+      return NextResponse.json({ error: formsError.message }, { status: 500 })
+    }
+    const formIds = (forms || []).map(f => f.id)
+    if (formIds.length === 0) {
+      return NextResponse.json([])
+    }
+
+    // 2) public.form_responses 뷰를 기준으로 조회
+    let viewQuery = supabase
+      .from('form_responses')
+      .select('*')
+      .in('form_id', formIds)
+      .order('created_at', { ascending: false })
+    
+    if (formId) {
+      viewQuery = viewQuery.eq('form_id', formId)
+    }
+    if (status) {
+      viewQuery = viewQuery.eq('status', status)
+    }
+
+    const { data: responses, error: viewError } = await viewQuery
+    if (viewError) {
+      return NextResponse.json({ error: viewError.message }, { status: 500 })
+    }
+    return NextResponse.json(responses || [])
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Failed to fetch responses' }, { status: 500 })
   }
-  
-  if (formId) {
-    query = query.eq('form_id', formId)
-  }
-  
-  if (status) {
-    query = query.eq('status', status)
-  }
-  
-  const { data: responses, error } = await query
-  
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-  
-  return NextResponse.json(responses || [])
 }

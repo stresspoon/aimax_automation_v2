@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { checkUsageLimit, assertWriteQuota, logUsage } from '@/lib/usage'
 
 
 export async function GET(request: NextRequest) {
@@ -89,34 +90,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 무료 플랜 사용자의 프로젝트 생성 제한 확인 (1개 제한 + 삭제 후 재생성 방지)
+    // 무료 플랜이면 기존 동일 type/campaign 조합 프로젝트가 있으면 재사용 (200)
     try {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('subscription_status, project_created_once')
-        .eq('id', user.id)
-        .single()
-
-      const isFree = !profile || profile.subscription_status === 'free'
-      if (isFree) {
-        // 이미 한 번이라도 생성한 적이 있으면 차단
-        if (profile?.project_created_once) {
-          return NextResponse.json({ error: '무료 플랜은 프로젝트를 한 번만 생성할 수 있습니다.' }, { status: 403 })
-        }
-        // 현재 보유 프로젝트 수 확인 (삭제 전제 포함 방지용)
-        const { count } = await supabase
+      const usage = await checkUsageLimit('project_create')
+      if (usage.limit !== -1 && usage.remaining <= 0) {
+        const { data: existing } = await supabase
           .from('projects')
-          .select('id', { count: 'exact', head: true })
+          .select('id')
+          .eq('campaign_id', campaign_id)
           .eq('user_id', user.id)
-        if ((count || 0) >= 1) {
-          return NextResponse.json({ error: '무료 플랜은 프로젝트 1개만 보유할 수 있습니다.' }, { status: 403 })
+          .eq('type', type)
+          .single()
+        if (existing?.id) {
+          return NextResponse.json({ reusedProjectId: existing.id }, { status: 200 })
         }
+        // 사용 불가 + 기존 없음이면 한도 초과 응답
+        return NextResponse.json({ error: '프로젝트 생성 한도를 초과했습니다. 플랜을 업그레이드 해주세요.' }, { status: 403 })
       }
     } catch (limitErr) {
-      console.warn('프로젝트 생성 제한 확인 실패:', limitErr)
+      // 한도 확인 실패 시 계속 진행 (보수적)
     }
 
-    // Check if project already exists for this campaign and type
+    // 기존 프로젝트 있는지 확인
     const { data: existing } = await supabase
       .from('projects')
       .select('*')
@@ -127,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     let project
     if (existing) {
-      // Update existing project
+      // Update existing project (세션 RLS로 user_id 스코프 유지)
       const { data: updated, error } = await supabase
         .from('projects')
         .update({
@@ -147,7 +142,9 @@ export async function POST(request: NextRequest) {
       }
       project = updated
     } else {
-      // Create new project
+      // 새 프로젝트 생성 (반드시 세션 기반 클라이언트로 user_id=user.id 지정)
+      await assertWriteQuota('project_create')
+
       const { data: created, error } = await supabase
         .from('projects')
         .insert({
@@ -168,15 +165,8 @@ export async function POST(request: NextRequest) {
       }
       project = created
 
-      // 무료 플랜인 경우 생성 이력 플래그 설정
-      try {
-        await supabase
-          .from('user_profiles')
-          .update({ project_created_once: true })
-          .eq('id', user.id)
-      } catch (flagErr) {
-        console.warn('project_created_once 플래그 업데이트 실패:', flagErr)
-      }
+      // usage_logs 기록 (성공 직후)
+      await logUsage('project_create', { campaign_id, type })
     }
 
     return NextResponse.json(project, { status: existing ? 200 : 201 })

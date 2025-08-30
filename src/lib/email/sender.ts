@@ -11,7 +11,7 @@ export interface SendEmailParams {
 
 export interface EmailProviderResponse {
   ok: boolean
-  provider: 'sendgrid'
+  provider: 'sendgrid' | 'gmail'
   messageId?: string
   error?: string
 }
@@ -30,8 +30,8 @@ export async function sendEmail(params: SendEmailParams): Promise<EmailProviderR
     const { data: userRes } = await admin.auth.getUser()
     const userId = userRes?.user?.id
     if (userId) {
-      await sendViaGmailAsUser({ userId, to: params.to, subject: rendered.subject, html: rendered.html })
-      return { ok: true, provider: 'sendgrid' }
+      const gmailRes = await sendViaGmailAsUser({ userId, to: params.to, subject: rendered.subject, html: rendered.html })
+      return { ok: true, provider: 'gmail', messageId: (gmailRes as any)?.messageId }
     }
   } catch {}
 

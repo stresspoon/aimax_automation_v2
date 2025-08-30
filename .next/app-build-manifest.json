@@ -6,30 +6,50 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/admin/layout": [
+    "/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/layout.js"
+      "static/chunks/app/dashboard/page.js"
     ],
-    "/admin/users/page": [
+    "/automation/customer-acquisition/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/users/page.js"
+      "static/chunks/app/automation/customer-acquisition/dashboard/page.js"
     ],
-    "/api/admin/users/route": [
+    "/automation/customer-acquisition/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/users/route.js"
+      "static/chunks/app/automation/customer-acquisition/page.js"
     ],
-    "/admin/settings/page": [
+    "/api/usage/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/settings/page.js"
+      "static/chunks/app/api/usage/route.js"
     ],
-    "/api/admin/settings/route": [
+    "/api/projects/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/settings/route.js"
+      "static/chunks/app/api/projects/route.js"
+    ],
+    "/api/forms/sync-candidates/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/forms/sync-candidates/route.js"
+    ],
+    "/automation/customer-acquisition/form-builder/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/automation/customer-acquisition/form-builder/page.js"
+    ],
+    "/api/forms/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/forms/route.js"
+    ],
+    "/api/auth/gmail/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/auth/gmail/route.js"
     ]
   }
 }
