@@ -29,7 +29,7 @@ export async function checkUsageLimit(feature: string = 'content_generation'): P
   // 사용자의 프로필 정보 조회 (구독 상태 및 무제한 권한 확인)
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('subscription_status, is_unlimited, unlimited_until')
+    .select('subscription_status, is_unlimited, unlimited_until, subscription_plan')
     .eq('id', user.id)
     .single()
   
