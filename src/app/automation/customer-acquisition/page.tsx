@@ -231,7 +231,7 @@ export default function CustomerAcquisitionPage() {
           // ID로 프로젝트 데이터 로드
           const projectFromDb = await loadProjectById(projectIdParam);
           
-          if (projectFromDb) {
+              if (projectFromDb) {
             setProjectId(projectFromDb.id);
             setCampaignId(projectFromDb.campaign_id);
             setCampaignName(projectFromDb.campaign_name);
@@ -249,6 +249,8 @@ export default function CustomerAcquisitionPage() {
                   generatedImages: projectFromDb.data.step1?.generatedImages || []
                 },
                 step2: {
+                  formId: projectFromDb.data.step2?.formId || null,
+                  formUrl: projectFromDb.data.step2?.formUrl || null,
                   sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
                   isRunning: projectFromDb.data.step2?.isRunning || false,
                   candidates: projectFromDb.data.step2?.candidates || [],
@@ -256,7 +258,8 @@ export default function CustomerAcquisitionPage() {
                     threads: 500,
                     blog: 300,
                     instagram: 1000
-                  }
+                  },
+                  usingFormData: projectFromDb.data.step2?.usingFormData || false,
                 },
                 step3: projectFromDb.data.step3 || {
                   targetType: 'selected',
@@ -311,6 +314,8 @@ export default function CustomerAcquisitionPage() {
                 generatedImages: projectFromDb.data.step1?.generatedImages || []
               },
               step2: {
+                formId: projectFromDb.data.step2?.formId || null,
+                formUrl: projectFromDb.data.step2?.formUrl || null,
                 sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
                 isRunning: projectFromDb.data.step2?.isRunning || false,
                 candidates: projectFromDb.data.step2?.candidates || [],
@@ -318,7 +323,8 @@ export default function CustomerAcquisitionPage() {
                   threads: 500,
                   blog: 300,
                   instagram: 1000
-                }
+                },
+                usingFormData: projectFromDb.data.step2?.usingFormData || false,
               },
               step3: projectFromDb.data.step3 || {
                 targetType: 'selected',
@@ -2001,33 +2007,37 @@ export default function CustomerAcquisitionPage() {
           폼 생성/수정하기
         </button>
         
-        {/* 폼 URL 표시 (폼이 생성된 경우) */}
-        {projectData.step2.formUrl ? (
+        {/* 폼 상태 표시 */}
+        {projectData.step2.formUrl || projectData.step2.usingFormData || projectData.step2.isRunning || (projectData.step2.candidates?.length || 0) > 0 ? (
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-700 mb-2">폼이 생성되었습니다!</p>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={projectData.step2.formUrl} 
-                readOnly 
-                className="flex-1 px-3 py-2 text-sm bg-white border rounded"
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(projectData.step2.formUrl || '');
-                  alert('링크가 복사되었습니다');
-                }}
-                className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
-              >
-                복사
-              </button>
-              <button
-                onClick={() => window.open(projectData.step2.formUrl || '', '_blank')}
-                className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
-              >
-                열기
-              </button>
-            </div>
+            <p className="text-sm text-green-700 mb-2">
+              {projectData.step2.formUrl ? '폼이 생성되었습니다!' : '폼이 생성되어 자동화가 정상적으로 동작 중입니다'}
+            </p>
+            {projectData.step2.formUrl && (
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={projectData.step2.formUrl} 
+                  readOnly 
+                  className="flex-1 px-3 py-2 text-sm bg-white border rounded"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(projectData.step2.formUrl || '');
+                    alert('링크가 복사되었습니다');
+                  }}
+                  className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
+                >
+                  복사
+                </button>
+                <button
+                  onClick={() => window.open(projectData.step2.formUrl || '', '_blank')}
+                  className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
+                >
+                  열기
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
