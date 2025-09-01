@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
+    "dev:clean": "node scripts/dev-server.js --clean",
+    "dev:restart": "node scripts/dev-server.js",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",

@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // 개발 중 캐시 문제 해결
   experimental: {
-    // 서버 컴포넌트 무효화 시간 단축
+    // 서버 컴포넌트 무효화 시간 (더 안정적으로 조정)
     staleTimes: {
-      dynamic: 0,
+      dynamic: 30,  // 0은 너무 짧아서 문제 발생
       static: 180,
     },
   },
@@ -17,11 +17,22 @@ const nextConfig: NextConfig = {
     // 메모리에 유지할 최대 페이지 수
     pagesBufferLength: 2,
   },
-  // Webpack 캐시 설정
-  webpack: (config, { dev }) => {
+  // Webpack 설정
+  webpack: (config, { dev, isServer }) => {
     if (dev) {
-      // 개발 모드에서 캐시 비활성화
-      config.cache = false;
+      // 개발 모드에서 파일 시스템 캐시 사용 (메모리 효율적)
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+      
+      // 파일 변경 감지 최적화
+      config.watchOptions = {
+        poll: false,  // CPU 사용량 감소
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
+      };
     }
     return config;
   },
