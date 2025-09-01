@@ -93,7 +93,8 @@ export async function GET(req: Request) {
         
         // 모든 폼 데이터를 포함 (엑셀 다운로드용)
         ...formData
-      }))
+      }
+    })
     
     return NextResponse.json({ 
       candidates,
