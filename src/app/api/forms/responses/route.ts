@@ -320,12 +320,21 @@ export async function POST(req: Request) {
       }
     }
     
-    // SNS 체크를 즉시 실행 (백그라운드)
+    // SNS 체크를 즉시 실행 (서버리스 환경 고려)
     console.log('🚀 Starting immediate SNS check for response:', responseId)
     
-    // 비동기로 처리 (응답을 기다리지 않음)
-    processResponseInBackground(responseId!).catch(err => {
-      console.error('Background processing failed:', err)
+    // Vercel 서버리스 환경에서는 응답 후 프로세스가 종료되므로
+    // waitUntil을 사용하거나 동기적으로 처리해야 함
+    // 1. 즉시 처리 시도 (짧은 타임아웃)
+    const processPromise = processResponseInBackground(responseId!)
+    
+    // 2. 최대 5초만 기다림 (사용자 경험 vs 처리 완료의 균형)
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000))
+    
+    // 둘 중 하나가 먼저 완료되면 진행
+    await Promise.race([processPromise, timeoutPromise]).catch(err => {
+      console.error('Background processing error:', err)
+      // 에러가 발생해도 응답은 반환 (큐에서 나중에 재처리)
     })
     
     return NextResponse.json({
