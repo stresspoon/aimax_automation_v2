@@ -22,6 +22,11 @@ interface Candidate {
   status: "selected" | "notSelected";
   emailSent?: boolean;
   emailSentAt?: string;
+  // optional URLs and metadata
+  threadsUrl?: string;
+  instagramUrl?: string;
+  blogUrl?: string;
+  source?: string;
   checkStatus?: {
     threads?: 'checking' | 'completed' | 'error' | 'no_url';
     threadsError?: string;

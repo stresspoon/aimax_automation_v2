@@ -278,6 +278,33 @@ export async function POST(req: Request) {
       updateProgress(body.projectId, rows.length, 0, 'SNS 체크 준비 중...', 'processing', 'sns_checking')
     }
     
+    // 헤더 탐색/도메인 스캔 유틸
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '')
+    const getByHeaderHints = (row: Row, hints: string[]): string => {
+      for (const key of Object.keys(row)) {
+        const nk = normalize(key)
+        if (hints.some(h => nk.includes(normalize(h)))) {
+          const val = (row[key] || '').trim()
+          if (val) return val
+        }
+      }
+      return ''
+    }
+    const getByDomainScan = (row: Row, domains: string[]): string => {
+      for (const val of Object.values(row)) {
+        if (!val) continue
+        const v = String(val).trim()
+        if (v.startsWith('http') && domains.some(d => v.includes(d))) return v
+      }
+      return ''
+    }
+    const pickUrl = (row: Row, headerHints: string[], domains: string[]) => {
+      return (
+        getByHeaderHints(row, headerHints) ||
+        getByDomainScan(row, domains)
+      )
+    }
+
     // Process each row and calculate metrics sequentially
     const candidates = []
     
@@ -291,15 +318,27 @@ export async function POST(req: Request) {
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index]
       
-      // Common column names
-      const name = row['성함'] || row['이름'] || row['name'] || row['Name'] || ''
-      const email = row['메일주소'] || row['이메일'] || row['email'] || row['Email'] || ''
-      const phone = row['연락처'] || row['전화번호'] || row['phone'] || row['Phone'] || ''
+      // Common fields (more robust header detection)
+      const name = getByHeaderHints(row, ['성함', '이름', '성명', '신청자명', '닉네임', 'Full Name', 'name', 'Name'])
+      const email = getByHeaderHints(row, ['메일주소', '이메일', 'email', 'Email'])
+      const phone = getByHeaderHints(row, ['연락처', '전화번호', '휴대폰', '휴대전화', '핸드폰', 'mobile', 'Mobile', 'phone', 'Phone'])
       
-      // Channel URLs
-      const threadsUrl = row['후기 작성할 스레드 URL'] || row['스레드 URL'] || row['threads'] || row['Threads'] || ''
-      const instagramUrl = row['후기 작성할 인스타그램 URL'] || row['인스타그램 URL'] || row['instagram'] || row['Instagram'] || ''
-      const blogUrl = row['후기 작성할 블로그 URL'] || row['블로그 URL'] || row['blog'] || row['Blog'] || ''
+      // Channel URLs via header hints + domain scan
+      const threadsUrl = pickUrl(row,
+        ['후기 작성할 스레드', '스레드 url', '스레드 URL', '스레드주소', 'threads', 'Threads', 'threads url', 'Threads URL'],
+        ['threads.net', 'threads.com']
+      )
+      const instagramUrl = pickUrl(row,
+        ['후기 작성할 인스타그램', '인스타그램 url', '인스타그램 URL', '인스타', 'instagram', 'Instagram'],
+        ['instagram.com']
+      )
+      const blogUrl = pickUrl(row,
+        ['후기 작성할 블로그', '블로그 url', '블로그 URL', '블로그주소', 'naver', 'blog', 'Blog'],
+        ['blog.naver.com', 'm.blog.naver.com']
+      )
+      
+      // Source (application route)
+      const source = getByHeaderHints(row, ['신청경로', '신청 경로', '유입경로', '유입 경로', '경로', '출처', 'source', 'referrer', 'origin'])
       
       // If metrics are directly provided in the sheet
       let threads = parseInt(row['threads_followers'] || row['스레드 팔로워'] || '0')
@@ -470,6 +509,10 @@ export async function POST(req: Request) {
         instagram,
         status: selected ? 'selected' as const : 'notSelected' as const,
         checkStatus,
+        threadsUrl,
+        instagramUrl,
+        blogUrl,
+        source,
       }
       
       candidates.push(candidate)

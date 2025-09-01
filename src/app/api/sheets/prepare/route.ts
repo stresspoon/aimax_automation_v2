@@ -67,18 +67,32 @@ export async function POST(req: Request) {
     }
 
     const candidates = rows.map((row) => {
-      const name = row['성함'] || row['이름'] || row['name'] || row['Name'] || ''
-      const email = row['메일주소'] || row['이메일'] || row['email'] || row['Email'] || ''
-      const phone = row['연락처'] || row['전화번호'] || row['phone'] || row['Phone'] || ''
-      const threadsUrl = pickUrl(row, ['후기 작성할 스레드', '스레드 url', '스레드', 'threads'], ['threads.net', 'threads.com'])
-      const instagramUrl = pickUrl(row, ['후기 작성할 인스타그램', '인스타그램 url', '인스타그램', 'instagram'], ['instagram.com'])
-      const blogUrl = pickUrl(row, ['후기 작성할 블로그', '블로그 url', '블로그', 'naver', 'blog'], ['blog.naver.com', 'm.blog.naver.com'])
-      return { name, email, phone, threadsUrl, instagramUrl, blogUrl }
+      // 이름/이메일/연락처는 다양한 라벨을 허용
+      const name = getByHeaderHints(row, ['성함', '이름', '성명', '신청자명', '닉네임', 'Full Name', 'name', 'Name'])
+      const email = getByHeaderHints(row, ['메일주소', '이메일', 'email', 'Email'])
+      const phone = getByHeaderHints(row, ['연락처', '전화번호', '휴대폰', '휴대전화', '핸드폰', 'mobile', 'Mobile', 'phone', 'Phone'])
+
+      // URL 후보는 헤더 힌트 + 도메인 스캔을 함께 사용
+      const threadsUrl = pickUrl(row,
+        ['후기 작성할 스레드', '스레드 url', '스레드 URL', '스레드주소', 'threads', 'Threads', 'threads url', 'Threads URL'],
+        ['threads.net', 'threads.com']
+      )
+      const instagramUrl = pickUrl(row,
+        ['후기 작성할 인스타그램', '인스타그램 url', '인스타그램 URL', '인스타', 'instagram', 'Instagram'],
+        ['instagram.com']
+      )
+      const blogUrl = pickUrl(row,
+        ['후기 작성할 블로그', '블로그 url', '블로그 URL', '블로그주소', 'naver', 'blog', 'Blog'],
+        ['blog.naver.com', 'm.blog.naver.com']
+      )
+
+      // 신청 경로(유입 경로) 추정
+      const source = getByHeaderHints(row, ['신청경로', '신청 경로', '유입경로', '유입 경로', '경로', '출처', 'source', 'referrer', 'origin'])
+
+      return { name, email, phone, threadsUrl, instagramUrl, blogUrl, source }
     })
     return NextResponse.json({ candidates })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }
 }
-
-
