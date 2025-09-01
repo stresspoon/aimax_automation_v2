@@ -84,14 +84,16 @@ export async function GET(req: Request) {
         // 추가 필드들
         source: formData.source || formData.신청경로 || '',
         
+        // 체크 상태
+        checkStatus: {
+          threads: response.sns_check_result?.threads?.checked ? 'completed' : 'pending',
+          blog: response.sns_check_result?.blog?.checked ? 'completed' : 'pending',
+          instagram: response.sns_check_result?.instagram?.checked ? 'completed' : 'pending'
+        },
+        
         // 모든 폼 데이터를 포함 (엑셀 다운로드용)
-        ...formData,
-      checkStatus: {
-        threads: response.sns_check_result?.threads?.checked ? 'completed' : 'pending',
-        blog: response.sns_check_result?.blog?.checked ? 'completed' : 'pending',
-        instagram: response.sns_check_result?.instagram?.checked ? 'completed' : 'pending'
-      }
-    }))
+        ...formData
+      }))
     
     return NextResponse.json({ 
       candidates,
