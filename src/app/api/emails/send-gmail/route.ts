@@ -138,11 +138,13 @@ export async function POST(req: Request) {
         // HTML 본문을 base64로 인코딩
         const htmlBody = Buffer.from(processedBody, 'utf-8').toString('base64')
         
+        // 헤더와 바디 구분을 위한 필수 빈 줄(\r\n\r\n)을 보존하기 위해
+        // 의도적 빈 문자열은 제거하지 않는다. Reply-To는 있을 때만 포함한다.
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipientEmail}`,
           `Subject: =?UTF-8?B?${Buffer.from(processedSubject, 'utf-8').toString('base64')}?=`,
-          replyTo ? `Reply-To: ${replyTo}` : '',
+          ...(replyTo ? [`Reply-To: ${replyTo}`] : []),
           'MIME-Version: 1.0',
           `Date: ${new Date().toUTCString()}`,
           `Content-Type: multipart/alternative; boundary="${boundary}"`,
@@ -160,7 +162,7 @@ export async function POST(req: Request) {
           htmlBody,
           '',
           `--${boundary}--`
-        ].filter(Boolean).join('\r\n')
+        ].join('\r\n')
         
         // Gmail API용 Base64 인코딩 (URL-safe)
         const encodedMessage = Buffer.from(message, 'utf-8')
