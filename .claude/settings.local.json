@@ -42,7 +42,15 @@
       "Bash(git pull:*)",
       "Bash(tree:*)",
       "Bash(npx supabase:*)",
-      "Bash(npm run clean:*)"
+      "Bash(npm run clean:*)",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__activate_project",
+      "mcp__serena__read_file",
+      "mcp__serena__replace_regex",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__find_file",
+      "mcp__serena__list_dir",
+      "mcp__serena__think_about_whether_you_are_done"
     ],
     "deny": [],
     "ask": []

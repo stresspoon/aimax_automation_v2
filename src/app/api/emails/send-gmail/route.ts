@@ -144,7 +144,7 @@ export async function POST(req: Request) {
           'Content-Type: text/html; charset=UTF-8',
           'Content-Transfer-Encoding: base64',
           '',
-          Buffer.from(processedBody, 'utf-8').toString('base64'),
+          Buffer.from(processedBody, 'utf-8').toString('base64').match(/.{1,76}/g)?.join('\r\n') || '',
           `--${boundary}--`
         ].filter(Boolean).join('\r\n')
         

@@ -267,6 +267,7 @@ export async function POST(req: Request) {
     const insertPayload: Record<string, any> = {
       form_id: formId,
       email: responseData.email,
+      name: responseData.name || responseData.이름 || '',  // name 필드 추가
       data: responseData,
       status: 'pending'
     }

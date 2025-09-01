@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 // GET: 폼 응답을 candidates 형식으로 변환하여 반환
@@ -57,18 +58,34 @@ export async function GET(req: Request) {
     }
     
     // candidates 형식으로 변환
-    const candidates = (responses || []).map(response => ({
-      name: response.name || response.data?.name || '',
-      email: response.email || '',
-      phone: response.phone || response.data?.phone || '',
-      threads: response.sns_check_result?.threads?.followers || 0,
-      blog: response.sns_check_result?.blog?.neighbors || 0,
-      instagram: response.sns_check_result?.instagram?.followers || 0,
-      status: response.is_selected ? 'selected' : 'notSelected',
-      threadsUrl: response.data?.threadsUrl || '',
-      instagramUrl: response.data?.instagramUrl || '',
-      blogUrl: response.data?.blogUrl || '',
-      source: response.data?.source || '',
+    const candidates = (responses || []).map(response => {
+      // data 필드에서 모든 폼 입력값 가져오기
+      const formData = response.data || {}
+      
+      return {
+        // 기본 필드들
+        name: response.name || formData.name || formData.이름 || '',
+        email: response.email || formData.email || formData.이메일 || '',
+        phone: response.phone || formData.phone || formData.연락처 || formData.전화번호 || '',
+        
+        // SNS 체크 결과
+        threads: response.sns_check_result?.threads?.followers || 0,
+        blog: response.sns_check_result?.blog?.neighbors || 0,
+        instagram: response.sns_check_result?.instagram?.followers || 0,
+        
+        // 상태
+        status: response.is_selected ? 'selected' : 'notSelected',
+        
+        // URL 필드들
+        threadsUrl: formData.threadsUrl || formData.스레드 || formData.threads || '',
+        instagramUrl: formData.instagramUrl || formData.인스타그램 || formData.instagram || '',
+        blogUrl: formData.blogUrl || formData.블로그 || formData.blog || '',
+        
+        // 추가 필드들
+        source: formData.source || formData.신청경로 || '',
+        
+        // 모든 폼 데이터를 포함 (엑셀 다운로드용)
+        ...formData,
       checkStatus: {
         threads: response.sns_check_result?.threads?.checked ? 'completed' : 'pending',
         blog: response.sns_check_result?.blog?.checked ? 'completed' : 'pending',
