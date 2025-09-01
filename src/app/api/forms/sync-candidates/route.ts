@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 // GET: 폼 응답을 candidates 형식으로 변환하여 반환
