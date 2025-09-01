@@ -131,6 +131,13 @@ export async function POST(req: Request) {
         // 이메일 메시지 생성 (UTF-8 인코딩 개선)
         const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         
+        // Plain text 버전 생성 (HTML 태그 제거)
+        const plainTextBody = processedBody.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
+        const plainTextBase64 = Buffer.from(plainTextBody, 'utf-8').toString('base64')
+        
+        // HTML 본문을 base64로 인코딩
+        const htmlBody = Buffer.from(processedBody, 'utf-8').toString('base64')
+        
         const message = [
           `From: ${gmailConnection.email}`,
           `To: ${recipientEmail}`,
@@ -141,10 +148,17 @@ export async function POST(req: Request) {
           `Content-Type: multipart/alternative; boundary="${boundary}"`,
           '',
           `--${boundary}`,
+          'Content-Type: text/plain; charset=UTF-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          plainTextBase64,
+          '',
+          `--${boundary}`,
           'Content-Type: text/html; charset=UTF-8',
           'Content-Transfer-Encoding: base64',
           '',
-          Buffer.from(processedBody, 'utf-8').toString('base64').match(/.{1,76}/g)?.join('\r\n') || '',
+          htmlBody,
+          '',
           `--${boundary}--`
         ].filter(Boolean).join('\r\n')
         
