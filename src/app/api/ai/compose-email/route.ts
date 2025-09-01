@@ -73,9 +73,11 @@ ${instructions}
 - <p> 태그로 단락 구분
 - 중요한 부분은 <strong> 태그 사용
 - 리스트는 <ul>, <li> 태그 사용
-- 개인화 요소 포함 (수신자 이름 사용)
+- 개인화 요소: 반드시 {이름} 템플릿 변수 사용 (실제 이름 "${candidateInfo.name}" 대신)
 - 서명 포함
-</body>`
+</body>
+
+중요: 수신자 이름을 언급할 때는 반드시 {이름} 템플릿 변수를 사용하세요. 실제 이름(${candidateInfo.name})을 직접 사용하지 마세요.`
 }
 
 export async function POST(req: Request) {
@@ -144,8 +146,21 @@ export async function POST(req: Request) {
     const emailBody = bodyMatch ? bodyMatch[1].trim() : text
 
     // Add template variables for personalization
-    const finalSubject = subject.includes('{이름}') ? subject : subject.replace(body.candidateInfo.name, '{이름}')
-    const finalBody = emailBody.includes('{이름}') ? emailBody : emailBody.replace(new RegExp(body.candidateInfo.name, 'g'), '{이름}')
+    // 이미 템플릿 변수가 있으면 그대로 사용, 없으면 실제 이름을 템플릿 변수로 교체
+    let finalSubject = subject;
+    let finalBody = emailBody;
+    
+    // 이름이 실제 값으로 되어 있으면 템플릿 변수로 교체
+    if (body.candidateInfo.name && !finalSubject.includes('{이름}')) {
+      // 정확한 이름만 교체 (문자 단위가 아닌 전체 이름)
+      finalSubject = finalSubject.replace(new RegExp(`\\b${body.candidateInfo.name}\\b`, 'g'), '{이름}');
+    }
+    
+    if (body.candidateInfo.name && !finalBody.includes('{이름}')) {
+      // HTML 태그 내의 이름도 정확히 교체
+      const nameRegex = new RegExp(`(?<!{)${body.candidateInfo.name}(?!})`, 'g');
+      finalBody = finalBody.replace(nameRegex, '{이름}');
+    }
     
     return NextResponse.json({ 
       subject: finalSubject,

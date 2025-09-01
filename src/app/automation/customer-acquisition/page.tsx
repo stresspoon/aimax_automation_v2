@@ -95,6 +95,59 @@ export default function CustomerAcquisitionPage() {
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // localStorage에서 step2, step3 데이터 복원
+  useEffect(() => {
+    // Step2 데이터 복원
+    const savedStep2 = localStorage.getItem('step2_automation_data');
+    if (savedStep2) {
+      try {
+        const parsedData = JSON.parse(savedStep2);
+        setProjectData(prev => ({
+          ...prev,
+          step2: {
+            ...prev.step2,
+            isRunning: parsedData.isRunning || false,
+            selectionCriteria: parsedData.selectionCriteria || prev.step2.selectionCriteria
+          }
+        }));
+      } catch (error) {
+        console.error('Failed to parse step2 data:', error);
+      }
+    }
+
+    // Step3 데이터 복원
+    const savedStep3 = localStorage.getItem('step3_email_data');
+    if (savedStep3) {
+      try {
+        const parsedData = JSON.parse(savedStep3);
+        setProjectData(prev => ({
+          ...prev,
+          step3: {
+            ...prev.step3,
+            ...parsedData
+          }
+        }));
+      } catch (error) {
+        console.error('Failed to parse step3 data:', error);
+      }
+    }
+  }, []);
+
+  // step2 자동화 상태가 변경될 때마다 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('step2_automation_data', JSON.stringify({
+      isRunning: projectData.step2.isRunning,
+      selectionCriteria: projectData.step2.selectionCriteria
+    }));
+  }, [projectData.step2.isRunning, projectData.step2.selectionCriteria]);
+
+  // step3 데이터가 변경될 때마다 localStorage에 저장
+  useEffect(() => {
+    if (projectData.step3.emailSubject || projectData.step3.emailBody || projectData.step3.senderEmail) {
+      localStorage.setItem('step3_email_data', JSON.stringify(projectData.step3));
+    }
+  }, [projectData.step3]);
+
   // 사용 제한 정보 가져오기
   useEffect(() => {
     const fetchUsage = async () => {
