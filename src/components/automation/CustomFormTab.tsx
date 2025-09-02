@@ -361,14 +361,31 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     const labelByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.label; return m }, {})
     const typeByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.type; return m }, {})
 
+    // 표준 헤더명을 키 기준으로 정규화 (폼 라벨과 무관하게 동일한 헤더 유지)
+    const normalizeHeader = (key: string, fallback: string) => {
+      switch (key) {
+        case 'name': return '이름'
+        case 'email': return '이메일'
+        case 'phone': return '연락처'
+        case 'source': return '신청경로'
+        case 'threadsUrl': return '스레드URL'
+        case 'instagramUrl': return '인스타URL'
+        case 'blogUrl': return '블로그URL'
+        default: return fallback || key
+      }
+    }
+
+    // 헤더 순서: 폼 작성 순서(정규화된 라벨) → 팔로워 숫자 → 상태/메타
+    const fieldHeaders = fieldDefs.map(def => normalizeHeader(def.key, def.label))
+
     // 행 데이터 구성 (모든 응답 필드 + 팔로워/이웃 수치 포함)
     const excelData = responses.map((response) => {
       const row: Record<string, any> = {}
 
-      // 1) 폼 정의 순서대로 모든 입력값 추가
+      // 1) 폼 정의 순서대로 모든 입력값 추가 (정규화된 라벨 사용)
       for (const def of fieldDefs) {
         const key = def.key
-        const label = labelByKey[key] || key
+        const label = normalizeHeader(key, labelByKey[key] || key)
         let value = response.data?.[key]
 
         // name/email/phone은 최상위 컬럼값 우선
@@ -400,26 +417,14 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       const blogNeighbors = response.sns_check_result?.blog?.neighbors
       const blogErr = response.sns_check_result?.blog?.error
 
-      row['스레드 팔로워'] = !threadsUrl ? '입력누락' : (threadsErr || (threadsUrl && threadsFollowers === 0)) ? '입력오류' : (threadsFollowers || 0)
-      row['인스타그램 팔로워'] = !instagramUrl ? '입력누락' : (igErr || (instagramUrl && igFollowers === 0)) ? '입력오류' : (igFollowers || 0)
-      row['블로그 이웃'] = !blogUrl ? '입력누락' : (blogErr || (blogUrl && blogNeighbors === 0)) ? '입력오류' : (blogNeighbors || 0)
+      row['Threads'] = !threadsUrl ? '입력누락' : (threadsErr || (threadsUrl && threadsFollowers === 0)) ? '입력오류' : (threadsFollowers || 0)
+      row['블로그'] = !blogUrl ? '입력누락' : (blogErr || (blogUrl && blogNeighbors === 0)) ? '입력오류' : (blogNeighbors || 0)
+      row['인스타그램'] = !instagramUrl ? '입력누락' : (igErr || (instagramUrl && igFollowers === 0)) ? '입력오류' : (igFollowers || 0)
 
-      // 3) 커스텀 SNS 필드(있다면) 팔로워/이웃 수치 추가
-      const customSNS = response.sns_check_result?.custom || {}
-      for (const [fieldKey, info] of Object.entries<any>(customSNS)) {
-        const type = info?.type
-        const followers = info?.followers
-        const neighbors = info?.neighbors
-        const lbl = labelByKey[fieldKey] || fieldKey
-        if (type === 'blog') {
-          row[`(${lbl}) 이웃`] = neighbors ?? 0
-        } else {
-          row[`(${lbl}) 팔로워`] = followers ?? 0
-        }
-      }
+      // 3) 커스텀 SNS 메트릭은 요구사항에 없으므로 제외 (필요 시 재도입)
 
       // 4) 상태/메타 정보
-      row['선정 여부'] = response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기'
+      row['상태'] = response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기'
       row['처리 상태'] = response.status === 'completed' ? '완료' : response.status === 'processing' ? '처리중' : response.status === 'pending' ? '대기' : response.status || ''
       row['선정 사유'] = response.selection_reason || ''
       row['신청일시'] = new Date(response.created_at).toLocaleString('ko-KR')
@@ -427,8 +432,14 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       return row
     })
 
-    // 워크시트 생성
-    const ws = XLSX.utils.json_to_sheet(excelData)
+    // 워크시트 생성: 헤더 순서를 폼 작성 순서로 고정 후, 팔로워/상태/메타 추가
+    const headers = [
+      ...fieldHeaders,
+      'Threads', '블로그', '인스타그램',
+      '상태', '처리 상태', '선정 사유', '신청일시'
+    ]
+
+    const ws = XLSX.utils.json_to_sheet(excelData, { header: headers })
     
     // 워크북 생성
     const wb = XLSX.utils.book_new()
