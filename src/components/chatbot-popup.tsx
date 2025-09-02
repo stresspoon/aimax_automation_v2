@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X, MessageCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -10,22 +10,46 @@ export function ChatbotPopup() {
   const [messages, setMessages] = useState([
     { role: "bot", content: "안녕하세요! AIMAX 상담원입니다. 궁금하신 점을 물어보세요." }
   ])
+  const [loading, setLoading] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
 
-  const handleSend = () => {
+  // 스크롤을 항상 최신 메시지로 이동
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    // 부드럽게 맨 아래로 스크롤
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [messages, loading, isOpen])
+
+  const handleSend = async () => {
     if (!message.trim()) return
     
     // Add user message
-    setMessages(prev => [...prev, { role: "user", content: message }])
-    
-    // Simulate bot response (to be replaced with actual implementation)
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        role: "bot", 
-        content: "죄송합니다. 현재 자동 응답 기능은 준비 중입니다. support@aimax.com으로 문의해주시면 빠르게 답변드리겠습니다." 
-      }])
-    }, 1000)
-    
+    const userText = message
+    setMessages(prev => [...prev, { role: "user", content: userText }])
     setMessage("")
+    setLoading(true)
+
+    try {
+      // Build history for API (only user/assistant roles)
+      const history = messages
+        .filter(m => m.role === 'user' || m.role === 'bot')
+        .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content }))
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText, history })
+      })
+
+      const data = await res.json()
+      const reply = data?.reply || data?.error || '잠시 후 다시 시도해주세요.'
+      setMessages(prev => [...prev, { role: 'bot', content: String(reply) }])
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'bot', content: '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' }])
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -70,7 +94,7 @@ export function ChatbotPopup() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -87,10 +111,17 @@ export function ChatbotPopup() {
                     : "bg-muted text-foreground"
                 )}
               >
-                <p className="text-sm">{msg.content}</p>
+                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
             </div>
           ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="max-w-[70%] px-4 py-2 rounded-2xl bg-muted text-foreground">
+                <p className="text-sm">입력하신 내용을 확인하고 있어요…</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input */}
@@ -106,7 +137,11 @@ export function ChatbotPopup() {
             />
             <button
               onClick={handleSend}
-              className="w-10 h-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full flex items-center justify-center transition"
+              disabled={loading || !message.trim()}
+              className={cn(
+                "w-10 h-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full flex items-center justify-center transition",
+                (loading || !message.trim()) && "opacity-60 cursor-not-allowed hover:bg-primary"
+              )}
               aria-label="메시지 전송"
             >
               <Send className="w-5 h-5" />

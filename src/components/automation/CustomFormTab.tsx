@@ -344,58 +344,89 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       alert('다운로드할 데이터가 없습니다')
       return
     }
-    
-    // 데이터 준비
-    const excelData = responses.map(response => ({
-      '성함': response.name || response.data?.name || '',
-      '연락처': response.phone || response.data?.phone || '',
-      '이메일': response.email || response.data?.email || '',
-      '신청 경로': response.data?.source || '',
-      '스레드 URL': response.data?.threadsUrl || '',
-      '스레드 팔로워': (() => {
-        const url = response.data?.threadsUrl
-        const followers = response.sns_check_result?.threads?.followers
-        const hasError = response.sns_check_result?.threads?.error
-        
-        if (!url) return '입력누락'
-        if (hasError || (url && followers === 0)) return '입력오류'
-        return followers || 0
-      })(),
-      '인스타그램 URL': response.data?.instagramUrl || '',
-      '인스타그램 팔로워': (() => {
-        const url = response.data?.instagramUrl
-        const followers = response.sns_check_result?.instagram?.followers
-        const hasError = response.sns_check_result?.instagram?.error
-        
-        if (!url) return '입력누락'
-        if (hasError || (url && followers === 0)) return '입력오류'
-        return followers || 0
-      })(),
-      '블로그 URL': response.data?.blogUrl || '',
-      '블로그 이웃': (() => {
-        const url = response.data?.blogUrl
-        const neighbors = response.sns_check_result?.blog?.neighbors
-        const hasError = response.sns_check_result?.blog?.error
-        
-        if (!url) return '입력누락'
-        if (hasError || (url && neighbors === 0)) return '입력오류'
-        return neighbors || 0
-      })(),
-      '선정 여부': response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기',
-      '처리 상태': response.status === 'completed' ? '완료' : response.status === 'processing' ? '처리중' : '대기',
-      '선정 사유': response.selection_reason || '',
-      '신청일시': new Date(response.created_at).toLocaleString('ko-KR'),
-      ...Object.entries(response.data || {}).reduce((acc, [key, value]) => {
-        if (key.startsWith('custom_')) {
-          const field = customFields.find(f => f.name === key)
-          if (field) {
-            acc[field.label] = value
-          }
-        }
-        return acc
-      }, {} as any)
+    // 필드 정의 수집: 기본 + 커스텀 (라벨/타입/순서)
+    const defaultDefs = Object.entries(form?.fields?.default || {}).map(([key, def]: [string, any]) => ({
+      key,
+      label: def?.label || key,
+      type: def?.type || 'text',
+      order: def?.order ?? 999,
     }))
-    
+    const customDefs = Object.entries(form?.fields?.custom || {}).map(([key, def]: [string, any]) => ({
+      key,
+      label: def?.label || key,
+      type: def?.type || 'text',
+      order: def?.order ?? 999,
+    }))
+    const fieldDefs = [...defaultDefs, ...customDefs].sort((a, b) => (a.order - b.order))
+    const labelByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.label; return m }, {})
+    const typeByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.type; return m }, {})
+
+    // 행 데이터 구성 (모든 응답 필드 + 팔로워/이웃 수치 포함)
+    const excelData = responses.map((response) => {
+      const row: Record<string, any> = {}
+
+      // 1) 폼 정의 순서대로 모든 입력값 추가
+      for (const def of fieldDefs) {
+        const key = def.key
+        const label = labelByKey[key] || key
+        let value = response.data?.[key]
+
+        // name/email/phone은 최상위 컬럼값 우선
+        if (key === 'name') value = response.name ?? value
+        if (key === 'email') value = response.email ?? value
+        if (key === 'phone') value = response.phone ?? value
+
+        // 체크박스/불린 가독성 변환
+        if (typeByKey[key] === 'checkbox' && typeof value === 'boolean') {
+          value = value ? '동의' : '미동의'
+        }
+        // 배열은 쉼표로 결합
+        if (Array.isArray(value)) {
+          value = value.join(', ')
+        }
+        // undefined/null 처리
+        if (value === undefined || value === null) value = ''
+        row[label] = value
+      }
+
+      // 2) 팔로워/이웃 수치 (기본 필드)
+      const threadsUrl = response.data?.threadsUrl
+      const instagramUrl = response.data?.instagramUrl
+      const blogUrl = response.data?.blogUrl
+      const threadsFollowers = response.sns_check_result?.threads?.followers
+      const threadsErr = response.sns_check_result?.threads?.error
+      const igFollowers = response.sns_check_result?.instagram?.followers
+      const igErr = response.sns_check_result?.instagram?.error
+      const blogNeighbors = response.sns_check_result?.blog?.neighbors
+      const blogErr = response.sns_check_result?.blog?.error
+
+      row['스레드 팔로워'] = !threadsUrl ? '입력누락' : (threadsErr || (threadsUrl && threadsFollowers === 0)) ? '입력오류' : (threadsFollowers || 0)
+      row['인스타그램 팔로워'] = !instagramUrl ? '입력누락' : (igErr || (instagramUrl && igFollowers === 0)) ? '입력오류' : (igFollowers || 0)
+      row['블로그 이웃'] = !blogUrl ? '입력누락' : (blogErr || (blogUrl && blogNeighbors === 0)) ? '입력오류' : (blogNeighbors || 0)
+
+      // 3) 커스텀 SNS 필드(있다면) 팔로워/이웃 수치 추가
+      const customSNS = response.sns_check_result?.custom || {}
+      for (const [fieldKey, info] of Object.entries<any>(customSNS)) {
+        const type = info?.type
+        const followers = info?.followers
+        const neighbors = info?.neighbors
+        const lbl = labelByKey[fieldKey] || fieldKey
+        if (type === 'blog') {
+          row[`(${lbl}) 이웃`] = neighbors ?? 0
+        } else {
+          row[`(${lbl}) 팔로워`] = followers ?? 0
+        }
+      }
+
+      // 4) 상태/메타 정보
+      row['선정 여부'] = response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기'
+      row['처리 상태'] = response.status === 'completed' ? '완료' : response.status === 'processing' ? '처리중' : response.status === 'pending' ? '대기' : response.status || ''
+      row['선정 사유'] = response.selection_reason || ''
+      row['신청일시'] = new Date(response.created_at).toLocaleString('ko-KR')
+
+      return row
+    })
+
     // 워크시트 생성
     const ws = XLSX.utils.json_to_sheet(excelData)
     
