@@ -52,7 +52,9 @@
       "mcp__serena__list_dir",
       "mcp__serena__think_about_whether_you_are_done",
       "mcp__serena__create_text_file",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "WebFetch(domain:docs.tosspayments.com)",
+      "mcp__serena__think_about_task_adherence"
     ],
     "deny": [],
     "ask": []

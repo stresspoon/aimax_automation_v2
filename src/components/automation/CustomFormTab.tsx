@@ -344,108 +344,109 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
       alert('다운로드할 데이터가 없습니다')
       return
     }
-    // 필드 정의 수집: 기본 + 커스텀 (라벨/타입/순서)
-    const defaultDefs = Object.entries(form?.fields?.default || {}).map(([key, def]: [string, any]) => ({
-      key,
-      label: def?.label || key,
-      type: def?.type || 'text',
-      order: def?.order ?? 999,
-    }))
-    const customDefs = Object.entries(form?.fields?.custom || {}).map(([key, def]: [string, any]) => ({
-      key,
-      label: def?.label || key,
-      type: def?.type || 'text',
-      order: def?.order ?? 999,
-    }))
-    const fieldDefs = [...defaultDefs, ...customDefs].sort((a, b) => (a.order - b.order))
-    const labelByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.label; return m }, {})
-    const typeByKey = fieldDefs.reduce<Record<string, string>>((m, f) => { m[f.key] = f.type; return m }, {})
-
-    // 표준 헤더명을 키 기준으로 정규화 (폼 라벨과 무관하게 동일한 헤더 유지)
-    const normalizeHeader = (key: string, fallback: string) => {
-      switch (key) {
-        case 'name': return '이름'
-        case 'email': return '이메일'
-        case 'phone': return '연락처'
-        case 'source': return '신청경로'
-        case 'threadsUrl': return '스레드URL'
-        case 'instagramUrl': return '인스타URL'
-        case 'blogUrl': return '블로그URL'
-        default: return fallback || key
+    
+    // 모든 응답에서 나타나는 모든 필드 키 수집
+    const allFieldKeys = new Set<string>()
+    responses.forEach(response => {
+      if (response.data) {
+        Object.keys(response.data).forEach(key => allFieldKeys.add(key))
       }
+    })
+    
+    // 필드 순서 정의 (우선순위가 높은 필드부터)
+    const priorityFields = ['name', 'email', 'phone', 'threadsUrl', 'instagramUrl', 'blogUrl', 'source']
+    const otherFields = Array.from(allFieldKeys).filter(key => !priorityFields.includes(key))
+    const orderedFields = [...priorityFields, ...otherFields]
+    
+    // 헤더명 매핑
+    const headerMap: Record<string, string> = {
+      'name': '이름',
+      'email': '이메일',
+      'phone': '연락처',
+      'threadsUrl': '스레드URL',
+      'instagramUrl': '인스타URL',
+      'blogUrl': '블로그URL',
+      'source': '신청경로'
     }
-
-    // 헤더 순서: 폼 작성 순서(정규화된 라벨) → 팔로워 숫자 → 상태/메타
-    const fieldHeaders = fieldDefs.map(def => normalizeHeader(def.key, def.label))
-
-    // 행 데이터 구성 (모든 응답 필드 + 팔로워/이웃 수치 포함)
-    const excelData = responses.map((response) => {
+    
+    // 엑셀 데이터 생성
+    const excelData = responses.map(response => {
       const row: Record<string, any> = {}
-
-      // 1) 폼 정의 순서대로 모든 입력값 추가 (정규화된 라벨 사용)
-      for (const def of fieldDefs) {
-        const key = def.key
-        const label = normalizeHeader(key, labelByKey[key] || key)
+      
+      // 1. 폼에서 입력한 모든 데이터 추가
+      orderedFields.forEach(key => {
+        const header = headerMap[key] || key
         let value = response.data?.[key]
-
-        // name/email/phone은 최상위 컬럼값 우선
-        if (key === 'name') value = response.name ?? value
-        if (key === 'email') value = response.email ?? value
-        if (key === 'phone') value = response.phone ?? value
-
-        // 체크박스/불린 가독성 변환
-        if (typeByKey[key] === 'checkbox' && typeof value === 'boolean') {
-          value = value ? '동의' : '미동의'
-        }
-        // 배열은 쉼표로 결합
-        if (Array.isArray(value)) {
+        
+        // 최상위 필드 우선 사용
+        if (key === 'name' && response.name) value = response.name
+        if (key === 'email' && response.email) value = response.email
+        if (key === 'phone' && response.phone) value = response.phone
+        
+        // 값 포맷팅
+        if (value === undefined || value === null) {
+          value = ''
+        } else if (typeof value === 'boolean') {
+          value = value ? '예' : '아니오'
+        } else if (Array.isArray(value)) {
           value = value.join(', ')
+        } else if (typeof value === 'object') {
+          value = JSON.stringify(value)
         }
-        // undefined/null 처리
-        if (value === undefined || value === null) value = ''
-        row[label] = value
-      }
-
-      // 2) 팔로워/이웃 수치 (기본 필드)
-      const threadsUrl = response.data?.threadsUrl
-      const instagramUrl = response.data?.instagramUrl
-      const blogUrl = response.data?.blogUrl
+        
+        row[header] = value
+      })
+      
+      // 2. SNS 팔로워/이웃 수 추가
       const threadsFollowers = response.sns_check_result?.threads?.followers
-      const threadsErr = response.sns_check_result?.threads?.error
-      const igFollowers = response.sns_check_result?.instagram?.followers
-      const igErr = response.sns_check_result?.instagram?.error
+      const instagramFollowers = response.sns_check_result?.instagram?.followers
       const blogNeighbors = response.sns_check_result?.blog?.neighbors
-      const blogErr = response.sns_check_result?.blog?.error
-
-      row['Threads'] = !threadsUrl ? '입력누락' : (threadsErr || (threadsUrl && threadsFollowers === 0)) ? '입력오류' : (threadsFollowers || 0)
-      row['블로그'] = !blogUrl ? '입력누락' : (blogErr || (blogUrl && blogNeighbors === 0)) ? '입력오류' : (blogNeighbors || 0)
-      row['인스타그램'] = !instagramUrl ? '입력누락' : (igErr || (instagramUrl && igFollowers === 0)) ? '입력오류' : (igFollowers || 0)
-
-      // 3) 커스텀 SNS 메트릭은 요구사항에 없으므로 제외 (필요 시 재도입)
-
-      // 4) 상태/메타 정보
-      row['상태'] = response.is_selected === true ? '선정' : response.is_selected === false ? '탈락' : '대기'
-      row['처리 상태'] = response.status === 'completed' ? '완료' : response.status === 'processing' ? '처리중' : response.status === 'pending' ? '대기' : response.status || ''
-      row['선정 사유'] = response.selection_reason || ''
+      
+      // URL 존재 여부 확인
+      const hasThreadsUrl = response.data?.threadsUrl && response.data.threadsUrl.trim() !== ''
+      const hasInstagramUrl = response.data?.instagramUrl && response.data.instagramUrl.trim() !== ''
+      const hasBlogUrl = response.data?.blogUrl && response.data.blogUrl.trim() !== ''
+      
+      // 팔로워 수 표시 (URL이 없으면 '-', 있는데 0이면 '체크실패' 또는 실제 숫자)
+      row['Threads팔로워'] = !hasThreadsUrl ? '-' : 
+                            (threadsFollowers === undefined || threadsFollowers === null) ? '체크대기' :
+                            threadsFollowers === 0 ? '체크실패' : threadsFollowers
+                            
+      row['인스타팔로워'] = !hasInstagramUrl ? '-' : 
+                          (instagramFollowers === undefined || instagramFollowers === null) ? '체크대기' :
+                          instagramFollowers === 0 ? '체크실패' : instagramFollowers
+                          
+      row['블로그이웃'] = !hasBlogUrl ? '-' : 
+                        (blogNeighbors === undefined || blogNeighbors === null) ? '체크대기' :
+                        blogNeighbors === 0 ? '체크실패' : blogNeighbors
+      
+      // 3. 선정 상태 및 메타 정보
+      row['선정상태'] = response.is_selected === true ? '선정' : 
+                      response.is_selected === false ? '탈락' : '미정'
+      row['처리상태'] = response.status === 'completed' ? '완료' :
+                      response.status === 'processing' ? '처리중' :
+                      response.status === 'pending' ? '대기' : response.status || ''
+      row['선정사유'] = response.selection_reason || ''
       row['신청일시'] = new Date(response.created_at).toLocaleString('ko-KR')
-
+      
       return row
     })
-
-    // 워크시트 생성: 헤더 순서를 폼 작성 순서로 고정 후, 팔로워/상태/메타 추가
-    const headers = [
-      ...fieldHeaders,
-      'Threads', '블로그', '인스타그램',
-      '상태', '처리 상태', '선정 사유', '신청일시'
-    ]
-
-    const ws = XLSX.utils.json_to_sheet(excelData, { header: headers })
+    
+    // 워크시트 생성
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    
+    // 컬럼 너비 자동 조정
+    const maxWidth = 30
+    const cols = Object.keys(excelData[0] || {}).map(key => ({
+      wch: Math.min(maxWidth, Math.max(10, key.length + 2))
+    }))
+    ws['!cols'] = cols
     
     // 워크북 생성
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '지원자 목록')
+    XLSX.utils.book_append_sheet(wb, ws, '지원자목록')
     
-    // 파일명 생성 (한글 인코딩을 위해 encodeURIComponent 사용)
+    // 파일명 생성
     const fileName = `${formTitle || '지원자'}_${new Date().toISOString().split('T')[0]}.xlsx`
     
     // 다운로드

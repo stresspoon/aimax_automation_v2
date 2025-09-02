@@ -1021,7 +1021,7 @@ export default function CustomerAcquisitionPage() {
         console.log('🚀 자동화 시작 - Realtime 구독 활성화');
         // startPeriodicCheck(projectId || undefined) // 비활성화
 
-        // 2) 후보별 순차 측정 (빈 시트인 경우 건너뜀)
+        // 2) 후보별 병렬 측정 (빈 시트인 경우 건너뜀)
         const total = prepJson.candidates.length
         if (total === 0) {
           // 빈 시트인 경우 바로 완료 처리
@@ -1030,118 +1030,141 @@ export default function CustomerAcquisitionPage() {
           return
         }
         
-        for (let i = 0; i < total; i++) {
-          const c = prepJson.candidates[i]
-          // threads → blog → instagram 순서
-          setProjectData(prev => {
-            const copy = { ...prev }
-            const prevC = copy.step2.candidates[i]
-            copy.step2.candidates[i] = {
-              ...prevC,
-              checkStatus: { ...(prevC as any).checkStatus, threads: (c as any).threadsUrl ? 'checking' : 'no_url' }
+        // 병렬 처리를 위한 배치 크기 설정 (최대 2개씩 동시 처리)
+        const BATCH_SIZE = 2
+        const totalBatches = Math.ceil(total / BATCH_SIZE)
+        
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const startIdx = batchIndex * BATCH_SIZE
+          const endIdx = Math.min(startIdx + BATCH_SIZE, total)
+          const batchCandidates = prepJson.candidates.slice(startIdx, endIdx)
+          
+          // 현재 배치의 후보들을 병렬로 처리
+          const batchPromises = batchCandidates.map(async (c, localIdx) => {
+            const i = startIdx + localIdx
+            // 각 후보에 대해 3개 SNS를 병렬로 체크
+            const snsPromises = []
+            
+            // Threads 체크
+            if ((c as any).threadsUrl) {
+              snsPromises.push(
+                fetch('/api/sheets/measure', { 
+                  method: 'POST', 
+                  headers: { 'Content-Type': 'application/json' }, 
+                  body: JSON.stringify({ candidate: c, channel: 'threads' }) 
+                })
+                .then(res => res.json())
+                .then(json => ({ type: 'threads', data: json.threads || 0 }))
+                .catch(err => ({ type: 'threads', data: 0, error: err.message }))
+              )
+            } else {
+              snsPromises.push(Promise.resolve({ type: 'threads', data: 0 }))
             }
-            return copy
-          })
-          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) Threads 측정 중...`, currentSns: 'threads', current: i * 3 + 0 }))
-          let tJson: any = { threads: 0 }
-          if ((c as any).threadsUrl) {
-            try {
-              const tRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'threads' }) })
-              tJson = await tRes.json()
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                copy.step2.candidates[i] = { ...prevC, threads: tJson.threads || 0, checkStatus: { ...(prevC as any).checkStatus, threads: 'completed' } }
-                return copy
-              })
-            } catch (err: any) {
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, threads: 'error', threadsError: err?.message || 'threads 오류' } }
-                return copy
-              })
+            
+            // Blog 체크
+            if ((c as any).blogUrl) {
+              snsPromises.push(
+                fetch('/api/sheets/measure', { 
+                  method: 'POST', 
+                  headers: { 'Content-Type': 'application/json' }, 
+                  body: JSON.stringify({ candidate: c, channel: 'blog' }) 
+                })
+                .then(res => res.json())
+                .then(json => ({ type: 'blog', data: json.blog || 0 }))
+                .catch(err => ({ type: 'blog', data: 0, error: err.message }))
+              )
+            } else {
+              snsPromises.push(Promise.resolve({ type: 'blog', data: 0 }))
             }
-          }
-          setProgress(p => ({ ...p, current: i * 3 + 1 }))
-
-          setProjectData(prev => {
-            const copy = { ...prev }
-            const prevC = copy.step2.candidates[i]
-            copy.step2.candidates[i] = {
-              ...prevC,
-              checkStatus: { ...(prevC as any).checkStatus, blog: (c as any).blogUrl ? 'checking' : 'no_url' }
+            
+            // Instagram 체크
+            if ((c as any).instagramUrl) {
+              snsPromises.push(
+                fetch('/api/sheets/measure', { 
+                  method: 'POST', 
+                  headers: { 'Content-Type': 'application/json' }, 
+                  body: JSON.stringify({ candidate: c, channel: 'instagram' }) 
+                })
+                .then(res => res.json())
+                .then(json => ({ type: 'instagram', data: json.instagram || 0 }))
+                .catch(err => ({ type: 'instagram', data: 0, error: err.message }))
+              )
+            } else {
+              snsPromises.push(Promise.resolve({ type: 'instagram', data: 0 }))
             }
-            return copy
-          })
-          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 블로그 측정 중...`, currentSns: 'blog', current: i * 3 + 1 }))
-          let bJson: any = { blog: 0 }
-          if ((c as any).blogUrl) {
-            try {
-              const bRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'blog' }) })
-              bJson = await bRes.json()
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                copy.step2.candidates[i] = { ...prevC, blog: bJson.blog || 0, checkStatus: { ...(prevC as any).checkStatus, blog: 'completed' } }
-                return copy
-              })
-            } catch (err: any) {
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, blog: 'error', blogError: err?.message || 'blog 오류' } }
-                return copy
-              })
-            }
-          }
-          setProgress(p => ({ ...p, current: i * 3 + 2 }))
-
-          setProjectData(prev => {
-            const copy = { ...prev }
-            const prevC = copy.step2.candidates[i]
-            copy.step2.candidates[i] = {
-              ...prevC,
-              checkStatus: { ...(prevC as any).checkStatus, instagram: (c as any).instagramUrl ? 'checking' : 'no_url' }
-            }
-            return copy
-          })
-          setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 인스타그램 측정 중...`, currentSns: 'instagram', current: i * 3 + 2 }))
-          let iJson: any = { instagram: 0 }
-          if ((c as any).instagramUrl) {
-            try {
-              const iRes = await fetch('/api/sheets/measure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate: c, channel: 'instagram' }) })
-              iJson = await iRes.json()
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                const criteria = copy.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
-                const selected = (tJson.threads||0) >= criteria.threads || (bJson.blog||0) >= criteria.blog || (iJson.instagram||0) >= criteria.instagram
-                copy.step2.candidates[i] = { ...prevC, instagram: iJson.instagram || 0, status: selected ? 'selected' : 'notSelected', checkStatus: { ...(prevC as any).checkStatus, instagram: 'completed' } }
-                return copy
-              })
-            } catch (err: any) {
-              setProjectData(prev => {
-                const copy = { ...prev }
-                const prevC = copy.step2.candidates[i]
-                copy.step2.candidates[i] = { ...prevC, checkStatus: { ...(prevC as any).checkStatus, instagram: 'error', instagramError: err?.message || 'instagram 오류' } }
-                return copy
-              })
-            }
-          } else {
-            // URL이 없을 때도 선정 로직은 평가
+            
+            // 상태 업데이트 - 체크 시작
             setProjectData(prev => {
               const copy = { ...prev }
               const prevC = copy.step2.candidates[i]
-              const criteria = copy.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
-              const selected = (tJson.threads||0) >= criteria.threads || (bJson.blog||0) >= criteria.blog
-              copy.step2.candidates[i] = { ...prevC, status: selected ? 'selected' : 'notSelected' }
+              copy.step2.candidates[i] = {
+                ...prevC,
+                checkStatus: { 
+                  threads: (c as any).threadsUrl ? 'checking' : 'no_url',
+                  blog: (c as any).blogUrl ? 'checking' : 'no_url',
+                  instagram: (c as any).instagramUrl ? 'checking' : 'no_url'
+                }
+              }
               return copy
             })
-          }
-          setProgress(p => ({ ...p, current: i * 3 + 3 }))
-
-          // 후보당 3단계 측정이 끝났을 때 current는 i*3+3
+            
+            setProgress(p => ({ 
+              ...p, 
+              currentName: `(${i+1}/${total}) SNS 체크 중...`, 
+              current: i * 3 
+            }))
+            
+            // 모든 SNS 체크를 병렬로 실행
+            const results = await Promise.all(snsPromises)
+            
+            // 결과 정리
+            let tJson: any = { threads: 0 }
+            let bJson: any = { blog: 0 }
+            let iJson: any = { instagram: 0 }
+            
+            // 결과 처리
+            for (const result of results) {
+              if (result.type === 'threads') {
+                tJson.threads = result.data
+              } else if (result.type === 'blog') {
+                bJson.blog = result.data
+              } else if (result.type === 'instagram') {
+                iJson.instagram = result.data
+              }
+            }
+            
+            // 선정 여부 결정
+            const criteria = projectData.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+            const selected = (tJson.threads||0) >= criteria.threads || 
+                           (bJson.blog||0) >= criteria.blog || 
+                           (iJson.instagram||0) >= criteria.instagram
+            
+            // 최종 상태 업데이트
+            setProjectData(prev => {
+              const copy = { ...prev }
+              copy.step2.candidates[i] = {
+                ...copy.step2.candidates[i],
+                threads: tJson.threads || 0,
+                blog: bJson.blog || 0,
+                instagram: iJson.instagram || 0,
+                status: selected ? 'selected' : 'notSelected',
+                checkStatus: {
+                  threads: results.find(r => r.type === 'threads')?.error ? 'error' : 'completed',
+                  blog: results.find(r => r.type === 'blog')?.error ? 'error' : 'completed',
+                  instagram: results.find(r => r.type === 'instagram')?.error ? 'error' : 'completed',
+                  threadsError: results.find(r => r.type === 'threads')?.error,
+                  blogError: results.find(r => r.type === 'blog')?.error,
+                  instagramError: results.find(r => r.type === 'instagram')?.error
+                }
+              }
+              return copy
+            })
+            
+            setProgress(p => ({ ...p, current: (i + 1) * 3 }))
+          })
+          
+          // 배치 처리 실행
+          await Promise.all(batchPromises)
         }
 
         setProgress(p => ({ ...p, currentName: '완료', status: 'completed', phase: 'completed', current: (total * 3), currentSns: undefined }))

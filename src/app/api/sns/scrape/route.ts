@@ -1,12 +1,84 @@
 // SNS 스크래핑 API - Puppeteer Core 버전 (Vercel 호환)
 import { NextRequest, NextResponse } from 'next/server'
-import puppeteer from 'puppeteer-core'
+import puppeteer, { Browser } from 'puppeteer-core'
 import chromium from '@sparticuz/chromium'
 
 // Vercel에서 브라우저 실행을 위한 설정
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+// 브라우저 인스턴스 풀 관리
+let browserPool: Browser[] = []
+let browserInUse: boolean[] = []
+const MAX_BROWSERS = 2 // Vercel에서는 메모리 제한 때문에 2개로 제한
+const isDev = process.env.NODE_ENV === 'development'
+
+// 브라우저 인스턴스 가져오기 (풀에서)
+async function getBrowser(): Promise<{ browser: Browser, index: number }> {
+  // 사용 가능한 브라우저 찾기
+  for (let i = 0; i < browserPool.length; i++) {
+    if (!browserInUse[i]) {
+      browserInUse[i] = true
+      return { browser: browserPool[i], index: i }
+    }
+  }
+  
+  // 풀이 가득 찬 경우 대기
+  if (browserPool.length >= MAX_BROWSERS) {
+    // 브라우저가 사용 가능해질 때까지 대기
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    return getBrowser()
+  }
+  
+  // 새 브라우저 생성
+  console.log(`Creating new browser instance (${browserPool.length + 1}/${MAX_BROWSERS})`)
+  const browser = await puppeteer.launch(
+    isDev
+      ? {
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          executablePath: process.platform === 'darwin'
+            ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+            : process.platform === 'win32'
+            ? 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+            : '/usr/bin/google-chrome'
+        }
+      : {
+          args: [...chromium.args, '--disable-dev-shm-usage'],
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+        }
+  )
+  
+  const index = browserPool.length
+  browserPool.push(browser)
+  browserInUse.push(true)
+  
+  return { browser, index }
+}
+
+// 브라우저 반환 (풀로)
+function releaseBrowser(index: number) {
+  if (index >= 0 && index < browserInUse.length) {
+    browserInUse[index] = false
+    console.log(`Released browser ${index + 1}`)
+  }
+}
+
+// 정리 함수
+async function cleanupBrowsers() {
+  for (const browser of browserPool) {
+    try {
+      await browser.close()
+    } catch (e) {
+      console.error('Browser close error:', e)
+    }
+  }
+  browserPool = []
+  browserInUse = []
+}
 
 // Instagram 팔로워 추출 함수
 function extractInstagramFollowers(html: string): number {
@@ -137,7 +209,8 @@ function normalizeUrl(input: string): string {
 export async function POST(req: NextRequest) {
   const { url: rawUrl } = await req.json();
   
-  console.log('\n========================================');
+  console.log('
+========================================');
   console.log('[SNS Scrape API] 요청 받음');
   console.log('원본 입력:', rawUrl);
   
@@ -148,41 +221,21 @@ export async function POST(req: NextRequest) {
   // URL 정규화
   const url = normalizeUrl(rawUrl);
   console.log('정규화된 URL:', url);
-  console.log('========================================\n');
+  console.log('========================================
+');
   
-  let browser = null;
+  let browserInfo: { browser: Browser, index: number } | null = null;
+  let page = null;
   
   try {
     console.log(`[SNS Scrape API] Puppeteer로 동적 콘텐츠 가져오기 시작...`);
     
-    // Vercel 환경 체크
-    const isVercel = process.env.VERCEL === '1';
+    // 브라우저 풀에서 가져오기
+    browserInfo = await getBrowser();
+    const browser = browserInfo.browser;
+    console.log(`Using browser instance ${browserInfo.index + 1}`);
     
-    // 브라우저 실행
-    if (isVercel) {
-      // Vercel 환경
-      browser = await puppeteer.launch({
-        args: chromium.args,
-        defaultViewport: { width: 1920, height: 1080 },
-        executablePath: await chromium.executablePath(),
-        headless: true,
-      });
-    } else {
-      // 로컬 환경 - puppeteer-core는 로컬에서 Chrome 경로 필요
-      const executablePath = process.platform === 'darwin' 
-        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-        : process.platform === 'win32'
-        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-        : '/usr/bin/google-chrome';
-        
-      browser = await puppeteer.launch({
-        headless: true,
-        executablePath,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-    }
-    
-    const page = await browser.newPage();
+    page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     // 페이지 로드
@@ -388,13 +441,16 @@ export async function POST(req: NextRequest) {
       html = await page.content();
     }
     
-    await browser.close();
+    // 브라우저는 풀로 반환되므로 여기서 닫지 않음
+    // await browser.close(); // REMOVED
     
-    console.log('\n========================================');
+    console.log('
+========================================');
     console.log(`[SNS Scrape API] 최종 결과`);
     console.log(`플랫폼: ${platform}`);
     console.log(`팔로워: ${followers}`);
-    console.log('========================================\n');
+    console.log('========================================
+');
     
     return NextResponse.json({
       platform,
@@ -412,13 +468,37 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[SNS Scrape API] 스크래핑 에러:', error);
     
-    if (browser) {
-      await browser.close();
+    // 페이지 정리
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.error('Page close error:', e);
+      }
+    }
+    
+    // 브라우저를 풀로 반환 (닫지 않음)
+    if (browserInfo) {
+      releaseBrowser(browserInfo.index);
     }
     
     return NextResponse.json({ 
       error: 'Failed to fetch SNS content',
       details: (error as Error).message 
     }, { status: 500 });
+  } finally {
+    // 페이지 정리
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.error('Page close error:', e);
+      }
+    }
+    
+    // 브라우저를 풀로 반환 (닫지 않음)
+    if (browserInfo) {
+      releaseBrowser(browserInfo.index);
+    }
   }
 }
