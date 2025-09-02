@@ -11,33 +11,33 @@ export interface Metrics {
 
 // URL 정규화 함수 추가
 export function normalizeUrl(input: string, platform?: 'threads' | 'instagram' | 'blog'): string {
-  if (!input) return input;
-  
-  const trimmed = input.trim();
-  
-  // 이미 완전한 URL인 경우
+  if (!input) return input
+
+  const trimmed = input.trim()
+
+  // 이미 완전한 URL인 경우 → 말단 슬래시 제거하여 정규화
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    return trimmed.replace(/\/+$/, '')
   }
-  
+
   // @로 시작하거나 아이디만 있는 경우
-  const username = trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
-  
+  const username = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed
+
   // 플랫폼 힌트가 있거나 추측
   if (platform === 'threads' || trimmed.includes('threads')) {
-    return `https://www.threads.com/${username}`;
+    return `https://www.threads.com/@${username}`.replace(/\/+$/, '')
   }
   if (platform === 'instagram' || trimmed.includes('insta') || trimmed.includes('ig')) {
-    return `https://www.instagram.com/${username.replace('@', '')}`;
+    return `https://www.instagram.com/${username}`.replace(/\/+$/, '')
   }
   if (platform === 'blog' || trimmed.includes('blog') || trimmed.includes('naver')) {
     // 네이버 블로그는 @ 형식이 아님
-    const blogId = trimmed.replace('@', '');
-    return `https://blog.naver.com/${blogId}`;
+    const blogId = username.replace(/^blog\.naver\.com\//, '')
+    return `https://blog.naver.com/${blogId}`.replace(/\/+$/, '')
   }
-  
+
   // 기본값: threads로 가정 (가장 많이 사용)
-  return `https://www.threads.com/${username}`;
+  return `https://www.threads.com/@${username}`.replace(/\/+$/, '')
 }
 
 export function detectPlatform(url: string): Metrics['platform'] {
@@ -443,5 +443,4 @@ async function fetchViaProxy(targetUrl: string): Promise<string | null> {
   // fetchViaDynamicProxy를 사용
   return fetchViaDynamicProxy(targetUrl)
 }
-
 

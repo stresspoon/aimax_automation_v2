@@ -106,30 +106,32 @@ function extractThreadsFollowers(html: string): number {
 
 // URL 정규화 함수
 function normalizeUrl(input: string): string {
-  if (!input) return input;
-  
-  const trimmed = input.trim();
-  
-  // 이미 완전한 URL인 경우
+  if (!input) return input
+
+  const trimmed = input.trim()
+
+  // 이미 완전한 URL인 경우 → 말단 슬래시 제거
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    return trimmed.replace(/\/+$/, '')
   }
-  
+
   // @로 시작하는 경우 제거
-  const username = trimmed.startsWith('@') ? trimmed.substring(1) : trimmed;
-  
+  const username = trimmed.startsWith('@') ? trimmed.substring(1) : trimmed
+
   // 네이버 블로그
   if (username.includes('blog') || username.includes('naver')) {
-    return `https://blog.naver.com/${username.replace('blog.naver.com/', '').replace('https://', '')}`;
+    const id = username.replace(/^https?:\/\/blog\.naver\.com\//, '')
+    return `https://blog.naver.com/${id}`.replace(/\/+$/, '')
   }
-  
+
   // Instagram
   if (username.toLowerCase().includes('instagram') || username.toLowerCase().includes('ig.')) {
-    return `https://www.instagram.com/${username.replace('instagram.com/', '').replace('https://', '')}`;
+    const id = username.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    return `https://www.instagram.com/${id}`.replace(/\/+$/, '')
   }
-  
+
   // 기본값: Threads
-  return `https://www.threads.com/@${username}`;
+  return `https://www.threads.com/@${username}`.replace(/\/+$/, '')
 }
 
 export async function POST(req: NextRequest) {

@@ -60,12 +60,49 @@ export async function GET(req: Request) {
     const candidates = (responses || []).map(response => {
       // data 필드에서 모든 폼 입력값 가져오기
       const formData = response.data || {}
+
+      // 도우미: 다양한 라벨/키를 허용하여 값 추출
+      const getByHints = (obj: Record<string, any>, hints: string[]): any => {
+        const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '')
+        const entries = Object.entries(obj)
+        for (const [k, v] of entries) {
+          const nk = norm(k)
+          if (hints.some(h => nk.includes(norm(h)))) {
+            if (v !== undefined && v !== null && String(v).trim() !== '') return v
+          }
+        }
+        return ''
+      }
+
+      // 기본 필드들
+      const name = response.name 
+        || getByHints(formData, ['성함','이름','성명','신청자명','닉네임','full name','name'])
+      const email = response.email 
+        || getByHints(formData, ['메일주소','이메일','email','e-mail'])
+      const phone = response.phone 
+        || getByHints(formData, ['연락처','전화번호','휴대폰','휴대전화','핸드폰','mobile','phone'])
+
+      // URL 필드들 (헤더명/축약형 모두 지원)
+      const threadsUrl = getByHints(formData, [
+        '스레드url','스레드 url','스레드URL','threads url','threadsurl','threads','스레드'
+      ])
+      const instagramUrl = getByHints(formData, [
+        '인스타그램url','인스타그램 url','인스타url','인스타 URL','instagram url','instagramurl','instagram','인스타그램','인스타'
+      ])
+      const blogUrl = getByHints(formData, [
+        '블로그url','블로그 url','블로그URL','blog url','blogurl','blog','블로그'
+      ])
+
+      // 신청 경로/유입 경로
+      const source = getByHints(formData, [
+        '신청경로','신청 경로','유입경로','유입 경로','경로','출처','source','referrer','origin'
+      ])
       
       return {
         // 기본 필드들
-        name: response.name || formData.name || formData.이름 || '',
-        email: response.email || formData.email || formData.이메일 || '',
-        phone: response.phone || formData.phone || formData.연락처 || formData.전화번호 || '',
+        name: name || '',
+        email: email || '',
+        phone: phone || '',
         
         // SNS 체크 결과
         threads: response.sns_check_result?.threads?.followers || 0,
@@ -76,12 +113,12 @@ export async function GET(req: Request) {
         status: response.is_selected ? 'selected' : 'notSelected',
         
         // URL 필드들
-        threadsUrl: formData.threadsUrl || formData.스레드 || formData.threads || '',
-        instagramUrl: formData.instagramUrl || formData.인스타그램 || formData.instagram || '',
-        blogUrl: formData.blogUrl || formData.블로그 || formData.blog || '',
+        threadsUrl: threadsUrl || '',
+        instagramUrl: instagramUrl || '',
+        blogUrl: blogUrl || '',
         
         // 추가 필드들
-        source: formData.source || formData.신청경로 || '',
+        source: source || '',
         
         // 체크 상태
         checkStatus: {
