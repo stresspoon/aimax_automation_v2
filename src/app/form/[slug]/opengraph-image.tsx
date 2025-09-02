@@ -14,30 +14,11 @@ async function getBaseUrl() {
   return ''
 }
 
-export default async function OpengraphImage({
-  params,
-}: {
-  params: { slug: string }
-}) {
-  const slug = params.slug
+export default async function OpengraphImage() {
   const baseUrl = await getBaseUrl()
-
-  let title = '신청 폼'
-  let description = '아래 정보를 입력해주세요'
-
-  try {
-    const res = await fetch(`${baseUrl}/api/forms?slug=${encodeURIComponent(slug)}`, {
-      // 캐시로 불필요한 호출 방지
-      next: { revalidate: 300 },
-    })
-    if (res.ok) {
-      const data = await res.json()
-      title = data?.title || title
-      description = data?.description || description
-    }
-  } catch {
-    // ignore and use defaults
-  }
+  const logoUrl = baseUrl
+    ? `${baseUrl}/assets/form-logo`
+    : '/assets/form-logo'
 
   return new ImageResponse(
     (
@@ -46,16 +27,12 @@ export default async function OpengraphImage({
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
           alignItems: 'center',
+          justifyContent: 'center',
           background: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)',
-          color: 'white',
           position: 'relative',
-          padding: '60px',
         }}
       >
-        {/* subtle overlay */}
         <div
           style={{
             position: 'absolute',
@@ -64,44 +41,22 @@ export default async function OpengraphImage({
               'radial-gradient(60% 80% at 70% 30%, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 60%)',
           }}
         />
-
-        <div style={{ zIndex: 1, maxWidth: 1000, textAlign: 'center' }}>
-          <div
-            style={{
-              fontSize: 48,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              marginBottom: 16,
-            }}
-          >
-            {title}
-          </div>
-          <div
-            style={{
-              fontSize: 28,
-              opacity: 0.9,
-              lineHeight: 1.4,
-            }}
-          >
-            {description}
-          </div>
-        </div>
-
-        <div
+        {/* Centered logo only */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt="AIMAX logo"
+          width={600}
+          height={600}
           style={{
-            position: 'absolute',
-            bottom: 32,
-            right: 40,
-            fontSize: 24,
-            opacity: 0.9,
-            zIndex: 1,
+            width: 600,
+            height: 600,
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.25))',
           }}
-        >
-          AIMAX
-        </div>
+        />
       </div>
     ),
     { ...size }
   )
 }
-
