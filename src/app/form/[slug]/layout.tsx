@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 
 export async function generateMetadata(
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
   const supabase = await createClient()
-  const slug = params.slug
+  const { slug } = await params
 
   try {
     const { data: form } = await supabase
