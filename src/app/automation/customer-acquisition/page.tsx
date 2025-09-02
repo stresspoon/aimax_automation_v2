@@ -1687,6 +1687,12 @@ export default function CustomerAcquisitionPage() {
         if (projectData.step3.targetType === 'notSelected') return c.status === 'notSelected';
         return true; // 'all'인 경우
       });
+
+      // 필터링 후 대상이 없으면 서버 호출하지 않음(400 예방)
+      if (recipients.length === 0) {
+        showNotification('발송 대상이 없습니다. 선택 조건을 확인해주세요.', 'error');
+        return;
+      }
       
       const requestBody = {
         recipients: recipients,
