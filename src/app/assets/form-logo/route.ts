@@ -8,9 +8,9 @@ export async function GET() {
   try {
     const filePath = path.join(process.cwd(), 'image', 'Logo', 'main logo.png')
     const file = await fs.readFile(filePath)
-    // Convert Node Buffer -> ArrayBuffer slice for Web Response compatibility
-    const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
-    return new Response(arrayBuffer, {
+    // Convert Buffer to Blob to satisfy BodyInit typings across runtimes
+    const blob = new Blob([file], { type: 'image/png' })
+    return new Response(blob, {
       headers: {
         'Content-Type': 'image/png',
         // Cache for 1 day; allow stale while revalidate
