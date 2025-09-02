@@ -50,17 +50,14 @@ export async function POST(req: Request) {
       // 모델 오류 시 폴백 시도
       try {
         const fallbackModel = 'gpt-4o-mini'
-        if (model !== fallbackModel) {
-          const resp = await openai.chat.completions.create({
-            model: fallbackModel,
-            messages,
-            temperature: 0.4,
-            max_tokens: 400,
-          })
-          const text = resp.choices?.[0]?.message?.content?.trim() || '도움을 드릴 수 있도록 조금만 더 구체적으로 알려주세요.'
-          return NextResponse.json({ reply: text })
-        }
-        throw err
+        const resp = await openai.chat.completions.create({
+          model: fallbackModel,
+          messages,
+          temperature: 0.4,
+          max_tokens: 400,
+        })
+        const text = resp.choices?.[0]?.message?.content?.trim() || '도움을 드릴 수 있도록 조금만 더 구체적으로 알려주세요.'
+        return NextResponse.json({ reply: text })
       } catch (finalErr: any) {
         console.error('[Chat API] OpenAI error:', finalErr?.message || finalErr)
         return NextResponse.json({
