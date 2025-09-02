@@ -24,8 +24,8 @@ export async function POST(req: Request) {
     }
 
     const openai = new OpenAI({ apiKey })
-    // 챗봇은 gpt-5-nano 사용
-    const model = 'gpt-5-nano'
+    // 챗봇 기본 모델 (가용 모델 기준)
+    const model: string = process.env.OPENAI_MODEL || 'gpt-5-nano-2025-08-07'
 
     const lastTurns: ChatMessage[] = Array.isArray(history)
       ? history.slice(-10)
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     } catch (err: any) {
       // 모델 오류 시 폴백 시도
       try {
-        const fallbackModel = 'gpt-4o-mini'
+        const fallbackModel = 'gpt-5-mini'
         const resp = await openai.chat.completions.create({
           model: fallbackModel,
           messages,

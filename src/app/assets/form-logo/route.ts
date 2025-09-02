@@ -8,7 +8,9 @@ export async function GET() {
   try {
     const filePath = path.join(process.cwd(), 'image', 'Logo', 'main logo.png')
     const file = await fs.readFile(filePath)
-    return new NextResponse(file, {
+    // Convert Node Buffer -> ArrayBuffer slice for Web Response compatibility
+    const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
+    return new Response(arrayBuffer, {
       headers: {
         'Content-Type': 'image/png',
         // Cache for 1 day; allow stale while revalidate
@@ -19,4 +21,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Logo not found' }, { status: 404 })
   }
 }
-
