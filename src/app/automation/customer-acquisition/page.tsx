@@ -2370,9 +2370,116 @@ export default function CustomerAcquisitionPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
+                  className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1"
                 >
-                  새로고침
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  목록 새로고침
+                </button>
+                <button
+                  onClick={async () => {
+                    // SNS 체크 실패한 항목들 찾기
+                    const failedChecks = (projectData.step2.candidates || []).filter((c: any) => {
+                      const hasThreadsUrl = c.threadsUrl && c.threadsUrl.trim() !== ''
+                      const hasInstagramUrl = c.instagramUrl && c.instagramUrl.trim() !== ''
+                      const hasBlogUrl = c.blogUrl && c.blogUrl.trim() !== ''
+                      
+                      return (hasThreadsUrl && c.threads === 0) ||
+                             (hasInstagramUrl && c.instagram === 0) ||
+                             (hasBlogUrl && c.blog === 0)
+                    })
+                    
+                    if (failedChecks.length === 0) {
+                      showNotification('재체크할 항목이 없습니다', 'info')
+                      return
+                    }
+                    
+                    showNotification(`${failedChecks.length}명의 SNS를 재체크합니다`, 'info')
+                    setLoading(true)
+                    
+                    try {
+                      // 실패한 항목들만 순차적으로 재체크
+                      for (const candidate of failedChecks) {
+                        // Threads 재체크
+                        if (candidate.threadsUrl && candidate.threads === 0) {
+                          try {
+                            const res = await fetch('/api/sheets/measure', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ candidate, channel: 'threads' })
+                            })
+                            const data = await res.json()
+                            candidate.threads = data.threads || 0
+                          } catch (e) {
+                            console.error('Threads recheck error:', e)
+                          }
+                          await new Promise(resolve => setTimeout(resolve, 500))
+                        }
+                        
+                        // Blog 재체크
+                        if (candidate.blogUrl && candidate.blog === 0) {
+                          try {
+                            const res = await fetch('/api/sheets/measure', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ candidate, channel: 'blog' })
+                            })
+                            const data = await res.json()
+                            candidate.blog = data.blog || 0
+                          } catch (e) {
+                            console.error('Blog recheck error:', e)
+                          }
+                          await new Promise(resolve => setTimeout(resolve, 500))
+                        }
+                        
+                        // Instagram 재체크
+                        if (candidate.instagramUrl && candidate.instagram === 0) {
+                          try {
+                            const res = await fetch('/api/sheets/measure', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ candidate, channel: 'instagram' })
+                            })
+                            const data = await res.json()
+                            candidate.instagram = data.instagram || 0
+                          } catch (e) {
+                            console.error('Instagram recheck error:', e)
+                          }
+                          await new Promise(resolve => setTimeout(resolve, 500))
+                        }
+                        
+                        // 선정 상태 업데이트
+                        const criteria = projectData.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                        candidate.status = (candidate.threads >= criteria.threads || 
+                                          candidate.blog >= criteria.blog || 
+                                          candidate.instagram >= criteria.instagram) ? 'selected' : 'notSelected'
+                      }
+                      
+                      // 상태 업데이트
+                      setProjectData(prev => ({
+                        ...prev,
+                        step2: {
+                          ...prev.step2,
+                          candidates: [...prev.step2.candidates]
+                        }
+                      }))
+                      
+                      showNotification('SNS 재체크가 완료되었습니다', 'success')
+                    } catch (error) {
+                      showNotification('재체크 중 오류가 발생했습니다', 'error')
+                      console.error('SNS recheck error:', error)
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading}
+                  className="px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 flex items-center gap-1 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  SNS 재체크
                 </button>
                 <button
                   onClick={() => {
