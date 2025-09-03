@@ -384,9 +384,9 @@ export async function GET(req: Request) {
       return NextResponse.json([])
     }
 
-    // 2) public.form_responses 뷰를 기준으로 조회
+    // 2) form_responses_temp 테이블에서 직접 조회
     let viewQuery = supabase
-      .from('form_responses')
+      .from('form_responses_temp')
       .select('*')
       .in('form_id', formIds)
       .order('created_at', { ascending: false })

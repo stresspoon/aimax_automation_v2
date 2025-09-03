@@ -33,14 +33,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ candidates: [], totalResponses: 0, formIds: [], message: '해당 프로젝트의 폼이 없습니다' })
     }
     
-    // 프로젝트의 모든 폼 응답 가져오기 (public.form_responses 뷰 기준)
+    // 프로젝트의 모든 폼 응답 가져오기 (form_responses_temp 테이블 직접 쿼리)
     const formIds = forms.map(f => f.id)
     console.log('Fetching responses for forms:', formIds)
     let responses: any[] | null = null
     let error: any = null
     try {
       const { data, error: viewError } = await supabase
-        .from('form_responses')
+        .from('form_responses_temp')
         .select('*')
         .in('form_id', formIds)
         .order('created_at', { ascending: false })
@@ -57,7 +57,17 @@ export async function GET(req: Request) {
     }
     
     // candidates 형식으로 변환
-    const candidates = (responses || []).map(response => {
+    const candidates = (responses || []).map((response, idx) => {
+      // 첫 번째 응답만 디버깅
+      if (idx === 0) {
+        console.log('[sync-candidates] Full response structure:', JSON.stringify({
+          name: response.name,
+          email: response.email,
+          phone: response.phone,
+          data: response.data
+        }, null, 2))
+      }
+      
       // data 필드에서 모든 폼 입력값 가져오기
       const formData = response.data || {}
 
@@ -65,12 +75,38 @@ export async function GET(req: Request) {
       const getByHints = (obj: Record<string, any>, hints: string[]): any => {
         const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '')
         const entries = Object.entries(obj)
+        
+        // 디버깅: 이름 필드 찾기
+        if (hints.includes('이름') || hints.includes('name')) {
+          console.log('[sync-candidates] Looking for name in keys:', Object.keys(obj))
+          console.log('[sync-candidates] Full form data:', JSON.stringify(obj, null, 2))
+        }
+        
+        // 1. 정확한 매칭 먼저 시도
         for (const [k, v] of entries) {
           const nk = norm(k)
-          if (hints.some(h => nk.includes(norm(h)))) {
-            if (v !== undefined && v !== null && String(v).trim() !== '') return v
+          for (const hint of hints) {
+            if (nk === norm(hint)) {
+              if (v !== undefined && v !== null && String(v).trim() !== '') {
+                console.log(`[sync-candidates] Found by exact match: ${k} = ${v}`)
+                return v
+              }
+            }
           }
         }
+        
+        // 2. 부분 매칭 시도
+        for (const [k, v] of entries) {
+          const nk = norm(k)
+          if (hints.some(h => nk.includes(norm(h)) || norm(h).includes(nk))) {
+            if (v !== undefined && v !== null && String(v).trim() !== '') {
+              console.log(`[sync-candidates] Found by partial match: ${k} = ${v}`)
+              return v
+            }
+          }
+        }
+        
+        console.log('[sync-candidates] No match found for hints:', hints)
         return ''
       }
 
