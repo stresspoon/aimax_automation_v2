@@ -1040,7 +1040,7 @@ export default function CustomerAcquisitionPage() {
           const batchCandidates = prepJson.candidates.slice(startIdx, endIdx)
           
           // 현재 배치의 후보들을 병렬로 처리
-          const batchPromises = batchCandidates.map(async (c, localIdx) => {
+          const batchPromises = batchCandidates.map(async (c: any, localIdx: number) => {
             const i = startIdx + localIdx
             // 각 후보에 대해 3개 SNS를 병렬로 체크
             const snsPromises = []
