@@ -1149,12 +1149,12 @@ export default function CustomerAcquisitionPage() {
                 instagram: iJson.instagram || 0,
                 status: selected ? 'selected' : 'notSelected',
                 checkStatus: {
-                  threads: results.find(r => r.type === 'threads')?.error ? 'error' : 'completed',
-                  blog: results.find(r => r.type === 'blog')?.error ? 'error' : 'completed',
-                  instagram: results.find(r => r.type === 'instagram')?.error ? 'error' : 'completed',
-                  threadsError: results.find(r => r.type === 'threads')?.error,
-                  blogError: results.find(r => r.type === 'blog')?.error,
-                  instagramError: results.find(r => r.type === 'instagram')?.error
+                  threads: (results.find(r => r.type === 'threads') as any)?.error ? 'error' : 'completed',
+                  blog: (results.find(r => r.type === 'blog') as any)?.error ? 'error' : 'completed',
+                  instagram: (results.find(r => r.type === 'instagram') as any)?.error ? 'error' : 'completed',
+                  threadsError: (results.find(r => r.type === 'threads') as any)?.error,
+                  blogError: (results.find(r => r.type === 'blog') as any)?.error,
+                  instagramError: (results.find(r => r.type === 'instagram') as any)?.error
                 }
               }
               return copy
