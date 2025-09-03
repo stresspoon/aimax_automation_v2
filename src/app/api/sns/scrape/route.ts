@@ -209,8 +209,7 @@ function normalizeUrl(input: string): string {
 export async function POST(req: NextRequest) {
   const { url: rawUrl } = await req.json();
   
-  console.log('
-========================================');
+  console.log('\n========================================');
   console.log('[SNS Scrape API] 요청 받음');
   console.log('원본 입력:', rawUrl);
   
@@ -221,8 +220,7 @@ export async function POST(req: NextRequest) {
   // URL 정규화
   const url = normalizeUrl(rawUrl);
   console.log('정규화된 URL:', url);
-  console.log('========================================
-');
+  console.log('========================================\n');
   
   let browserInfo: { browser: Browser, index: number } | null = null;
   let page = null;
@@ -444,13 +442,11 @@ export async function POST(req: NextRequest) {
     // 브라우저는 풀로 반환되므로 여기서 닫지 않음
     // await browser.close(); // REMOVED
     
-    console.log('
-========================================');
+    console.log('\n========================================');
     console.log(`[SNS Scrape API] 최종 결과`);
     console.log(`플랫폼: ${platform}`);
     console.log(`팔로워: ${followers}`);
-    console.log('========================================
-');
+    console.log('========================================\n');
     
     return NextResponse.json({
       platform,
