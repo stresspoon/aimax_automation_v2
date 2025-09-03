@@ -45,10 +45,10 @@ async function getBrowser(): Promise<{ browser: Browser, index: number }> {
             : '/usr/bin/google-chrome'
         }
       : {
-          args: [...chromium.args, '--disable-dev-shm-usage'],
-          defaultViewport: chromium.defaultViewport,
+          args: [...(chromium as any).args, '--disable-dev-shm-usage'],
+          defaultViewport: (chromium as any).defaultViewport || { width: 1920, height: 1080 },
           executablePath: await chromium.executablePath(),
-          headless: chromium.headless,
+          headless: (chromium as any).headless ?? true,
         }
   )
   
