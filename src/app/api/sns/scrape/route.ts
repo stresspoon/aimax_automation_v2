@@ -11,24 +11,22 @@ export const maxDuration = 60
 // 브라우저 인스턴스 풀 관리
 let browserPool: Browser[] = []
 let browserInUse: boolean[] = []
-const MAX_BROWSERS = 2 // Vercel에서는 메모리 제한 때문에 2개로 제한
+const MAX_BROWSERS = 1 // 동시에 1개만 실행하여 안정성 확보
 const isDev = process.env.NODE_ENV === 'development'
+let browserLock = false // 단순 락 메커니즘
 
-// 브라우저 인스턴스 가져오기 (풀에서)
+// 브라우저 인스턴스 가져오기 (순차 처리로 변경)
 async function getBrowser(): Promise<{ browser: Browser, index: number }> {
-  // 사용 가능한 브라우저 찾기
-  for (let i = 0; i < browserPool.length; i++) {
-    if (!browserInUse[i]) {
-      browserInUse[i] = true
-      return { browser: browserPool[i], index: i }
-    }
+  // 브라우저 락 대기
+  while (browserLock) {
+    await new Promise(resolve => setTimeout(resolve, 500))
   }
+  browserLock = true
   
-  // 풀이 가득 찬 경우 대기
-  if (browserPool.length >= MAX_BROWSERS) {
-    // 브라우저가 사용 가능해질 때까지 대기
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    return getBrowser()
+  // 기존 브라우저가 있으면 재사용
+  if (browserPool.length > 0 && !browserInUse[0]) {
+    browserInUse[0] = true
+    return { browser: browserPool[0], index: 0 }
   }
   
   // 새 브라우저 생성
@@ -65,6 +63,7 @@ function releaseBrowser(index: number) {
     browserInUse[index] = false
     console.log(`Released browser ${index + 1}`)
   }
+  browserLock = false // 락 해제
 }
 
 // 정리 함수
