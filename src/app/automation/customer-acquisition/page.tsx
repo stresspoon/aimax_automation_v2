@@ -2516,14 +2516,22 @@ export default function CustomerAcquisitionPage() {
                       }
                       
                       // 수정된 candidates 배열로 새 상태 생성
+                      // failedChecks 배열의 수정사항을 반영
                       const updatedCandidates = projectData.step2.candidates.map((c) => {
-                        const failedCheck = failedChecks.find(fc => 
+                        // 재체크한 항목 찾기
+                        const wasChecked = failedChecks.some(fc => 
                           fc.email === c.email && fc.name === c.name
                         )
-                        if (failedCheck) {
-                          return { ...failedCheck }
+                        
+                        if (wasChecked) {
+                          // 재체크된 항목은 failedChecks에서 수정된 값 사용
+                          const updated = failedChecks.find(fc => 
+                            fc.email === c.email && fc.name === c.name
+                          )
+                          return { ...c, ...updated }
                         }
-                        return c
+                        
+                        return { ...c }
                       })
                       
                       // 상태 업데이트

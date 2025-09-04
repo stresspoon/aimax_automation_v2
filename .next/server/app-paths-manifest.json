@@ -1,1 +1,4 @@
-{}
+{
+  "/api/sheets/measure/route": "app/api/sheets/measure/route.js",
+  "/api/sns/scrape/route": "app/api/sns/scrape/route.js"
+}
