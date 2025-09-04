@@ -2,98 +2,97 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { appendToSheet, getSpreadsheetIdFromUrl } from '@/lib/google/sheets'
 
-// SNS 병렬 체크 함수
-async function checkSNSParallel(data: any) {
-  const checks = []
+// SNS 순차 체크 함수 (브라우저 충돌 방지)
+async function checkSNSSequential(data: any) {
+  const snsResult: any = {
+    threads: { url: data.threadsUrl || null, followers: 0, checked: false, error: null },
+    instagram: { url: data.instagramUrl || null, followers: 0, checked: false, error: null },
+    blog: { url: data.blogUrl || null, neighbors: 0, checked: false, error: null }
+  }
   
   // Threads 체크
   if (data.threadsUrl) {
-    checks.push(
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/check-threads`, {
+    try {
+      console.log('📱 Checking Threads:', data.threadsUrl)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: data.threadsUrl })
-      }).then(res => res.json()).then(result => ({
-        platform: 'threads',
-        ...result
-      })).catch(error => ({
-        platform: 'threads',
-        error: error.message,
-        followers: 0
-      }))
-    )
-  }
-  
-  // Instagram 체크
-  if (data.instagramUrl) {
-    checks.push(
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/check-instagram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: data.instagramUrl })
-      }).then(res => res.json()).then(result => ({
-        platform: 'instagram',
-        ...result
-      })).catch(error => ({
-        platform: 'instagram',
-        error: error.message,
-        followers: 0
-      }))
-    )
-  }
-  
-  // Blog 체크
-  if (data.blogUrl) {
-    checks.push(
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/check-blog`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: data.blogUrl })
-      }).then(res => res.json()).then(result => ({
-        platform: 'blog',
-        ...result
-      })).catch(error => ({
-        platform: 'blog',
-        error: error.message,
-        neighbors: 0
-      }))
-    )
-  }
-  
-  // 병렬 실행
-  const results = await Promise.all(checks)
-  
-  // 결과 정리
-  const snsResult: any = {
-    threads: { url: data.threadsUrl, followers: 0, checked: false, error: null },
-    instagram: { url: data.instagramUrl, followers: 0, checked: false, error: null },
-    blog: { url: data.blogUrl, neighbors: 0, checked: false, error: null }
-  }
-  
-  results.forEach(result => {
-    if (result.platform === 'threads' && data.threadsUrl) {
+      })
+      const result = await response.json()
       snsResult.threads = {
         url: data.threadsUrl,
         followers: result.followers || 0,
         checked: true,
         error: result.error || null
       }
-    } else if (result.platform === 'instagram' && data.instagramUrl) {
+      console.log('✅ Threads 팔로워:', result.followers || 0)
+    } catch (error) {
+      snsResult.threads = {
+        url: data.threadsUrl,
+        followers: 0,
+        checked: true,
+        error: (error as Error).message
+      }
+      console.error('❌ Threads 체크 실패:', error)
+    }
+  }
+  
+  // Instagram 체크
+  if (data.instagramUrl) {
+    try {
+      console.log('📸 Checking Instagram:', data.instagramUrl)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: data.instagramUrl })
+      })
+      const result = await response.json()
       snsResult.instagram = {
         url: data.instagramUrl,
         followers: result.followers || 0,
         checked: true,
         error: result.error || null
       }
-    } else if (result.platform === 'blog' && data.blogUrl) {
+      console.log('✅ Instagram 팔로워:', result.followers || 0)
+    } catch (error) {
+      snsResult.instagram = {
+        url: data.instagramUrl,
+        followers: 0,
+        checked: true,
+        error: (error as Error).message
+      }
+      console.error('❌ Instagram 체크 실패:', error)
+    }
+  }
+  
+  // Blog 체크
+  if (data.blogUrl) {
+    try {
+      console.log('📝 Checking Blog:', data.blogUrl)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: data.blogUrl })
+      })
+      const result = await response.json()
       snsResult.blog = {
         url: data.blogUrl,
-        neighbors: result.neighbors || 0,
+        neighbors: result.followers || 0, // API returns 'followers' but we store as 'neighbors'
         checked: true,
         error: result.error || null
       }
+      console.log('✅ Blog 이웃:', result.followers || 0)
+    } catch (error) {
+      snsResult.blog = {
+        url: data.blogUrl,
+        neighbors: 0,
+        checked: true,
+        error: (error as Error).message
+      }
+      console.error('❌ Blog 체크 실패:', error)
     }
-  })
+  }
   
   return snsResult
 }
@@ -185,9 +184,9 @@ export async function POST(req: Request) {
       .update({ status: 'processing' })
       .eq('id', responseId)
     
-    // SNS 병렬 체크
+    // SNS 순차 체크 (브라우저 충돌 방지)
     console.log('Starting SNS check for data:', response.data)
-    const snsResult = await checkSNSParallel(response.data)
+    const snsResult = await checkSNSSequential(response.data)
     console.log('SNS check result:', snsResult)
     
     // 선정 기준 확인

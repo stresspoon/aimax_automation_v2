@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
-import { parseMetrics, normalizeUrl } from '@/lib/sns/scrape'
 
 // 백그라운드에서 SNS 체크 및 처리
 async function processResponseInBackground(responseId: string) {
@@ -61,8 +60,12 @@ async function processResponseInBackground(responseId: string) {
         // 기본 필드 체크
         if (fieldName === 'threadsUrl' || snsType === 'threads') {
           try {
-            const url = normalizeUrl(fieldValue, 'threads')
-            const metrics = await parseMetrics(url)
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: fieldValue })
+            })
+            const metrics = await res.json()
             if (fieldName === 'threadsUrl') {
               snsResult.threads = {
                 url: fieldValue,
@@ -92,8 +95,12 @@ async function processResponseInBackground(responseId: string) {
           }
         } else if (fieldName === 'instagramUrl' || snsType === 'instagram') {
           try {
-            const url = normalizeUrl(fieldValue, 'instagram')
-            const metrics = await parseMetrics(url)
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: fieldValue })
+            })
+            const metrics = await res.json()
             if (fieldName === 'instagramUrl') {
               snsResult.instagram = {
                 url: fieldValue,
@@ -123,12 +130,16 @@ async function processResponseInBackground(responseId: string) {
           }
         } else if (fieldName === 'blogUrl' || snsType === 'blog') {
           try {
-            const url = normalizeUrl(fieldValue, 'blog')
-            const metrics = await parseMetrics(url)
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: fieldValue })
+            })
+            const metrics = await res.json()
             if (fieldName === 'blogUrl') {
               snsResult.blog = {
                 url: fieldValue,
-                neighbors: metrics.neighbors || 0,
+                neighbors: metrics.followers || 0,
                 checked: true
               }
             } else {
@@ -136,7 +147,7 @@ async function processResponseInBackground(responseId: string) {
               snsResult.custom[fieldName] = {
                 type: 'blog',
                 url: fieldValue,
-                neighbors: metrics.neighbors || 0,
+                neighbors: metrics.followers || 0,
                 checked: true
               }
             }
