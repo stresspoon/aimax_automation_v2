@@ -24,6 +24,14 @@ export async function POST(req: Request) {
   try {
     const json = await req.json()
     const body = BodySchema.parse(json)
+    console.log('[measure API] 요청 받음:', {
+      channel: body.channel,
+      candidate: body.candidate.name || body.candidate.email,
+      threadsUrl: body.candidate.threadsUrl,
+      blogUrl: body.candidate.blogUrl,
+      instagramUrl: body.candidate.instagramUrl
+    })
+    
     let threads = 0, blog = 0, instagram = 0
     const ch = body.channel
     
@@ -35,9 +43,11 @@ export async function POST(req: Request) {
           const normalizedUrl = normalizeUrl(body.candidate.threadsUrl, 'threads')
           console.log(`[measure] Threads URL 정규화: "${body.candidate.threadsUrl}" → "${normalizedUrl}"`)
           const m = await parseMetrics(normalizedUrl)
+          console.log(`[measure] Threads parseMetrics 결과:`, m)
           threads = m.followers || 0
+          console.log(`[measure] Threads 최종 팔로워 수: ${threads}`)
         } catch (e) {
-          console.error('threads parse error:', e)
+          console.error('[measure] Threads 처리 오류:', e)
         }
       }
     }
@@ -50,9 +60,11 @@ export async function POST(req: Request) {
           const normalizedUrl = normalizeUrl(body.candidate.blogUrl, 'blog')
           console.log(`[measure] Blog URL 정규화: "${body.candidate.blogUrl}" → "${normalizedUrl}"`)
           const m = await parseMetrics(normalizedUrl)
+          console.log(`[measure] Blog parseMetrics 결과:`, m)
           blog = m.neighbors || 0
+          console.log(`[measure] Blog 최종 이웃 수: ${blog}`)
         } catch (e) {
-          console.error('blog parse error:', e)
+          console.error('[measure] Blog 처리 오류:', e)
         }
       }
     }
@@ -65,16 +77,23 @@ export async function POST(req: Request) {
           const normalizedUrl = normalizeUrl(body.candidate.instagramUrl, 'instagram')
           console.log(`[measure] Instagram URL 정규화: "${body.candidate.instagramUrl}" → "${normalizedUrl}"`)
           const m = await parseMetrics(normalizedUrl)
+          console.log(`[measure] Instagram parseMetrics 결과:`, m)
           instagram = m.followers || 0
+          console.log(`[measure] Instagram 최종 팔로워 수: ${instagram}`)
         } catch (e) {
-          console.error('instagram parse error:', e)
+          console.error('[measure] Instagram 처리 오류:', e)
         }
       }
     }
     const c = body.criteria || { threads: 500, blog: 300, instagram: 1000 }
     const selected = threads >= c.threads || blog >= c.blog || instagram >= c.instagram
-    return NextResponse.json({ threads, blog, instagram, selected })
+    
+    const response = { threads, blog, instagram, selected }
+    console.log('[measure API] 응답:', response)
+    
+    return NextResponse.json(response)
   } catch (err) {
+    console.error('[measure API] 오류:', err)
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }
 }

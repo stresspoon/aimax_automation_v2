@@ -2404,50 +2404,106 @@ export default function CustomerAcquisitionPage() {
                     try {
                       // 실패한 항목들만 순차적으로 재체크
                       for (const candidate of failedChecks) {
+                        console.log(`[SNS 재체크] 시작: ${candidate.name || candidate.email}`)
+                        
                         // Threads 재체크
                         if (candidate.threadsUrl && candidate.threads === 0) {
+                          console.log(`[SNS 재체크] Threads URL: ${candidate.threadsUrl}`)
                           try {
                             const res = await fetch('/api/sheets/measure', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ candidate, channel: 'threads' })
                             })
-                            const data = await res.json()
-                            candidate.threads = data.threads || 0
+                            
+                            if (!res.ok) {
+                              console.error(`[SNS 재체크] Threads API 오류: ${res.status} ${res.statusText}`)
+                              const errorText = await res.text()
+                              console.error(`[SNS 재체크] Threads 응답:`, errorText)
+                            } else {
+                              const data = await res.json()
+                              console.log(`[SNS 재체크] Threads 결과:`, data)
+                              candidate.threads = data.threads || 0
+                              
+                              if (data.threads > 0) {
+                                console.log(`[SNS 재체크] ✅ Threads 성공: ${data.threads}명`)
+                                showNotification(`${candidate.name}: Threads ${data.threads}명 확인`, 'success')
+                              } else {
+                                console.warn(`[SNS 재체크] ⚠️ Threads 실패: 0명`)
+                                showNotification(`${candidate.name}: Threads 체크 실패`, 'error')
+                              }
+                            }
                           } catch (e) {
-                            console.error('Threads recheck error:', e)
+                            console.error('[SNS 재체크] Threads 오류:', e)
+                            showNotification(`${candidate.name}: Threads 체크 오류`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }
                         
                         // Blog 재체크
                         if (candidate.blogUrl && candidate.blog === 0) {
+                          console.log(`[SNS 재체크] Blog URL: ${candidate.blogUrl}`)
                           try {
                             const res = await fetch('/api/sheets/measure', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ candidate, channel: 'blog' })
                             })
-                            const data = await res.json()
-                            candidate.blog = data.blog || 0
+                            
+                            if (!res.ok) {
+                              console.error(`[SNS 재체크] Blog API 오류: ${res.status} ${res.statusText}`)
+                              const errorText = await res.text()
+                              console.error(`[SNS 재체크] Blog 응답:`, errorText)
+                            } else {
+                              const data = await res.json()
+                              console.log(`[SNS 재체크] Blog 결과:`, data)
+                              candidate.blog = data.blog || 0
+                              
+                              if (data.blog > 0) {
+                                console.log(`[SNS 재체크] ✅ Blog 성공: ${data.blog}명`)
+                                showNotification(`${candidate.name}: 블로그 ${data.blog}명 확인`, 'success')
+                              } else {
+                                console.warn(`[SNS 재체크] ⚠️ Blog 실패: 0명`)
+                                showNotification(`${candidate.name}: 블로그 체크 실패`, 'error')
+                              }
+                            }
                           } catch (e) {
-                            console.error('Blog recheck error:', e)
+                            console.error('[SNS 재체크] Blog 오류:', e)
+                            showNotification(`${candidate.name}: 블로그 체크 오류`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }
                         
                         // Instagram 재체크
                         if (candidate.instagramUrl && candidate.instagram === 0) {
+                          console.log(`[SNS 재체크] Instagram URL: ${candidate.instagramUrl}`)
                           try {
                             const res = await fetch('/api/sheets/measure', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ candidate, channel: 'instagram' })
                             })
-                            const data = await res.json()
-                            candidate.instagram = data.instagram || 0
+                            
+                            if (!res.ok) {
+                              console.error(`[SNS 재체크] Instagram API 오류: ${res.status} ${res.statusText}`)
+                              const errorText = await res.text()
+                              console.error(`[SNS 재체크] Instagram 응답:`, errorText)
+                            } else {
+                              const data = await res.json()
+                              console.log(`[SNS 재체크] Instagram 결과:`, data)
+                              candidate.instagram = data.instagram || 0
+                              
+                              if (data.instagram > 0) {
+                                console.log(`[SNS 재체크] ✅ Instagram 성공: ${data.instagram}명`)
+                                showNotification(`${candidate.name}: 인스타그램 ${data.instagram}명 확인`, 'success')
+                              } else {
+                                console.warn(`[SNS 재체크] ⚠️ Instagram 실패: 0명`)
+                                showNotification(`${candidate.name}: 인스타그램 체크 실패`, 'error')
+                              }
+                            }
                           } catch (e) {
-                            console.error('Instagram recheck error:', e)
+                            console.error('[SNS 재체크] Instagram 오류:', e)
+                            showNotification(`${candidate.name}: 인스타그램 체크 오류`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }
@@ -2469,12 +2525,13 @@ export default function CustomerAcquisitionPage() {
                       }))
                       
                       // DB에 업데이트 저장
-                      if (projectId) {
-                        await fetch('/api/projects', {
+                      if (projectId && campaignId) {
+                        const updateRes = await fetch('/api/projects', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            projectId,
+                            campaign_id: campaignId,
+                            type: 'customer_acquisition',
                             step: 2,
                             data: {
                               ...projectData.step2,
@@ -2482,6 +2539,15 @@ export default function CustomerAcquisitionPage() {
                             }
                           })
                         })
+                        
+                        if (!updateRes.ok) {
+                          console.error('[SNS 재체크] DB 저장 실패:', await updateRes.text())
+                          showNotification('재체크 결과를 저장하는 데 실패했습니다', 'error')
+                        } else {
+                          console.log('[SNS 재체크] DB 저장 성공')
+                        }
+                      } else {
+                        console.warn('[SNS 재체크] projectId 또는 campaignId가 없어서 DB 저장을 건너뜁니다')
                       }
                       
                       showNotification('SNS 재체크가 완료되었습니다', 'success')
