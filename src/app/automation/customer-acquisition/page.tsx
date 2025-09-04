@@ -2515,16 +2515,29 @@ export default function CustomerAcquisitionPage() {
                                           candidate.instagram >= criteria.instagram) ? 'selected' : 'notSelected'
                       }
                       
-                      // 상태 업데이트 및 DB 저장
+                      // 수정된 candidates 배열로 새 상태 생성
+                      const updatedCandidates = projectData.step2.candidates.map((c) => {
+                        const failedCheck = failedChecks.find(fc => 
+                          fc.email === c.email && fc.name === c.name
+                        )
+                        if (failedCheck) {
+                          return { ...failedCheck }
+                        }
+                        return c
+                      })
+                      
+                      // 상태 업데이트
+                      const updatedStep2 = {
+                        ...projectData.step2,
+                        candidates: updatedCandidates
+                      }
+                      
                       setProjectData(prev => ({
                         ...prev,
-                        step2: {
-                          ...prev.step2,
-                          candidates: [...prev.step2.candidates]
-                        }
+                        step2: updatedStep2
                       }))
                       
-                      // DB에 업데이트 저장
+                      // DB에 업데이트 저장 (수정된 데이터로)
                       if (projectId && campaignId) {
                         const updateRes = await fetch('/api/projects', {
                           method: 'POST',
@@ -2533,10 +2546,7 @@ export default function CustomerAcquisitionPage() {
                             campaign_id: campaignId,
                             type: 'customer_acquisition',
                             step: 2,
-                            data: {
-                              ...projectData.step2,
-                              candidates: projectData.step2.candidates
-                            }
+                            data: updatedStep2
                           })
                         })
                         
