@@ -249,7 +249,7 @@ export default function CustomerAcquisitionPage() {
         if (res.ok) {
           const data = await res.json();
           
-          // UI 업데이트 (항상)
+          // UI 업데이트 - 기존 재체크 값 보존하면서 병합
           setProjectData(prev => {
             const currentCount = prev.step2?.candidates?.length || 0;
             const newCount = data.candidates?.length || 0;
@@ -259,11 +259,41 @@ export default function CustomerAcquisitionPage() {
               showNotification(`${newCount - currentCount}명의 새로운 신청자가 등록되었습니다!`, 'success');
             }
             
+            // 기존 재체크 값을 보존하면서 새 데이터와 병합
+            const mergedCandidates = data.candidates.map((newCandidate: any) => {
+              // 기존 candidates에서 같은 사람 찾기
+              const existingCandidate = prev.step2?.candidates?.find((c: any) => 
+                c.email === newCandidate.email && c.name === newCandidate.name
+              );
+              
+              // DB에서 가져온 sns_check_result가 있으면 우선 사용
+              // 그렇지 않으면 기존 UI 값 유지
+              if (newCandidate.threads > 0 || newCandidate.instagram > 0 || newCandidate.blog > 0) {
+                // DB에 저장된 값이 있으면 그대로 사용
+                return newCandidate;
+              } else if (existingCandidate && 
+                       (existingCandidate.threads > 0 || 
+                        existingCandidate.instagram > 0 || 
+                        existingCandidate.blog > 0)) {
+                // 기존 UI에 재체크한 값이 있으면 보존
+                return {
+                  ...newCandidate,
+                  threads: existingCandidate.threads || 0,
+                  instagram: existingCandidate.instagram || 0,
+                  blog: existingCandidate.blog || 0,
+                  status: existingCandidate.status,
+                  checkStatus: existingCandidate.checkStatus
+                };
+              }
+              
+              return newCandidate;
+            });
+            
             return {
               ...prev,
               step2: {
                 ...prev.step2,
-                candidates: data.candidates,
+                candidates: mergedCandidates,
               },
             };
           });
