@@ -1666,8 +1666,11 @@ export default function CustomerAcquisitionPage() {
       
       // 대상 필터링 - 이미 이메일을 받은 사람은 제외
       const recipients = projectData.step2.candidates.filter(c => {
-        // 이미 이메일을 받은 사람은 제외
-        if (c.emailSent || c.emailSentAt) return false;
+        // 이미 이메일을 받은 사람은 제외 (emailSent 또는 emailSentAt 체크)
+        if (c.emailSent || c.emailSentAt) {
+          console.log(`[Email Skip] ${c.email} - 이미 발송됨 (${c.emailSentAt || '이전 발송'})`);
+          return false;
+        }
         
         // 대상 타입에 따른 필터링
         if (projectData.step3.targetType === 'selected') return c.status === 'selected';
@@ -2456,7 +2459,7 @@ export default function CustomerAcquisitionPage() {
                                           candidate.instagram >= criteria.instagram) ? 'selected' : 'notSelected'
                       }
                       
-                      // 상태 업데이트
+                      // 상태 업데이트 및 DB 저장
                       setProjectData(prev => ({
                         ...prev,
                         step2: {
@@ -2464,6 +2467,22 @@ export default function CustomerAcquisitionPage() {
                           candidates: [...prev.step2.candidates]
                         }
                       }))
+                      
+                      // DB에 업데이트 저장
+                      if (projectId) {
+                        await fetch('/api/projects', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            projectId,
+                            step: 2,
+                            data: {
+                              ...projectData.step2,
+                              candidates: projectData.step2.candidates
+                            }
+                          })
+                        })
+                      }
                       
                       showNotification('SNS 재체크가 완료되었습니다', 'success')
                     } catch (error) {
@@ -2522,6 +2541,7 @@ export default function CustomerAcquisitionPage() {
                     <th className="text-center py-2">블로그</th>
                     <th className="text-center py-2">인스타</th>
                     <th className="text-center py-2">상태</th>
+                    <th className="text-center py-2">이메일</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2597,6 +2617,17 @@ export default function CustomerAcquisitionPage() {
                         }`}>
                           {candidate.status === "selected" ? "선정" : "미달"}
                         </span>
+                      </td>
+                      <td className="text-center py-2">
+                        {candidate.emailSent || candidate.emailSentAt ? (
+                          <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
+                            발송완료
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-500">
+                            미발송
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

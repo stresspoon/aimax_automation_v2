@@ -82,6 +82,9 @@ export async function POST(req: Request) {
     const results = []
     const errors = []
     
+    // Supabase 클라이언트 생성 (중복 체크용)
+    const supabaseClient = await createClient()
+    
     // 각 수신자에게 이메일 발송
     for (const recipient of recipients) {
       const recipientEmail = recipient?.email || recipient
@@ -98,6 +101,26 @@ export async function POST(req: Request) {
       }
       
       try {
+        // 중복 발송 체크 (requestBody에서 가져온 projectId와 targetType 사용)
+        if (requestBody.projectId && requestBody.targetType) {
+          // form_responses_temp에서 이메일 발송 이력 확인
+          const { data: existingResponse } = await supabaseClient
+            .from('form_responses_temp')
+            .select('id, email_sent_at, email_sent_count, last_email_type')
+            .eq('email', recipientEmail)
+            .single()
+          
+          if (existingResponse?.email_sent_at && existingResponse?.last_email_type === requestBody.targetType) {
+            console.log(`[Gmail API] Skip duplicate: ${recipientEmail} already received ${requestBody.targetType} email`)
+            results.push({
+              recipient: recipientEmail,
+              status: 'skipped',
+              message: '이미 발송됨',
+            })
+            continue
+          }
+        }
+        
         // 디버깅 로그
         console.log('Processing recipient:', recipient)
         
@@ -206,6 +229,18 @@ export async function POST(req: Request) {
           status: 'success',
           messageId: result.data.id,
         })
+        
+        // 발송 성공 시 form_responses_temp 업데이트
+        if (requestBody.projectId && requestBody.targetType) {
+          await supabaseClient
+            .from('form_responses_temp')
+            .update({
+              email_sent_at: new Date().toISOString(),
+              email_sent_count: 1, // 임시로 하드코딩 (추후 SQL 함수로 처리)
+              last_email_type: requestBody.targetType
+            })
+            .eq('email', recipientEmail)
+        }
       } catch (error: any) {
         const detailed = error?.response?.data?.error?.message || error?.message || String(error)
         console.error(`Email send error for ${recipientEmail}:`, detailed)
