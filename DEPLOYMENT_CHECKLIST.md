@@ -168,9 +168,19 @@ export default function Page() {
 **발생 빈도**: ⭐⭐⭐ (보통)
 
 **체크 포인트**:
-- [ ] 모든 필수 환경 변수가 .env.local에 정의되어 있는가?
-- [ ] Vercel 대시보드에 환경 변수가 설정되어 있는가?
+- [ ] 모든 필수 환경 변수가 .env.local/Vercel에 정의되어 있는가?
 - [ ] NEXT_PUBLIC_ 접두사가 필요한 변수에 적용되어 있는가?
+
+필수/권장 변수 목록:
+- Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- Base URL: `NEXT_PUBLIC_BASE_URL` (예: `https://your-domain.com`)
+- Forms/Sheets(선택):
+  - 게이트: `ENABLE_SHEETS_INTEGRATION` = `true|false`
+  - Forms Webhook 서명: `FORMS_WEBHOOK_SECRET` (운영 필수)
+- Payments(토스):
+  - `TOSS_WEBHOOK_SECRET` (운영 필수)
+  - `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY` (결제 생성/승인 시)
+- Google OAuth/Gmail: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
 ### 5. **모듈 임포트 오류**
 

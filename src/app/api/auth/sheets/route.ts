@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 import { google } from 'googleapis'
 
 export async function GET() {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const supabase = await createClient()
     
     // 인증 확인
@@ -40,6 +44,9 @@ export async function GET() {
 // Google Sheets 연결 정보 저장
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const supabase = await createClient()
     
     // 인증 확인
@@ -115,6 +122,9 @@ export async function POST(req: Request) {
 // Google Sheets 연결 해제
 export async function DELETE() {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const supabase = await createClient()
     
     // 인증 확인

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 import { createClient } from '@/lib/supabase/server'
 
 // 체크 결과를 저장할 글로벌 스토어
@@ -10,6 +11,9 @@ const candidatesStore = globalThis.candidatesStore || {}
 globalThis.candidatesStore = candidatesStore
 
 export async function GET(req: NextRequest) {
+  if (!isSheetsIntegrationEnabled()) {
+    return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+  }
   const { searchParams } = new URL(req.url)
   const projectId = searchParams.get('projectId')
   

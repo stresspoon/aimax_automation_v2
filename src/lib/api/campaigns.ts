@@ -1,4 +1,5 @@
 import { Campaign } from '@/types/database'
+import { fetchJSON } from '@/lib/httpClient'
 
 const API_BASE = '/api/campaigns'
 
@@ -6,43 +7,23 @@ export const campaignsAPI = {
   async list(params?: { status?: string }) {
     const searchParams = new URLSearchParams()
     if (params?.status) searchParams.append('status', params.status)
-    
-    const response = await fetch(`${API_BASE}?${searchParams}`)
-    if (!response.ok) throw new Error('Failed to fetch campaigns')
-    return response.json() as Promise<Campaign[]>
+
+    return fetchJSON<Campaign[]>(`${API_BASE}?${searchParams}`)
   },
 
   async get(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`)
-    if (!response.ok) throw new Error('Failed to fetch campaign')
-    return response.json() as Promise<Campaign>
+    return fetchJSON<Campaign>(`${API_BASE}/${id}`)
   },
 
   async create(data: { name: string; data?: Record<string, any> }) {
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    if (!response.ok) throw new Error('Failed to create campaign')
-    return response.json() as Promise<Campaign>
+    return fetchJSON<Campaign>(API_BASE, { method: 'POST', body: data })
   },
 
   async update(id: string, data: Partial<Campaign>) {
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    if (!response.ok) throw new Error('Failed to update campaign')
-    return response.json() as Promise<Campaign>
+    return fetchJSON<Campaign>(`${API_BASE}/${id}`, { method: 'PUT', body: data })
   },
 
   async delete(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE'
-    })
-    if (!response.ok) throw new Error('Failed to delete campaign')
-    return response.json()
+    return fetchJSON(`${API_BASE}/${id}`, { method: 'DELETE' })
   }
 }

@@ -56,7 +56,10 @@
       "WebFetch(domain:docs.tosspayments.com)",
       "mcp__serena__think_about_task_adherence",
       "Bash(npm run lint:*)",
-      "mcp__serena__execute_shell_command"
+      "mcp__serena__execute_shell_command",
+      "Bash(git merge:*)",
+      "Bash(git clean:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []

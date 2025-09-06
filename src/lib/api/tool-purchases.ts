@@ -1,4 +1,5 @@
 import { ToolPurchase } from '@/types/database'
+import { fetchJSON } from '@/lib/httpClient'
 
 const API_BASE = '/api/tool-purchases'
 
@@ -15,15 +16,11 @@ export const toolPurchasesAPI = {
     if (params?.limit) searchParams.append('limit', params.limit.toString())
     if (params?.offset) searchParams.append('offset', params.offset.toString())
     
-    const response = await fetch(`${API_BASE}?${searchParams}`)
-    if (!response.ok) throw new Error('Failed to fetch tool purchases')
-    return response.json() as Promise<ToolPurchase[]>
+    return fetchJSON<ToolPurchase[]>(`${API_BASE}?${searchParams}`)
   },
 
   async get(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`)
-    if (!response.ok) throw new Error('Failed to fetch tool purchase')
-    return response.json() as Promise<ToolPurchase>
+    return fetchJSON<ToolPurchase>(`${API_BASE}/${id}`)
   },
 
   async create(data: {
@@ -33,20 +30,10 @@ export const toolPurchasesAPI = {
     price: number
     quantity?: number
   }) {
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    if (!response.ok) throw new Error('Failed to create tool purchase')
-    return response.json() as Promise<ToolPurchase>
+    return fetchJSON<ToolPurchase>(API_BASE, { method: 'POST', body: data })
   },
 
   async delete(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE'
-    })
-    if (!response.ok) throw new Error('Failed to delete tool purchase')
-    return response.json()
+    return fetchJSON(`${API_BASE}/${id}`, { method: 'DELETE' })
   }
 }

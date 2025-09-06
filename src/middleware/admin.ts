@@ -33,7 +33,7 @@ export async function adminMiddleware(request: NextRequest) {
   )
 
   // 사용자 세션 확인
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     // 로그인되지 않은 경우 로그인 페이지로 리다이렉트
@@ -44,33 +44,18 @@ export async function adminMiddleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  console.log('[Admin Middleware] 로그인 사용자:', user.email)
-
-  // 데이터베이스에서 역할 확인 시도
+  // 데이터베이스에서 역할 확인 시도 (DB 결과만 신뢰)
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role')
     .eq('id', user.id)
     .single()
 
-  // DB에서 역할 확인이 가능한 경우
-  if (profile) {
-    const isAdmin = profile.role === 'admin' || profile.role === 'super_admin'
-    if (!isAdmin) {
-      console.log('[Admin Middleware] 관리자 권한 없음:', profile.role)
-      // 관리자가 아닌 경우 홈으로 리다이렉트
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  } else {
-    // DB 확인 실패 시 이메일로 체크 (fallback)
-    const isAdmin = user.email?.endsWith('@aimax.kr') || 
-                     user.email === 'admin@aimax.kr'
-    
-    if (!isAdmin) {
-      console.log('[Admin Middleware] 관리자 권한 없음 (이메일 체크):', user.email)
-      // 관리자가 아닌 경우 홈으로 리다이렉트
-      return NextResponse.redirect(new URL('/', request.url))
-    }
+  const isAdmin = !!profile && (profile.role === 'admin' || profile.role === 'super_admin')
+  if (!isAdmin) {
+    // 과도한 PII 로깅을 피하고 최소 정보만 기록
+    console.log('[Admin Middleware] 권한 거부 - user:', user.id)
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return response
@@ -86,7 +71,7 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
   //   .single()
   // 
   // return data?.role === 'admin'
-  
-  // 임시 구현
-  return true
+
+  // 안전한 기본값
+  return false
 }

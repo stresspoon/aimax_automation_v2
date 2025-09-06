@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 
 // sync/route.ts와 동일한 메모리 스토어 참조
 declare global {
@@ -17,6 +18,9 @@ const progressStore = globalThis.progressStore || {}
 globalThis.progressStore = progressStore
 
 export async function GET(req: Request) {
+  if (!isSheetsIntegrationEnabled()) {
+    return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+  }
   const { searchParams } = new URL(req.url)
   const projectId = searchParams.get('projectId')
   
@@ -42,6 +46,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const { projectId, total, current, currentName, status, phase, currentSns } = await req.json()
     
     if (!projectId) {
@@ -63,4 +70,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 }
-

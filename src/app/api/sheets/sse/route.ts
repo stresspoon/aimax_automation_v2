@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 
 export async function GET(req: NextRequest) {
+  if (!isSheetsIntegrationEnabled()) {
+    return new Response('Sheets integration disabled', { status: 410 })
+  }
   const projectId = req.nextUrl.searchParams.get('projectId')
   const sheetUrl = req.nextUrl.searchParams.get('sheetUrl')
   const lastRowCount = parseInt(req.nextUrl.searchParams.get('lastRowCount') || '0')

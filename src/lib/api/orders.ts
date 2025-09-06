@@ -1,4 +1,5 @@
 import { Order } from '@/types/database'
+import { fetchJSON } from '@/lib/httpClient'
 
 const API_BASE = '/api/orders'
 
@@ -13,15 +14,11 @@ export const ordersAPI = {
     if (params?.limit) searchParams.append('limit', params.limit.toString())
     if (params?.offset) searchParams.append('offset', params.offset.toString())
     
-    const response = await fetch(`${API_BASE}?${searchParams}`)
-    if (!response.ok) throw new Error('Failed to fetch orders')
-    return response.json() as Promise<Order[]>
+    return fetchJSON<Order[]>(`${API_BASE}?${searchParams}`)
   },
 
   async get(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`)
-    if (!response.ok) throw new Error('Failed to fetch order')
-    return response.json() as Promise<Order>
+    return fetchJSON<Order>(`${API_BASE}/${id}`)
   },
 
   async create(data: {
@@ -30,13 +27,7 @@ export const ordersAPI = {
     payment_method?: string
     shipping_info?: Record<string, any>
   }) {
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    if (!response.ok) throw new Error('Failed to create order')
-    return response.json() as Promise<Order>
+    return fetchJSON<Order>(API_BASE, { method: 'POST', body: data })
   },
 
   async update(id: string, data: {
@@ -44,20 +35,10 @@ export const ordersAPI = {
     shipping_info?: Record<string, any>
     payment_method?: string
   }) {
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    if (!response.ok) throw new Error('Failed to update order')
-    return response.json() as Promise<Order>
+    return fetchJSON<Order>(`${API_BASE}/${id}`, { method: 'PUT', body: data })
   },
 
   async delete(id: string) {
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE'
-    })
-    if (!response.ok) throw new Error('Failed to delete order')
-    return response.json()
+    return fetchJSON(`${API_BASE}/${id}`, { method: 'DELETE' })
   }
 }

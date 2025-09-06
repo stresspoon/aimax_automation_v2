@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 
 const BodySchema = z.object({
   sheetUrl: z.string().url(),
@@ -10,6 +11,9 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const body = BodySchema.parse(await req.json())
     const startTime = Date.now()
     

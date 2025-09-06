@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 import { parseMetrics, normalizeUrl } from '@/lib/sns/scrape'
 
 const BodySchema = z.object({
@@ -22,6 +23,9 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const json = await req.json()
     const body = BodySchema.parse(json)
     console.log('[measure API] 요청 받음:', {
@@ -97,5 +101,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 })
   }
 }
-
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
+import { campaignsAPI } from '@/lib/api'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
 import { contentGuidelines } from '@/lib/contentGuidelines'
@@ -759,18 +760,17 @@ export default function CustomerAcquisitionPage() {
 
   const ensureCampaignId = async (): Promise<string | null> => {
     if (!campaignName) return null
-    // 1) 목록에서 동일 이름 검색
-    const listRes = await fetch('/api/campaigns')
-    if (listRes.ok) {
-      const arr = await listRes.json()
+    try {
+      const arr = await campaignsAPI.list()
       const found = (arr || []).find((c: any) => (c?.name || '').trim() === campaignName.trim())
       if (found?.id) return found.id
+    } catch {}
+    try {
+      const created = await campaignsAPI.create({ name: campaignName, data: {} })
+      return created?.id || null
+    } catch {
+      return null
     }
-    // 2) 없으면 생성
-    const createRes = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: campaignName, data: {} }) })
-    if (!createRes.ok) return null
-    const created = await createRes.json()
-    return created?.id || null
   }
 
   // saveSnapshot 함수는 현재 사용되지 않음 - 필요시 주석 해제

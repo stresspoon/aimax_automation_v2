@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import crypto from 'crypto'
+import { badRequest, unauthorized, ok, serverError } from '@/lib/http'
+import { computeEventHash, verifyTossSignature } from '@/lib/payments/toss'
+import { z } from 'zod'
 
 // 토스페이먼츠 웹훅 처리
 export async function POST(req: Request) {
   try {
     const body = await req.text()
     const signature = req.headers.get('toss-signature')
-    
-    // 서명 검증 (프로덕션에서는 필수)
-    if (process.env.NODE_ENV === 'production') {
-      const isValid = verifyWebhookSignature(body, signature)
-      if (!isValid) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
+    const secret = process.env.TOSS_WEBHOOK_SECRET
+
+    // 서명 검증: secret이 설정되어 있으면 항상 검증. 없으면 prod에서는 거부
+    if (secret) {
+      const isValid = verifyTossSignature(body, signature, secret)
+      if (!isValid) return unauthorized('Invalid signature')
+    } else if (process.env.NODE_ENV === 'production') {
+      return serverError('Missing TOSS_WEBHOOK_SECRET')
     }
 
     const data = JSON.parse(body)
@@ -22,6 +25,17 @@ export async function POST(req: Request) {
     console.log(`Webhook received: ${eventType}`, eventData)
 
     const adminSupabase = createAdminClient()
+
+    // 멱등 처리: 동일 이벤트 해시로 중복 처리 방지
+    const eventHash = computeEventHash(body)
+    const { data: dup } = await adminSupabase
+      .from('payment_logs')
+      .select('id')
+      .filter('request_data->>event_hash', 'eq', eventHash)
+      .maybeSingle()
+    if (dup) {
+      return ok({ success: true, deduplicated: true })
+    }
 
     switch (eventType) {
       // 결제 승인 완료
@@ -61,31 +75,16 @@ export async function POST(req: Request) {
         payment_id: await getPaymentIdByOrderId(adminSupabase, eventData.orderId),
         action: 'webhook',
         status: eventType,
-        request_data: data,
+        request_data: { ...data, event_hash: eventHash },
         response_data: eventData
       })
 
-    return NextResponse.json({ success: true })
+    return ok({ success: true })
 
   } catch (error) {
     console.error('Webhook processing error:', error)
-    return NextResponse.json(
-      { error: 'Webhook processing failed' },
-      { status: 500 }
-    )
+    return serverError('Webhook processing failed')
   }
-}
-
-// 서명 검증
-function verifyWebhookSignature(body: string, signature: string | null): boolean {
-  if (!signature) return false
-  
-  const secretKey = process.env.TOSS_WEBHOOK_SECRET || ''
-  const hmac = crypto.createHmac('sha256', secretKey)
-  hmac.update(body)
-  const expectedSignature = hmac.digest('base64')
-  
-  return signature === expectedSignature
 }
 
 // 결제 상태 변경 처리

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import Papa from 'papaparse'
 import { createClient } from '@/lib/supabase/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 
 // 전역 진행상황 스토어
 declare global {
@@ -124,6 +125,9 @@ function toCsvUrl(sheetUrl: string): string {
 
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const json = await req.json()
     const body = BodySchema.parse(json)
     

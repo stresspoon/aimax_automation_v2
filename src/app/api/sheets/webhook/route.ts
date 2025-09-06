@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { isSheetsIntegrationEnabled } from '@/lib/flags'
 
 export async function POST(req: Request) {
   try {
+    if (!isSheetsIntegrationEnabled()) {
+      return NextResponse.json({ error: 'Sheets integration disabled' }, { status: 410 })
+    }
     const body = await req.json()
     console.log('📢 Webhook received from Google Sheets:', body)
     
@@ -24,8 +28,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
     
-    // 새로운 데이터 체크를 위한 sync API 호출
-    const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sheets/sync`, {
+    // 새로운 데이터 체크를 위한 내부 sync API 호출 (현재 요청의 호스트 기준)
+    const target = new URL('/api/sheets/sync', req.url)
+    const syncResponse = await fetch(target.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

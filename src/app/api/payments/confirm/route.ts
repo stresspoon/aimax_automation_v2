@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { badRequest, ok, serverError, unauthorized } from '@/lib/http'
+import { ConfirmPaymentSchema } from '../schema'
 
 // 결제 승인 API
 export async function POST(req: Request) {
@@ -8,19 +10,11 @@ export async function POST(req: Request) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!user) return unauthorized('Unauthorized')
 
-    const body = await req.json()
-    const { paymentKey, orderId, amount } = body
-
-    if (!paymentKey || !orderId || !amount) {
-      return NextResponse.json(
-        { error: '필수 정보가 누락되었습니다' },
-        { status: 400 }
-      )
-    }
+    const parsed = ConfirmPaymentSchema.safeParse(await req.json())
+    if (!parsed.success) return badRequest('입력값이 올바르지 않습니다', parsed.error.flatten())
+    const { paymentKey, orderId, amount } = parsed.data
 
     const adminSupabase = createAdminClient()
 
@@ -33,18 +27,12 @@ export async function POST(req: Request) {
       .single()
 
     if (fetchError || !payment) {
-      return NextResponse.json(
-        { error: '결제 정보를 찾을 수 없습니다' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: '결제 정보를 찾을 수 없습니다' }, { status: 404 })
     }
 
     // 금액 검증
     if (payment.amount !== amount) {
-      return NextResponse.json(
-        { error: '결제 금액이 일치하지 않습니다' },
-        { status: 400 }
-      )
+      return badRequest('결제 금액이 일치하지 않습니다')
     }
 
     // 토스페이먼츠 결제 승인 API 호출
@@ -96,13 +84,7 @@ export async function POST(req: Request) {
           user_agent: req.headers.get('user-agent')
         })
 
-      return NextResponse.json(
-        { 
-          error: tossData.message || '결제 승인 실패',
-          code: tossData.code 
-        },
-        { status: 400 }
-      )
+      return badRequest(tossData.message || '결제 승인 실패')
     }
 
     // 결제 성공 - DB 업데이트
@@ -141,7 +123,7 @@ export async function POST(req: Request) {
       await handleSubscriptionPayment(adminSupabase, user.id, payment, tossData)
     }
 
-    return NextResponse.json({
+    return ok({
       success: true,
       payment: {
         id: payment.id,
@@ -156,11 +138,8 @@ export async function POST(req: Request) {
     })
 
   } catch (error) {
-    console.error('Payment confirmation error:', error)
-    return NextResponse.json(
-      { error: '결제 승인 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    console.error('Payment confirmation error')
+    return serverError('결제 승인 중 오류가 발생했습니다')
   }
 }
 
