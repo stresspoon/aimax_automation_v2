@@ -11,6 +11,8 @@ import { Search, Filter, Download, RefreshCw, User, Calendar, Activity } from 'l
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface ActivityLog {
   id: string
@@ -103,20 +105,14 @@ export default function ActivityLogsPage() {
         params.append('endDate', now.toISOString())
       }
 
-      const response = await fetch(`/api/admin/activity-logs?${params}`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch logs')
-      }
-
-      const data = await response.json()
+      const data = await fetchJSON<{ logs: ActivityLog[]; total: number }>(`/api/admin/activity-logs?${params}`)
       setLogs(data.logs)
       setTotal(data.total)
     } catch (error) {
       console.error('Error fetching logs:', error)
       toast({
         title: '오류',
-        description: '활동 로그를 불러오는 중 오류가 발생했습니다.',
+        description: errorMessage(error, '활동 로그를 불러오는 중 오류가 발생했습니다.'),
         variant: 'destructive'
       })
     } finally {

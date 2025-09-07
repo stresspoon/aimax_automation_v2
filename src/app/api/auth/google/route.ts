@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { badRequest, ok, serverError } from '@/lib/http'
+import { GoogleIdTokenSchema } from '@/app/api/auth/schema'
 
 export async function POST(req: Request) {
   try {
-    const { idToken } = await req.json()
-    
-    if (!idToken) {
-      return NextResponse.json({ error: 'Google ID token이 필요합니다' }, { status: 400 })
-    }
+    const parsed = GoogleIdTokenSchema.safeParse(await req.json())
+    if (!parsed.success) return badRequest('입력값이 올바르지 않습니다', parsed.error.flatten())
+    const { idToken } = parsed.data
 
     const supabase = await createClient()
     
@@ -17,9 +17,7 @@ export async function POST(req: Request) {
       token: idToken,
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    if (error) return badRequest(error.message)
 
     // 사용자 프로필 확인 및 생성
     if (data.user) {
@@ -40,7 +38,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    return ok({
       user: {
         id: data.user?.id,
         email: data.user?.email,
@@ -50,8 +48,8 @@ export async function POST(req: Request) {
       session: data.session,
     })
   } catch (error) {
-    console.error('Google login error:', error)
-    return NextResponse.json({ error: '구글 로그인 처리 중 오류가 발생했습니다' }, { status: 500 })
+    console.error('Google login error')
+    return serverError('구글 로그인 처리 중 오류가 발생했습니다')
   }
 }
 
@@ -61,9 +59,7 @@ export async function GET(req: NextRequest) {
     // Supabase 환경변수 확인
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.error('Supabase environment variables are missing')
-      return NextResponse.json({ 
-        error: 'Supabase 설정이 누락되었습니다. 환경 변수를 확인해주세요.' 
-      }, { status: 500 })
+      return serverError('Supabase 설정이 누락되었습니다. 환경 변수를 확인해주세요.')
     }
     
     const supabase = await createClient()
@@ -99,20 +95,20 @@ export async function GET(req: NextRequest) {
     })
 
     if (error) {
-      console.error('Supabase OAuth error:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      console.error('Supabase OAuth error')
+      return badRequest(error.message)
     }
 
     if (!data || !data.url) {
       console.error('No OAuth URL returned from Supabase')
-      return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
+      return serverError('OAuth URL이 반환되지 않았습니다')
     }
 
     // 프론트에서 그대로 window.location.href로 이동시키기 위해 URL만 반환
     return NextResponse.json({ url: data.url })
   } catch (error) {
-    console.error('Google OAuth URL error:', error)
+    console.error('Google OAuth URL error')
     const errorMessage = error instanceof Error ? error.message : 'OAuth URL 생성 중 오류가 발생했습니다'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return serverError(errorMessage)
   }
 }

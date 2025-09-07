@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import { fetchJSON } from '@/lib/httpClient'
 
 export interface ProjectData {
   step1: {
@@ -51,23 +52,15 @@ export async function saveProjectData(
   }
 
   // Save to projects table
-  const response = await fetch('/api/projects', {
+  return fetchJSON('/api/projects', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: {
       campaign_id: campaignId,
       type: 'customer_acquisition',
       step,
       data,
-    }),
+    },
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || '프로젝트 저장에 실패했습니다')
-  }
-
-  return response.json()
 }
 
 export async function loadProjectData(campaignId: string) {
@@ -80,14 +73,7 @@ export async function loadProjectData(campaignId: string) {
   }
 
   // Load from projects table
-  const response = await fetch(`/api/projects?campaign_id=${campaignId}&type=customer_acquisition`)
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || '프로젝트 불러오기에 실패했습니다')
-  }
-
-  const projects = await response.json()
+  const projects = await fetchJSON<any[]>(`/api/projects?campaign_id=${campaignId}&type=customer_acquisition`)
   if (projects && projects.length > 0) {
     return projects[0] // Return the first (and should be only) project
   }
@@ -133,12 +119,7 @@ export async function getCampaignIdByName(campaignName: string) {
   }
 
   // Find or create campaign
-  const response = await fetch('/api/campaigns')
-  if (!response.ok) {
-    throw new Error('캠페인 조회에 실패했습니다')
-  }
-
-  const campaigns = await response.json()
+  const campaigns = await fetchJSON<any[]>('/api/campaigns')
   const existing = campaigns.find((c: any) => c.name === campaignName)
   
   if (existing) {
@@ -146,19 +127,12 @@ export async function getCampaignIdByName(campaignName: string) {
   }
 
   // Create new campaign if not exists
-  const createResponse = await fetch('/api/campaigns', {
+  const newCampaign = await fetchJSON<any>('/api/campaigns', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: {
       name: campaignName,
       status: 'active',
-    }),
+    },
   })
-
-  if (!createResponse.ok) {
-    throw new Error('캠페인 생성에 실패했습니다')
-  }
-
-  const newCampaign = await createResponse.json()
   return newCampaign.id
 }

@@ -16,6 +16,8 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
+import { fetchJSON } from "@/lib/httpClient"
+import { errorMessage } from "@/lib/errors"
 
 interface DashboardStats {
   overview: {
@@ -61,12 +63,7 @@ export default function AdminDashboard() {
     try {
       if (showToast) setIsRefreshing(true)
       
-      const response = await fetch('/api/admin/stats')
-      if (!response.ok) {
-        throw new Error('통계 데이터를 불러올 수 없습니다')
-      }
-      
-      const data = await response.json()
+      const data = await fetchJSON<DashboardStats>('/api/admin/stats')
       setStats(data)
       
       if (showToast) {
@@ -79,7 +76,7 @@ export default function AdminDashboard() {
       console.error('Stats fetch error:', error)
       toast({
         title: '오류',
-        description: '통계 데이터 로딩 실패',
+        description: errorMessage(error, '통계 데이터 로딩 실패'),
         variant: 'destructive'
       })
     } finally {

@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, Loader2 } from 'lucide-react'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 import { toast } from 'sonner'
 
 function PaymentSuccessContent() {
@@ -27,30 +29,21 @@ function PaymentSuccessContent() {
       }
 
       try {
-        // 결제 승인 요청
-        const response = await fetch('/api/payments/confirm', {
+        const data = await fetchJSON<{ payment: any }>('/api/payments/confirm', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: {
             paymentKey,
             orderId,
             amount: parseInt(amount)
-          })
+          }
         })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || '결제 승인 실패')
-        }
-
         setPaymentResult(data.payment)
         toast.success('결제가 성공적으로 완료되었습니다!')
-
       } catch (error: any) {
         console.error('Payment confirmation error:', error)
-        setError(error.message || '결제 처리 중 오류가 발생했습니다')
-        toast.error(error.message || '결제 승인 실패')
+        const msg = errorMessage(error, '결제 처리 중 오류가 발생했습니다')
+        setError(msg)
+        toast.error(errorMessage(error, '결제 승인 실패'))
       } finally {
         setIsProcessing(false)
       }

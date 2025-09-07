@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 import Script from 'next/script'
 
 interface SimplePaymentProps {
@@ -35,10 +37,9 @@ export function SimplePayment({
   // 결제 요청 생성
   const createPayment = async () => {
     try {
-      const response = await fetch('/api/payments/create', {
+      const data = await fetchJSON<{ payment: any }>('/api/payments/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           amount,
           orderName,
           productType,
@@ -46,16 +47,8 @@ export function SimplePayment({
           customerName,
           customerEmail,
           customerPhone
-        })
+        }
       })
-
-      const data = await response.json()
-      
-      if (!response.ok) {
-        console.error('Payment creation failed:', data)
-        throw new Error(data.error || '결제 생성 실패')
-      }
-      
       return data.payment
     } catch (error) {
       console.error('Payment creation error:', error)
@@ -96,7 +89,7 @@ export function SimplePayment({
       if (error.code === 'USER_CANCEL') {
         toast.info('결제가 취소되었습니다')
       } else {
-        toast.error(error.message || '결제 요청 실패')
+        toast.error(errorMessage(error, '결제 요청 실패'))
         onError?.(error)
       }
     } finally {

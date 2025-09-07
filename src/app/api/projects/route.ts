@@ -1,25 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkUsageLimit, assertWriteQuota, logUsage } from '@/lib/usage'
+import { ok, created, badRequest, unauthorized, notFound, serverError, forbidden } from '@/lib/http'
+import { ProjectCreateSchema, ProjectListQuerySchema } from './schema'
 
 
 export async function GET(request: NextRequest) {
   try {
-    
     const supabase = await createClient()
     
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return unauthorized()
     }
 
     const { searchParams } = new URL(request.url)
-    const campaign_id = searchParams.get('campaign_id')
-    const type = searchParams.get('type')
+    const parsed = ProjectListQuerySchema.safeParse({
+      campaign_id: searchParams.get('campaign_id') || undefined,
+      type: (searchParams.get('type') as any) || undefined
+    })
+    if (!parsed.success) {
+      return badRequest('Invalid query', parsed.error.flatten())
+    }
+    const { campaign_id, type } = parsed.data
     
     let query = supabase
       .from('projects')
@@ -36,44 +40,31 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: projects, error } = await query
-
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      )
+      return badRequest(error.message)
     }
-
-    return NextResponse.json(projects)
+    return ok(projects)
   } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return serverError()
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    
     const supabase = await createClient()
     
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return unauthorized()
     }
 
     const body = await request.json()
-    const { 
-      campaign_id,
-      type,
-      step = 1,
-      data = {}
-    } = body
+    const parsed = ProjectCreateSchema.safeParse(body)
+    if (!parsed.success) {
+      return badRequest('Invalid payload', parsed.error.flatten())
+    }
+    const { campaign_id, type, step, data } = parsed.data
 
     // Verify campaign belongs to user
     const { data: campaign } = await supabase
@@ -84,10 +75,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found or unauthorized' },
-        { status: 404 }
-      )
+      return notFound('Campaign not found or unauthorized')
     }
 
     // 무료 플랜이면 기존 동일 type/campaign 조합 프로젝트가 있으면 재사용 (200)
@@ -102,10 +90,10 @@ export async function POST(request: NextRequest) {
           .eq('type', type)
           .single()
         if (existing?.id) {
-          return NextResponse.json({ reusedProjectId: existing.id }, { status: 200 })
+          return ok({ reusedProjectId: existing.id })
         }
         // 사용 불가 + 기존 없음이면 한도 초과 응답
-        return NextResponse.json({ error: '프로젝트 생성 한도를 초과했습니다. 플랜을 업그레이드 해주세요.' }, { status: 403 })
+        return forbidden('프로젝트 생성 한도를 초과했습니다. 플랜을 업그레이드 해주세요.')
       }
     } catch (limitErr) {
       // 한도 확인 실패 시 계속 진행 (보수적)
@@ -135,10 +123,7 @@ export async function POST(request: NextRequest) {
         .single()
       
       if (error) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 400 }
-        )
+        return badRequest(error.message)
       }
       project = updated
     } else {
@@ -158,10 +143,7 @@ export async function POST(request: NextRequest) {
         .single()
       
       if (error) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 400 }
-        )
+        return badRequest(error.message)
       }
       project = created
 
@@ -169,11 +151,8 @@ export async function POST(request: NextRequest) {
       await logUsage('project_create', { campaign_id, type })
     }
 
-    return NextResponse.json(project, { status: existing ? 200 : 201 })
+    return existing ? ok(project) : created(project)
   } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return serverError()
   }
 }

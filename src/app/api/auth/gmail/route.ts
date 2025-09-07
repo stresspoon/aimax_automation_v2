@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { badRequest, ok, serverError, unauthorized } from '@/lib/http'
+import { GmailConnectSchema } from '@/app/api/auth/schema'
 
 export async function GET() {
   try {
@@ -8,7 +10,7 @@ export async function GET() {
     // 인증 확인
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+      return unauthorized('인증이 필요합니다')
     }
     
     // BASE_URL 확인 및 기본값 설정
@@ -29,18 +31,18 @@ export async function GET() {
     })
 
     if (error) {
-      console.error('Gmail OAuth error:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      console.error('Gmail OAuth error')
+      return badRequest(error.message)
     }
 
     if (!data || !data.url) {
-      return NextResponse.json({ error: 'OAuth URL이 반환되지 않았습니다' }, { status: 500 })
+      return serverError('OAuth URL이 반환되지 않았습니다')
     }
 
     return NextResponse.json({ url: data.url })
   } catch (error) {
-    console.error('Gmail OAuth URL error:', error)
-    return NextResponse.json({ error: 'Gmail OAuth URL 생성 중 오류가 발생했습니다' }, { status: 500 })
+    console.error('Gmail OAuth URL error')
+    return serverError('Gmail OAuth URL 생성 중 오류가 발생했습니다')
   }
 }
 
@@ -52,14 +54,11 @@ export async function POST(req: Request) {
     // 인증 확인
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+      return unauthorized('인증이 필요합니다')
     }
-    
-    const { accessToken, refreshToken, email } = await req.json()
-    
-    if (!refreshToken) {
-      return NextResponse.json({ error: 'Refresh token이 필요합니다' }, { status: 400 })
-    }
+    const parsed = GmailConnectSchema.safeParse(await req.json())
+    if (!parsed.success) return badRequest('입력값이 올바르지 않습니다', parsed.error.flatten())
+    const { accessToken, refreshToken, email } = parsed.data
     
     // Gmail 연결 정보 저장 (먼저 기존 연결 삭제)
     const { error: deleteError } = await supabase
@@ -68,7 +67,7 @@ export async function POST(req: Request) {
       .eq('user_id', user.id)
     
     if (deleteError) {
-      console.error('기존 연결 삭제 오류:', deleteError)
+      console.error('기존 연결 삭제 오류')
     }
     
     // 새로운 연결 정보 저장
@@ -85,14 +84,14 @@ export async function POST(req: Request) {
       })
     
     if (error) {
-      console.error('Gmail connection save error:', error)
-      return NextResponse.json({ error: '연결 정보 저장 실패' }, { status: 500 })
+      console.error('Gmail connection save error')
+      return serverError('연결 정보 저장 실패')
     }
     
-    return NextResponse.json({ success: true, email })
+    return ok({ success: true, email })
   } catch (error) {
-    console.error('Gmail connection error:', error)
-    return NextResponse.json({ error: 'Gmail 연결 중 오류가 발생했습니다' }, { status: 500 })
+    console.error('Gmail connection error')
+    return serverError('Gmail 연결 중 오류가 발생했습니다')
   }
 }
 
@@ -104,7 +103,7 @@ export async function DELETE() {
     // 인증 확인
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+      return unauthorized('인증이 필요합니다')
     }
     
     // Gmail 연결 정보 삭제
@@ -114,13 +113,13 @@ export async function DELETE() {
       .eq('user_id', user.id)
     
     if (error) {
-      console.error('Gmail disconnection error:', error)
-      return NextResponse.json({ error: '연결 해제 실패' }, { status: 500 })
+      console.error('Gmail disconnection error')
+      return serverError('연결 해제 실패')
     }
     
-    return NextResponse.json({ success: true })
+    return ok({ success: true })
   } catch (error) {
-    console.error('Gmail disconnection error:', error)
-    return NextResponse.json({ error: 'Gmail 연결 해제 중 오류가 발생했습니다' }, { status: 500 })
+    console.error('Gmail disconnection error')
+    return serverError('Gmail 연결 해제 중 오류가 발생했습니다')
   }
 }

@@ -33,7 +33,9 @@ export async function sendEmail(params: SendEmailParams): Promise<EmailProviderR
       const gmailRes = await sendViaGmailAsUser({ userId, to: params.to, subject: rendered.subject, html: rendered.html })
       return { ok: true, provider: 'gmail', messageId: (gmailRes as any)?.messageId }
     }
-  } catch {}
+  } catch (error) {
+    console.warn('[Email] Gmail send failed, falling back to SendGrid:', error);
+  }
 
   // 2) 폴백: 환경변수 없으면 no-op, 있으면 SendGrid로 발송
   const apiKey = process.env.SENDGRID_API_KEY

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
+import { toast } from 'sonner'
 import { useRouter } from "next/navigation";
 
 export default function CheckoutPage() {
@@ -67,7 +68,7 @@ export default function CheckoutPage() {
     e.preventDefault();
     
     if (!formData.agreeToTerms) {
-      alert("결제 진행을 위해 약관에 동의해주세요.");
+      toast.error('결제 진행을 위해 약관에 동의해주세요.');
       return;
     }
 

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 function SheetsCallbackContent() {
   const router = useRouter()
@@ -39,24 +41,13 @@ function SheetsCallbackContent() {
         }
 
         // OAuth 토큰 정보 저장
-        const response = await fetch('/api/auth/sheets', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Google Sheets 연결 실패')
-        }
+        await fetchJSON('/api/auth/sheets', { method: 'POST', body: { code } })
 
         // 성공 시 자동화 페이지로 리다이렉트
         router.push('/automation/customer-acquisition?sheets=connected')
       } catch (error) {
         console.error('Sheets callback error:', error)
-        setError(error instanceof Error ? error.message : 'Google Sheets 연결 중 오류가 발생했습니다')
+        setError(errorMessage(error, 'Google Sheets 연결 중 오류가 발생했습니다'))
         setTimeout(() => router.push('/automation/customer-acquisition'), 3000)
       }
     }

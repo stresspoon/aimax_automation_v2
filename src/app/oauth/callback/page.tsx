@@ -1,6 +1,8 @@
 "use client"
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 export default function OAuthCallbackPage() {
   const [status, setStatus] = useState('처리 중...')
@@ -19,17 +21,15 @@ export default function OAuthCallbackPage() {
       }
 
       const email = user.email || ''
-      const res = await fetch('/api/oauth/google/gmail/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken, accessToken: providerToken, email }),
-      })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        setStatus(`연결 실패: ${j.error || res.statusText}`)
-        return
+      try {
+        await fetchJSON('/api/oauth/google/gmail/connect', {
+          method: 'POST',
+          body: { refreshToken, accessToken: providerToken, email },
+        })
+        setStatus('Gmail 연결이 완료되었습니다. 창을 닫아주세요.')
+      } catch (e) {
+        setStatus(`연결 실패: ${errorMessage(e, '요청 실패')}`)
       }
-      setStatus('Gmail 연결이 완료되었습니다. 창을 닫아주세요.')
     })()
   }, [])
 
@@ -40,5 +40,4 @@ export default function OAuthCallbackPage() {
     </div>
   )
 }
-
 

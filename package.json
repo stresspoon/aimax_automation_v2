@@ -17,7 +17,9 @@
     "clean:dev": "rm -rf .next node_modules/.cache && npm run dev",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
-    "reinstall": "rm -rf node_modules package-lock.json .next && npm install"
+    "reinstall": "rm -rf node_modules package-lock.json .next && npm install",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
   },
   "keywords": [
     "sns",
@@ -116,6 +118,7 @@
   "devDependencies": {
     "@types/react": "19.1.10",
     "nodemon": "^3.0.2",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vitest": "^3.2.4"
   }
 }

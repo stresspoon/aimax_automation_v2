@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { ok, badRequest, unauthorized, notFound, serverError } from '@/lib/http'
+import { ProjectUpdateSchema } from '../schema'
 
 
 export async function GET(
@@ -14,10 +16,7 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return unauthorized()
     }
 
     const { data: project, error } = await supabase
@@ -28,18 +27,12 @@ export async function GET(
       .single()
 
     if (error || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      )
+      return notFound('Project not found')
     }
 
-    return NextResponse.json(project)
+    return ok(project)
   } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return serverError()
   }
 }
 
@@ -55,18 +48,19 @@ export async function PUT(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return unauthorized()
     }
 
     const body = await request.json()
+    const parsed = ProjectUpdateSchema.safeParse(body)
+    if (!parsed.success) {
+      return badRequest('Invalid payload', parsed.error.flatten())
+    }
 
     const { data: project, error } = await supabase
       .from('projects')
       .update({
-        ...body,
+        ...parsed.data,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -75,25 +69,16 @@ export async function PUT(
       .single()
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      )
+      return badRequest(error.message)
     }
 
     if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      )
+      return notFound('Project not found')
     }
 
-    return NextResponse.json(project)
+    return ok(project)
   } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return serverError()
   }
 }
 
@@ -109,10 +94,7 @@ export async function DELETE(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return unauthorized()
     }
 
     const { error } = await supabase
@@ -122,18 +104,12 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      )
+      return badRequest(error.message)
     }
 
     // 삭제 후에도 무료 플랜 재생성은 금지되도록 플래그는 유지
-    return NextResponse.json({ message: 'Project deleted successfully' })
+    return ok({ message: 'Project deleted successfully' })
   } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return serverError()
   }
 }

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { X, MessageCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { fetchJSON } from "@/lib/httpClient"
+import { errorMessage } from "@/lib/errors"
 
 export function ChatbotPopup() {
   const [isOpen, setIsOpen] = useState(false)
@@ -36,17 +38,14 @@ export function ChatbotPopup() {
         .filter(m => m.role === 'user' || m.role === 'bot')
         .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content }))
 
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText, history })
-      })
-
-      const data = await res.json()
+      const data = await fetchJSON<{ reply?: string; error?: string }>(
+        '/api/chat',
+        { method: 'POST', body: { message: userText, history } }
+      )
       const reply = data?.reply || data?.error || '잠시 후 다시 시도해주세요.'
       setMessages(prev => [...prev, { role: 'bot', content: String(reply) }])
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'bot', content: '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' }])
+      setMessages(prev => [...prev, { role: 'bot', content: errorMessage(e, '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.') }])
     } finally {
       setLoading(false)
     }

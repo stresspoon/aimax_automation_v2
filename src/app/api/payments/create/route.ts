@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { nanoid } from 'nanoid'
+import { badRequest, created, serverError, unauthorized } from '@/lib/http'
+import { CreatePaymentSchema } from '../schema'
 
 // 결제 요청 생성 API
 export async function POST(req: Request) {
@@ -9,37 +11,11 @@ export async function POST(req: Request) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!user) return unauthorized('Unauthorized')
 
-    const body = await req.json()
-    const { 
-      amount, 
-      orderName, 
-      productType,
-      projectId,
-      customerName,
-      customerEmail,
-      customerPhone,
-      metadata = {}
-    } = body
-
-    // 입력 유효성 검증
-    if (!amount || !orderName || !productType) {
-      return NextResponse.json(
-        { error: '필수 정보가 누락되었습니다' },
-        { status: 400 }
-      )
-    }
-
-    // 최소 금액 검증 (100원)
-    if (amount < 100) {
-      return NextResponse.json(
-        { error: '결제 금액은 100원 이상이어야 합니다' },
-        { status: 400 }
-      )
-    }
+    const parsed = CreatePaymentSchema.safeParse(await req.json())
+    if (!parsed.success) return badRequest('입력값이 올바르지 않습니다', parsed.error.flatten())
+    const { amount, orderName, productType, projectId, customerName, customerEmail, customerPhone, metadata } = parsed.data
 
     const adminSupabase = createAdminClient()
 
@@ -68,11 +44,8 @@ export async function POST(req: Request) {
       .single()
 
     if (paymentError) {
-      console.error('Payment creation error:', paymentError)
-      return NextResponse.json(
-        { error: '결제 정보 생성 실패' },
-        { status: 500 }
-      )
+      console.error('Payment creation error')
+      return serverError('결제 정보 생성 실패')
     }
 
     // 결제 로그 기록
@@ -83,13 +56,22 @@ export async function POST(req: Request) {
         user_id: user.id,
         action: 'request',
         status: 'ready',
-        request_data: body,
+        request_data: {
+          amount,
+          orderName,
+          productType,
+          projectId,
+          customerName,
+          customerEmail,
+          customerPhone,
+          metadata,
+        },
         ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
         user_agent: req.headers.get('user-agent')
       })
 
     // 클라이언트로 반환할 정보
-    return NextResponse.json({
+    return created({
       success: true,
       payment: {
         paymentId: payment.id,
@@ -99,17 +81,13 @@ export async function POST(req: Request) {
         customerName: payment.customer_name,
         customerEmail: payment.customer_email,
         customerPhone: payment.customer_phone,
-        // 토스페이먼츠 클라이언트 키는 환경변수에서 가져옴
         clientKey: process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
       }
     })
 
   } catch (error) {
-    console.error('Payment creation error:', error)
-    return NextResponse.json(
-      { error: '결제 생성 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    console.error('Payment creation error')
+    return serverError('결제 생성 중 오류가 발생했습니다')
   }
 }
 

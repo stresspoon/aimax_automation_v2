@@ -54,3 +54,14 @@ Supabase Dashboard > Table Editor에서 다음 테이블 확인:
 
 ### 로컬/배포 데이터 불일치
 → 동일한 Supabase 프로젝트 사용 중인지 확인
+
+### 보안 하드닝 & 점검(권장)
+- 하드닝 적용: `supabase/migrations/20250902_rls_hardening.sql`
+  - public.system_settings / public.user_profile_map RLS 활성화 및 일관된 정책 생성
+  - 보안정의자 함수는 auth 트리거에 필요한 최소만 유지하고 search_path 고정
+- 점검 스크립트: `scripts/audit-rls-and-indexes.sql`
+  - RLS 활성화 여부, 정책 목록, 인덱스, SECURITY DEFINER 함수 현황을 확인
+  - Supabase SQL Editor에서 섹션별로 실행 가능
+
+참고 문서
+- `supabase/migrations/README.md`: 마이그레이션 운영 정책 및 핵심 파일 안내
