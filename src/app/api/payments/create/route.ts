@@ -56,7 +56,16 @@ export async function POST(req: Request) {
         user_id: user.id,
         action: 'request',
         status: 'ready',
-        request_data: body,
+        request_data: {
+          amount,
+          orderName,
+          productType,
+          projectId,
+          customerName,
+          customerEmail,
+          customerPhone,
+          metadata,
+        },
         ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
         user_agent: req.headers.get('user-agent')
       })

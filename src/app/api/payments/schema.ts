@@ -8,7 +8,7 @@ export const CreatePaymentSchema = z.object({
   customerName: z.string().optional(),
   customerEmail: z.string().email().optional(),
   customerPhone: z.string().optional(),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
 })
 
 export const ConfirmPaymentSchema = z.object({

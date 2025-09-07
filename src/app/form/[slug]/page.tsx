@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, CheckCircle } from 'lucide-react'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface FormData {
   id: string
@@ -44,10 +46,7 @@ export default function PublicFormPage() {
   useEffect(() => {
     async function loadForm() {
       try {
-        const res = await fetch(`/api/forms?slug=${slug}`)
-        if (!res.ok) throw new Error('폼을 찾을 수 없습니다')
-        
-        const data = await res.json()
+        const data = await fetchJSON<any>(`/api/forms?slug=${slug}`)
         console.log('Loaded form data:', data)
         console.log('Custom fields:', data.fields?.custom)
         setForm(data)
@@ -75,7 +74,7 @@ export default function PublicFormPage() {
         
         setFormValues(defaults)
       } catch (err) {
-        setError((err as Error).message)
+        setError(errorMessage(err, '폼을 찾을 수 없습니다'))
       } finally {
         setLoading(false)
       }
@@ -233,27 +232,14 @@ export default function PublicFormPage() {
         throw new Error('개인정보 활용에 동의해주세요')
       }
       
-      const res = await fetch('/api/forms/responses', {
+      const data = await fetchJSON<any>('/api/forms/responses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formId: form?.id,
-          ...formValues
-        })
+        body: { formId: form?.id, ...formValues }
       })
-      
-      const data = await res.json()
-      
-      if (!res.ok) {
-        if (data.duplicate) {
-          throw new Error('이미 신청하셨습니다')
-        }
-        throw new Error(data.error || '제출 실패')
-      }
       
       setSubmitted(true)
     } catch (err) {
-      setError((err as Error).message)
+      setError(errorMessage(err, '제출 실패'))
     } finally {
       setSubmitting(false)
     }

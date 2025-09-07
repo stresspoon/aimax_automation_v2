@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
+import { fetchJSON } from "@/lib/httpClient";
+import { errorMessage } from "@/lib/errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -113,8 +115,7 @@ export default function LoginPage() {
               onClick={async () => {
                 setGoogleLoading(true);
                 try {
-                  const res = await fetch('/api/auth/google');
-                  const data = await res.json();
+                  const data = await fetchJSON<{ url?: string; error?: string }>("/api/auth/google");
                   if (data.url) {
                     window.location.href = data.url;
                   } else {
@@ -122,7 +123,7 @@ export default function LoginPage() {
                     setGoogleLoading(false);
                   }
                 } catch (err) {
-                  setError('구글 로그인 실패');
+                  setError(errorMessage(err, '구글 로그인 실패'));
                   setGoogleLoading(false);
                 }
               }}

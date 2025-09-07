@@ -101,7 +101,8 @@ export function promise<T>(
   },
   options?: any
 ): Promise<T> {
-  return sonnerToast.promise(promise, messages, options)
+  sonnerToast.promise(promise, { ...messages, ...options })
+  return promise
 }
 
 /**
@@ -117,7 +118,8 @@ export function custom(
     updateHistory(key)
   }
   
-  sonnerToast(message, options)
+  const { preventDuplicate, ...toastOptions } = options || {}
+  sonnerToast(message, toastOptions as any)
 }
 
 /**

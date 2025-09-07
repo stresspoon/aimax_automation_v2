@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Save, RefreshCw, Globe, Mail, Shield, Database, Bell, Brain } from 'lucide-react'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface SystemSettings {
   // 일반 설정
@@ -56,13 +58,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/settings')
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch settings')
-      }
-
-      const data = await response.json()
+      const data = await fetchJSON<Record<string, any>>('/api/admin/settings')
       
       // JSON 문자열로 저장된 값들을 파싱
       const parsedSettings: SystemSettings = {}
@@ -79,7 +75,7 @@ export default function SettingsPage() {
       console.error('Error fetching settings:', error)
       toast({
         title: '오류',
-        description: '설정을 불러오는 중 오류가 발생했습니다.',
+        description: errorMessage(error, '설정을 불러오는 중 오류가 발생했습니다.'),
         variant: 'destructive'
       })
     } finally {
@@ -94,18 +90,10 @@ export default function SettingsPage() {
   const saveSetting = async (key: string, value: any) => {
     setSaving(true)
     try {
-      const response = await fetch('/api/admin/settings', {
+      await fetchJSON('/api/admin/settings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ key, value })
+        body: { key, value }
       })
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err?.error || 'Failed to save setting')
-      }
 
       setSettings(prev => ({ ...prev, [key]: value }))
       // 저장 후 최신값 다시 가져오기
@@ -119,7 +107,7 @@ export default function SettingsPage() {
       console.error('Error saving setting:', error)
       toast({
         title: '오류',
-        description: '설정 저장 중 오류가 발생했습니다.',
+        description: errorMessage(error, '설정 저장 중 오류가 발생했습니다.'),
         variant: 'destructive'
       })
     } finally {

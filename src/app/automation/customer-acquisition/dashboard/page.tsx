@@ -89,7 +89,8 @@ export default function CustomerAcquisitionDashboard() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        alert('로그인이 필요합니다.');
+        // 로그인 유도만, 알림은 과하게 떠 있지 않도록 생략
+        router.push('/login');
         return;
       }
 
@@ -178,14 +179,14 @@ export default function CustomerAcquisitionDashboard() {
 
     } catch (error) {
       console.error('Error deleting project:', error);
-      alert('프로젝트 삭제 중 오류가 발생했습니다.');
+      // 간단한 피드백: 브라우저 alert 대신 상태로 대체하거나 상단 알림 컴포넌트가 생기면 연결
       fetchProjects();
     }
   };
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) {
-      alert('프로젝트 이름을 입력해주세요.');
+      // 간단한 피드백: 입력 아래 문구로 처리(추후 토스트 연결 가능)
       return;
     }
 
@@ -230,7 +231,6 @@ export default function CustomerAcquisitionDashboard() {
       router.push(`/automation/customer-acquisition?id=${newProject.id}`);
     } catch (error) {
       console.error('Error creating project:', error);
-      alert('프로젝트 생성 중 오류가 발생했습니다.');
     }
   };
 

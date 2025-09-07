@@ -229,7 +229,13 @@ export default function CustomerAcquisitionPage() {
 
   // 공통 후보 로더
   const fetchCandidates = async (pid: string) => {
-    return fetchJSON<{ candidates: any[] }>(`/api/forms/sync-candidates?projectId=${pid}`)
+    return fetchJSON<{ 
+      candidates: any[], 
+      totalResponses?: number,
+      formIds?: string[],
+      formId?: string,
+      message?: string 
+    }>(`/api/forms/sync-candidates?projectId=${pid}`)
   }
 
   // Gmail 연결 상태 확인 및 콜백 처리
@@ -880,11 +886,11 @@ export default function CustomerAcquisitionPage() {
       try {
         // 먼저 자체 폼 데이터 확인
         console.log('Checking form data for projectId:', projectId)
-        const formData = await fetchCandidates(projectId)
+        const formData = projectId ? await fetchCandidates(projectId) : null
         console.log('Form data loaded for projectId:', projectId)
           console.log('Form data:', formData)
           
-          if (formData.candidates && formData.candidates.length > 0) {
+          if (formData?.candidates && formData.candidates.length > 0) {
             // 자체 폼 데이터 사용
             setProjectData({
               ...projectData,

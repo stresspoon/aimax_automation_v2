@@ -47,6 +47,8 @@ import {
   X
 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface User {
   id: string
@@ -108,12 +110,7 @@ export default function UsersPage() {
         sortOrder
       })
 
-      const response = await fetch(`/api/admin/users?${params}`)
-      if (!response.ok) {
-        throw new Error('사용자 목록을 불러올 수 없습니다')
-      }
-
-      const data = await response.json()
+      const data = await fetchJSON<any>(`/api/admin/users?${params}`)
       setUsers(data.users)
       setTotalPages(data.pagination.totalPages)
       setTotalUsers(data.pagination.total)
@@ -134,7 +131,7 @@ export default function UsersPage() {
       console.error('Users fetch error:', error)
       toast({
         title: '오류',
-        description: '사용자 목록 로딩 실패',
+        description: errorMessage(error, '사용자 목록 로딩 실패'),
         variant: 'destructive'
       })
     } finally {
@@ -145,18 +142,10 @@ export default function UsersPage() {
   // 사용자 상태 변경
   const updateUserStatus = async (userId: string, status: string) => {
     try {
-      const response = await fetch('/api/admin/users', {
+      await fetchJSON('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          updates: { status }
-        })
+        body: { userId, updates: { status } }
       })
-
-      if (!response.ok) {
-        throw new Error('사용자 상태 변경 실패')
-      }
 
       toast({
         title: '성공',
@@ -167,7 +156,7 @@ export default function UsersPage() {
       console.error('Update user error:', error)
       toast({
         title: '오류',
-        description: '사용자 상태 변경 실패',
+        description: errorMessage(error, '사용자 상태 변경 실패'),
         variant: 'destructive'
       })
     }
@@ -176,18 +165,10 @@ export default function UsersPage() {
   // 사용자 플랜 변경
   const updateUserPlan = async (userId: string, plan: string) => {
     try {
-      const response = await fetch('/api/admin/users', {
+      await fetchJSON('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          updates: { plan }
-        })
+        body: { userId, updates: { plan } }
       })
-
-      if (!response.ok) {
-        throw new Error('플랜 변경 실패')
-      }
 
       toast({
         title: '성공',
@@ -198,7 +179,7 @@ export default function UsersPage() {
       console.error('Update plan error:', error)
       toast({
         title: '오류',
-        description: '플랜 변경 실패',
+        description: errorMessage(error, '플랜 변경 실패'),
         variant: 'destructive'
       })
     }
@@ -207,21 +188,16 @@ export default function UsersPage() {
   // 무제한 사용 권한 토글
   const toggleUnlimited = async (userId: string, isUnlimited: boolean) => {
     try {
-      const response = await fetch('/api/admin/users', {
+      await fetchJSON('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           userId,
-          updates: { 
+          updates: {
             is_unlimited: isUnlimited,
-            unlimited_reason: isUnlimited ? '관리자 승인' : null 
+            unlimited_reason: isUnlimited ? '관리자 승인' : null
           }
-        })
+        }
       })
-
-      if (!response.ok) {
-        throw new Error('무제한 권한 업데이트 실패')
-      }
 
       toast({
         title: '성공',
@@ -232,7 +208,7 @@ export default function UsersPage() {
       console.error('Update unlimited error:', error)
       toast({
         title: '오류',
-        description: '무제한 권한 변경 실패',
+        description: errorMessage(error, '무제한 권한 변경 실패'),
         variant: 'destructive'
       })
     }
@@ -245,13 +221,7 @@ export default function UsersPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/users?userId=${userId}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) {
-        throw new Error('사용자 삭제 실패')
-      }
+      await fetchJSON(`/api/admin/users?userId=${userId}`, { method: 'DELETE' })
 
       toast({
         title: '성공',
@@ -262,7 +232,7 @@ export default function UsersPage() {
       console.error('Delete user error:', error)
       toast({
         title: '오류',
-        description: '사용자 삭제 실패',
+        description: errorMessage(error, '사용자 삭제 실패'),
         variant: 'destructive'
       })
     }
