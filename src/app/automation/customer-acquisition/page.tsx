@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { createClient } from '@/lib/supabase/client'
+import { fetchJSON } from '@/lib/httpClient'
 import { campaignsAPI } from '@/lib/api'
+import { errorMessage } from '@/lib/errors'
 import { saveProjectData, loadProjectData, getCampaignIdByName, loadProjectById } from '@/lib/projects'
 import { downloadText, downloadCompleteProject, downloadContentAsMarkdown, downloadImagesAsZip } from '@/lib/download'
 import { contentGuidelines } from '@/lib/contentGuidelines'
 import * as XLSX from 'xlsx'
+import { mergeCandidatesSafely } from '@/lib/candidates/merge'
+import { normalizeProjectData } from '@/lib/projects/normalize'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -100,6 +104,56 @@ export default function CustomerAcquisitionPage() {
   const [freeTrialsRemaining, setFreeTrialsRemaining] = useState<number | null>(null);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const SHEETS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_SHEETS_INTEGRATION === 'true'
+
+  // DB 데이터 방어적 정규화 (과거 step2만 저장된 레거시 케이스 포함)
+  const normalizeProjectData = (dbData: any) => {
+    const isLegacyStep2Only = dbData && !dbData.step2 && (
+      Array.isArray(dbData?.candidates) ||
+      typeof dbData?.sheetUrl !== 'undefined' ||
+      typeof dbData?.isRunning !== 'undefined'
+    )
+
+    const step1 = {
+      keyword: dbData?.step1?.keyword || '',
+      productDescription: dbData?.step1?.productDescription || '',
+      contentType: dbData?.step1?.contentType || 'blog',
+      contentPurpose: dbData?.step1?.contentPurpose || 'informative',
+      instructions: dbData?.step1?.instructions || '',
+      generatedContent: dbData?.step1?.generatedContent || '',
+      generatedImages: dbData?.step1?.generatedImages || []
+    }
+
+    const baseStep2 = isLegacyStep2Only ? dbData : (dbData?.step2 || {})
+    const step2 = {
+      formId: baseStep2?.formId || null,
+      formUrl: baseStep2?.formUrl || null,
+      sheetUrl: baseStep2?.sheetUrl || '',
+      isRunning: baseStep2?.isRunning || false,
+      candidates: baseStep2?.candidates || [],
+      selectionCriteria: baseStep2?.selectionCriteria || {
+        threads: 500,
+        blog: 300,
+        instagram: 1000
+      },
+      usingFormData: baseStep2?.usingFormData || false,
+    }
+
+    const step3 = dbData?.step3 || {
+      targetType: 'selected',
+      emailSubject: '',
+      emailBody: '',
+      senderEmail: '',
+      emailsSent: 0
+    }
+
+    return {
+      ...dbData,
+      step1,
+      step2,
+      step3,
+    }
+  }
 
   // localStorage에서 step2, step3 데이터 복원
   useEffect(() => {
@@ -158,16 +212,13 @@ export default function CustomerAcquisitionPage() {
   useEffect(() => {
     const fetchUsage = async () => {
       try {
-        const res = await fetch('/api/usage');
-        if (res.ok) {
-          const usage = await res.json();
-          if (usage.limit === -1) {
-            setIsUnlimited(true);
-            setFreeTrialsRemaining(null);
-          } else {
-            setIsUnlimited(false);
-            setFreeTrialsRemaining(usage.remaining);
-          }
+        const usage = await fetchJSON<{ limit: number; remaining: number }>(`/api/usage`)
+        if (usage.limit === -1) {
+          setIsUnlimited(true)
+          setFreeTrialsRemaining(null)
+        } else {
+          setIsUnlimited(false)
+          setFreeTrialsRemaining(usage.remaining)
         }
       } catch (error) {
         console.error('사용량 확인 실패:', error);
@@ -175,6 +226,11 @@ export default function CustomerAcquisitionPage() {
     };
     fetchUsage();
   }, []);
+
+  // 공통 후보 로더
+  const fetchCandidates = async (pid: string) => {
+    return fetchJSON<{ candidates: any[] }>(`/api/forms/sync-candidates?projectId=${pid}`)
+  }
 
   // Gmail 연결 상태 확인 및 콜백 처리
   useEffect(() => {
@@ -246,9 +302,7 @@ export default function CustomerAcquisitionPage() {
     
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`);
-        if (res.ok) {
-          const data = await res.json();
+        const data = await fetchCandidates(projectId)
           
           // UI 업데이트 - 기존 재체크 값 보존하면서 병합
           setProjectData(prev => {
@@ -261,44 +315,22 @@ export default function CustomerAcquisitionPage() {
             }
             
             // 기존 재체크 값을 보존하면서 새 데이터와 병합
-            const mergedCandidates = data.candidates.map((newCandidate: any) => {
-              // 기존 candidates에서 같은 사람 찾기
-              const existingCandidate = prev.step2?.candidates?.find((c: any) => 
-                c.email === newCandidate.email && c.name === newCandidate.name
-              );
-              
-              // DB에서 가져온 sns_check_result가 있으면 우선 사용
-              // 그렇지 않으면 기존 UI 값 유지
-              if (newCandidate.threads > 0 || newCandidate.instagram > 0 || newCandidate.blog > 0) {
-                // DB에 저장된 값이 있으면 그대로 사용
-                return newCandidate;
-              } else if (existingCandidate && 
-                       (existingCandidate.threads > 0 || 
-                        existingCandidate.instagram > 0 || 
-                        existingCandidate.blog > 0)) {
-                // 기존 UI에 재체크한 값이 있으면 보존
-                return {
-                  ...newCandidate,
-                  threads: existingCandidate.threads || 0,
-                  instagram: existingCandidate.instagram || 0,
-                  blog: existingCandidate.blog || 0,
-                  status: existingCandidate.status,
-                  checkStatus: existingCandidate.checkStatus
-                };
-              }
-              
-              return newCandidate;
-            });
+            const mergedCandidates = mergeCandidatesSafely(prev.step2?.candidates, data.candidates)
+            // 선정 상태 재계산 (자동 기준 반영)
+            const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+            const recomputed = (mergedCandidates || []).map((c: any) => ({
+              ...c,
+              status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+            }))
             
             return {
               ...prev,
               step2: {
                 ...prev.step2,
-                candidates: mergedCandidates,
+                candidates: recomputed,
               },
             };
           });
-        }
       } catch (error) {
         console.error('자동 새로고침 오류:', error);
       }
@@ -325,39 +357,8 @@ export default function CustomerAcquisitionPage() {
             setCampaignId(projectFromDb.campaign_id);
             setCampaignName(projectFromDb.campaign_name);
             if (projectFromDb.data) {
-              // 전체 데이터 구조 기본값 보장
-              const loadedData = {
-                ...projectFromDb.data,
-                step1: {
-                  keyword: projectFromDb.data.step1?.keyword || '',
-                  productDescription: projectFromDb.data.step1?.productDescription || '',
-                  contentType: projectFromDb.data.step1?.contentType || 'blog',
-                  contentPurpose: projectFromDb.data.step1?.contentPurpose || 'informative',
-                  instructions: projectFromDb.data.step1?.instructions || '',
-                  generatedContent: projectFromDb.data.step1?.generatedContent || '',
-                  generatedImages: projectFromDb.data.step1?.generatedImages || []
-                },
-                step2: {
-                  formId: projectFromDb.data.step2?.formId || null,
-                  formUrl: projectFromDb.data.step2?.formUrl || null,
-                  sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
-                  isRunning: projectFromDb.data.step2?.isRunning || false,
-                  candidates: projectFromDb.data.step2?.candidates || [],
-                  selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
-                    threads: 500,
-                    blog: 300,
-                    instagram: 1000
-                  },
-                  usingFormData: projectFromDb.data.step2?.usingFormData || false,
-                },
-                step3: projectFromDb.data.step3 || {
-                  targetType: 'selected',
-                  emailSubject: '',
-                  emailBody: '',
-                  senderEmail: '',
-                  emailsSent: 0
-                }
-              };
+              // 전체 데이터 구조 기본값 보장 + 레거시 형태 정규화
+              const loadedData = normalizeProjectData(projectFromDb.data);
               setProjectData(loadedData);
               
               // 프로젝트가 이미 실행 중이면 periodic check 시작
@@ -390,39 +391,8 @@ export default function CustomerAcquisitionPage() {
           const projectFromDb = await loadProjectData(id);
           
           if (projectFromDb && projectFromDb.data) {
-            // DB에 저장된 데이터가 있으면 사용 (step2 기본 구조 보장)
-            const loadedData = {
-              ...projectFromDb.data,
-              step1: {
-                keyword: projectFromDb.data.step1?.keyword || '',
-                productDescription: projectFromDb.data.step1?.productDescription || '',
-                contentType: projectFromDb.data.step1?.contentType || 'blog',
-                contentPurpose: projectFromDb.data.step1?.contentPurpose || 'informative',
-                instructions: projectFromDb.data.step1?.instructions || '',
-                generatedContent: projectFromDb.data.step1?.generatedContent || '',
-                generatedImages: projectFromDb.data.step1?.generatedImages || []
-              },
-              step2: {
-                formId: projectFromDb.data.step2?.formId || null,
-                formUrl: projectFromDb.data.step2?.formUrl || null,
-                sheetUrl: projectFromDb.data.step2?.sheetUrl || '',
-                isRunning: projectFromDb.data.step2?.isRunning || false,
-                candidates: projectFromDb.data.step2?.candidates || [],
-                selectionCriteria: projectFromDb.data.step2?.selectionCriteria || {
-                  threads: 500,
-                  blog: 300,
-                  instagram: 1000
-                },
-                usingFormData: projectFromDb.data.step2?.usingFormData || false,
-              },
-              step3: projectFromDb.data.step3 || {
-                targetType: 'selected',
-                emailSubject: '',
-                emailBody: '',
-                senderEmail: '',
-                emailsSent: 0
-              }
-            };
+            // DB에 저장된 데이터가 있으면 사용 (레거시 형태도 정규화)
+            const loadedData = normalizeProjectData(projectFromDb.data);
             setProjectData(loadedData);
             setProjectId(projectFromDb.id);
             
@@ -598,31 +568,18 @@ export default function CustomerAcquisitionPage() {
         instructionsLength: instructions.length
       })
       
-      const res = await fetch('/api/ai/generate', {
+      const json = await fetchJSON<any>('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           keyword: projectData.step1.keyword,
           contentType: projectData.step1.contentType,
           instructions: instructions,
-          generateImages: false  // 명시적으로 false 전달
-        }),
-        signal: abortController.signal
+          generateImages: false,
+        },
+        signal: abortController.signal,
       })
       const responseTime = Date.now() - startTime
       console.log('[Step1] API 응답 수신 소요 시간:', responseTime, 'ms')
-      
-      const json = await res.json()
-      
-      if (!res.ok) {
-        if (json.needsUpgrade) {
-          showNotification("무료 체험 횟수를 모두 사용했습니다. 유료 플랜으로 업그레이드해주세요.", 'error')
-        } else {
-          showNotification(json.error || '생성 실패', 'error')
-        }
-        setLoading(false)
-        return
-      }
       
       // 사용량 정보 업데이트
       if (json.usage) {
@@ -673,7 +630,7 @@ export default function CustomerAcquisitionPage() {
       if (e.name === 'AbortError') {
         showNotification('생성이 취소되었습니다', 'info')
       } else {
-        showNotification(e?.message || '에러가 발생했습니다', 'error')
+        showNotification(errorMessage(e, '에러가 발생했습니다'), 'error')
       }
     } finally {
       setLoading(false)
@@ -837,44 +794,77 @@ export default function CustomerAcquisitionPage() {
     check()
   }, [expandedStep])
 
+  // Step 2: 폼 링크 최신화 (폼 빌더에서 돌아온 직후 반영)
+  useEffect(() => {
+    const refreshFormLink = async () => {
+      if (expandedStep !== 2 || !projectId) return
+      try {
+        const supabase = createClient()
+        const { data: project } = await supabase
+          .from('projects')
+          .select('data')
+          .eq('id', projectId)
+          .single()
+        const formUrl = project?.data?.step2?.formUrl
+        const formId = project?.data?.step2?.formId
+        if (formUrl || formId) {
+          setProjectData(prev => ({
+            ...prev,
+            step2: {
+              ...prev.step2,
+              formUrl: formUrl || prev.step2.formUrl || null,
+              formId: formId || prev.step2.formId || null,
+            }
+          }))
+        }
+
+        // Fallback: if no formUrl in project data, try to infer from forms API
+        if (!formUrl) {
+          try {
+            const forms = await fetchJSON<any[]>(`/api/forms?projectId=${projectId}`)
+            const projectForms = (forms || []).filter((f: any) => f.project_id === projectId)
+            if (projectForms.length > 0 && projectForms[0]?.slug) {
+              const derivedUrl = `${window.location.origin}/form/${projectForms[0].slug}`
+              setProjectData(prev => ({
+                ...prev,
+                step2: {
+                  ...prev.step2,
+                  formUrl: derivedUrl,
+                  formId: projectForms[0].id || prev.step2.formId || null,
+                }
+              }))
+            }
+          } catch {}
+        }
+      } catch (e) {
+        // no-op: 링크 최신화 실패는 무시 (표시만 영향)
+      }
+    }
+    refreshFormLink()
+  }, [expandedStep, projectId])
+
   const connectGmail = async () => {
     try {
-      // 새로운 Gmail OAuth 엔드포인트 호출
-      const res = await fetch('/api/auth/gmail', {
-        method: 'GET',
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        showNotification(data.error || 'Gmail 연결 실패', 'error');
-        return;
+      const data = await fetchJSON<{ url?: string; error?: string }>('/api/auth/gmail')
+      if (data?.url) {
+        window.location.href = data.url
+      } else {
+        showNotification('Gmail 연결 실패', 'error')
       }
-      
-      if (data.url) {
-        // OAuth URL로 리다이렉트
-        window.location.href = data.url;
-      }
-    } catch (error) {
-      console.error('Gmail connection error:', error);
-      showNotification('Gmail 연결 중 오류가 발생했습니다', 'error');
+    } catch (error: any) {
+      console.error('Gmail connection error:', error)
+      showNotification(errorMessage(error, 'Gmail 연결 중 오류가 발생했습니다'), 'error')
     }
   }
 
   const disconnectGmail = async () => {
     try {
-      const res = await fetch('/api/auth/gmail', { method: 'DELETE' });
-      
-      if (res.ok) {
-        setGmailEmail('');
-        showNotification('Gmail 연결이 해제되었습니다', 'info');
-      } else {
-        const data = await res.json();
-        showNotification(data.error || 'Gmail 연결 해제 실패', 'error');
-      }
-    } catch (error) {
-      console.error('Gmail disconnection error:', error);
-      showNotification('Gmail 연결 해제 중 오류가 발생했습니다', 'error');
+      await fetchJSON('/api/auth/gmail', { method: 'DELETE' })
+      setGmailEmail('')
+      showNotification('Gmail 연결이 해제되었습니다', 'info')
+    } catch (error: any) {
+      console.error('Gmail disconnection error:', error)
+      showNotification(errorMessage(error, 'Gmail 연결 해제 중 오류가 발생했습니다'), 'error')
     }
   }
 
@@ -890,11 +880,8 @@ export default function CustomerAcquisitionPage() {
       try {
         // 먼저 자체 폼 데이터 확인
         console.log('Checking form data for projectId:', projectId)
-        const formResponse = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
-        console.log('Form response status:', formResponse.status)
-        
-        if (formResponse.ok) {
-          const formData = await formResponse.json()
+        const formData = await fetchCandidates(projectId)
+        console.log('Form data loaded for projectId:', projectId)
           console.log('Form data:', formData)
           
           if (formData.candidates && formData.candidates.length > 0) {
@@ -923,9 +910,8 @@ export default function CustomerAcquisitionPage() {
               
               // formId를 사용해서 pending 응답들 가져오기
               if (formData.formId) {
-                const responsesRes = await fetch(`/api/forms/responses?formId=${formData.formId}&projectId=${projectId || ''}`)
-                if (responsesRes.ok) {
-                  const responsesData = await responsesRes.json()
+                try {
+                  const responsesData = await fetchJSON<any[]>(`/api/forms/responses?formId=${formData.formId}&projectId=${projectId || ''}`)
                   const pendingIds = responsesData
                     .filter((r: any) => r.status === 'pending')
                     .map((r: any) => r.id)
@@ -938,7 +924,7 @@ export default function CustomerAcquisitionPage() {
                       body: JSON.stringify({ responseId })
                     }).catch(console.error)
                   }
-                }
+                } catch (e) { console.error(e) }
               }
             }
             
@@ -961,7 +947,6 @@ export default function CustomerAcquisitionPage() {
             
             return;
           }
-        }
         
         // 자체 폼 데이터가 없고 Google Sheets URL도 없으면 안내
         if (!projectData.step2.sheetUrl) {
@@ -982,34 +967,44 @@ export default function CustomerAcquisitionPage() {
           
           // 주기적으로 폼 데이터 체크
           const checkInterval = setInterval(async () => {
-            const response = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
-            if (response.ok) {
-              const data = await response.json()
+            try {
+              const data = await fetchCandidates(projectId!)
               if (data.candidates && data.candidates.length > 0) {
                 setProjectData(prev => ({
                   ...prev,
                   step2: {
                     ...prev.step2,
-                    candidates: data.candidates
+                    candidates: (function(){
+                      const prevList = prev.step2?.candidates || []
+                      const merged = mergeCandidatesSafely(prevList as any, data.candidates as any) as any[]
+                      const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                      return merged.map((c:any)=>({
+                        ...c,
+                        status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+                      }))
+                    })()
                   }
                 }))
                 showNotification(`${data.candidates.length}명의 새로운 응답이 있습니다!`, 'success')
                 clearInterval(checkInterval)
               }
-            }
+            } catch {}
           }, 5000)
           
           return;
         }
         
         // Google Sheets URL이 있으면 기존 로직 실행
-        const prep = await fetch('/api/sheets/prepare', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sheetUrl: projectData.step2.sheetUrl })
-        })
-        const prepJson = await prep.json()
-        if (!prep.ok || !Array.isArray(prepJson.candidates)) {
-          showNotification(prepJson.error || '시트 연결에 실패했습니다', 'error')
+        let prepJson: any
+        try {
+          prepJson = await fetchJSON('/api/sheets/prepare', { method: 'POST', body: { sheetUrl: projectData.step2.sheetUrl } })
+        } catch (e: any) {
+          showErrorFrom(e, '시트 연결에 실패했습니다')
+          setLoading(false)
+          return
+        }
+        if (!Array.isArray(prepJson.candidates)) {
+          showNotification('시트 연결에 실패했습니다', 'error')
           setLoading(false)
           return
         }
@@ -1081,12 +1076,7 @@ export default function CustomerAcquisitionPage() {
           if ((c as any).threadsUrl) {
             try {
               setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) Threads 체크 중...`, currentSns: 'threads' }))
-              const tRes = await fetch('/api/sheets/measure', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ candidate: c, channel: 'threads' }) 
-              })
-              const result = await tRes.json()
+              const result = await fetchJSON('/api/sheets/measure', { method: 'POST', body: { candidate: c, channel: 'threads' } })
               tJson.threads = result.threads || 0
             } catch (err) {
               console.error('Threads check error:', err)
@@ -1101,12 +1091,7 @@ export default function CustomerAcquisitionPage() {
           if ((c as any).blogUrl) {
             try {
               setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 블로그 체크 중...`, currentSns: 'blog' }))
-              const bRes = await fetch('/api/sheets/measure', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ candidate: c, channel: 'blog' }) 
-              })
-              const result = await bRes.json()
+              const result = await fetchJSON('/api/sheets/measure', { method: 'POST', body: { candidate: c, channel: 'blog' } })
               bJson.blog = result.blog || 0
             } catch (err) {
               console.error('Blog check error:', err)
@@ -1121,12 +1106,7 @@ export default function CustomerAcquisitionPage() {
           if ((c as any).instagramUrl) {
             try {
               setProgress(p => ({ ...p, currentName: `(${i+1}/${total}) 인스타그램 체크 중...`, currentSns: 'instagram' }))
-              const iRes = await fetch('/api/sheets/measure', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ candidate: c, channel: 'instagram' }) 
-              })
-              const result = await iRes.json()
+              const result = await fetchJSON('/api/sheets/measure', { method: 'POST', body: { candidate: c, channel: 'instagram' } })
               iJson.instagram = result.instagram || 0
             } catch (err) {
               console.error('Instagram check error:', err)
@@ -1392,20 +1372,13 @@ export default function CustomerAcquisitionPage() {
 
   const checkProgress = async () => {
     try {
-      const res = await fetch(`/api/sheets/progress?projectId=${projectId}`);
-      const data = await res.json();
-      
-      if (res.ok) {
-        console.log('진행상황 업데이트:', data);
-        setProgress(data);
-        
-        // 완료되면 주기적 체크 중지
-        if (data.status === 'completed' && data.current === data.total && data.total > 0) {
-          console.log('체크 완료, 진행상황 추적 중지');
-          stopProgressCheck();
-        }
-      } else {
-        console.error('Progress API 오류:', data);
+      const data = await fetchJSON<any>(`/api/sheets/progress?projectId=${projectId}`)
+      console.log('진행상황 업데이트:', data)
+      setProgress(data)
+      // 완료되면 주기적 체크 중지
+      if (data.status === 'completed' && data.current === data.total && data.total > 0) {
+        console.log('체크 완료, 진행상황 추적 중지')
+        stopProgressCheck()
       }
     } catch (err) {
       console.error('Progress check error:', err);
@@ -1446,11 +1419,10 @@ export default function CustomerAcquisitionPage() {
       
       // 자체 폼 사용 중인 경우
       if (project.data?.step2?.usingFormData) {
-        const res = await fetch(`/api/forms/sync-candidates?projectId=${currentProjectId}`);
-        const data = await res.json();
+        const data = await fetchCandidates(currentProjectId)
         console.log('📨 Forms API 응답:', data);
         
-        if (res.ok && data.candidates) {
+        if (data.candidates) {
           const newCount = data.candidates.length;
           
           // 항상 최신 데이터로 UI 업데이트 (SNS 체크 결과 포함)
@@ -1458,7 +1430,15 @@ export default function CustomerAcquisitionPage() {
             ...prev,
             step2: {
               ...prev.step2,
-              candidates: data.candidates,
+              candidates: (function(){
+                const prevList = prev.step2?.candidates || []
+                const merged = mergeCandidatesSafely(prevList as any, data.candidates as any) as any[]
+                const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                return merged.map((c:any)=>({
+                  ...c,
+                  status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+                }))
+              })()
             },
           }));
           
@@ -1496,23 +1476,20 @@ export default function CustomerAcquisitionPage() {
       console.log(`  - DB에 저장된 마지막 체크 행 수: ${lastRowCount}`);
       console.log(`  - Sheet URL: ${project.data?.step2?.sheetUrl}`);
       
-      const res = await fetch('/api/sheets/sync', {
+      const data = await fetchJSON('/api/sheets/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           sheetUrl: project.data?.step2?.sheetUrl || projectData.step2.sheetUrl,
           projectId: currentProjectId,
           selectionCriteria: project.data?.step2?.selectionCriteria || projectData.step2.selectionCriteria,
           checkNewOnly: true,
           lastRowCount: lastRowCount,
           skipSnsCheck: false,
-        }),
-      });
-      
-      const data = await res.json();
+        },
+      })
       console.log('📨 Sheets API 응답:', data);
       
-      if (res.ok && data.newCandidates && data.newCandidates.length > 0) {
+      if (data.newCandidates && data.newCandidates.length > 0) {
         console.log(`✅ ${data.newCandidates.length}명의 새로운 후보자 발견!`);
         
         const { data: updatedProject } = await supabase
@@ -1606,6 +1583,11 @@ export default function CustomerAcquisitionPage() {
     setShowToast({ message, type });
     setTimeout(() => setShowToast(null), 3000);
   };
+
+  // Small helper to standardize error toasts
+  const showErrorFrom = (err: unknown, fallback: string) => {
+    showNotification(errorMessage(err, fallback), 'error')
+  }
 
   // 다운로드 핸들러 함수들
   const handleDownloadText = () => {
@@ -1728,17 +1710,12 @@ export default function CustomerAcquisitionPage() {
       console.log('[handleStep3Send] Sending to API:', endpoint);
       console.log('[handleStep3Send] Request body:', requestBody);
       
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        showNotification(data.error || '이메일 발송 실패', 'error');
-        return;
+      let data: any
+      try {
+        data = await fetchJSON(endpoint, { method: 'POST', body: requestBody })
+      } catch (e: any) {
+        showErrorFrom(e, '이메일 발송 실패')
+        return
       }
       
       // Gmail API 응답 처리
@@ -2107,8 +2084,9 @@ export default function CustomerAcquisitionPage() {
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(projectData.step2.formUrl || '');
-                    alert('링크가 복사되었습니다');
+                    navigator.clipboard.writeText(projectData.step2.formUrl || '')
+                      .then(() => showNotification('링크가 복사되었습니다', 'success'))
+                      .catch(() => showNotification('복사에 실패했습니다', 'error'))
                   }}
                   className="px-3 py-2 bg-white border rounded hover:bg-gray-50"
                 >
@@ -2388,19 +2366,32 @@ export default function CustomerAcquisitionPage() {
                 )}
                 <button
                   onClick={async () => {
-                    const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
-                    if (res.ok) {
-                      const data = await res.json()
+                    if (!(process.env.NEXT_PUBLIC_ENABLE_SHEETS_INTEGRATION === 'true')) {
+                      showNotification('관리자 설정에서 시트 통합을 활성화해야 합니다', 'info')
+                      return
+                    }
+                    try {
+                      const data = await fetchCandidates(projectId!)
                       if (data.candidates) {
                         setProjectData(prev => ({
                           ...prev,
                           step2: {
                             ...prev.step2,
-                            candidates: data.candidates
+                            candidates: (function(){
+                              const prevList = prev.step2?.candidates || []
+                              const merged = mergeCandidatesSafely(prevList as any, data.candidates as any) as any[]
+                              const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                              return merged.map((c:any)=>({
+                                ...c,
+                                status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+                              }))
+                            })()
                           }
                         }))
                         showNotification('후보 목록을 새로고침했습니다', 'success')
                       }
+                    } catch (e) {
+                      showNotification('후보 목록 새로고침에 실패했습니다', 'error')
                     }
                   }}
                   className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1"
@@ -2411,6 +2402,7 @@ export default function CustomerAcquisitionPage() {
                   목록 새로고침
                 </button>
                 <button
+                  title={!SHEETS_ENABLED ? '관리자 설정에서 시트 통합을 활성화해야 합니다' : undefined}
                   onClick={async () => {
                     // SNS 체크 실패한 항목들 찾기
                     const failedChecks = (projectData.step2.candidates || []).filter((c: any) => {
@@ -2433,6 +2425,25 @@ export default function CustomerAcquisitionPage() {
                     
                     try {
                       // 실패한 항목들만 순차적으로 재체크
+                      const measureWithRetry = async (cand: any, channel: 'threads' | 'blog' | 'instagram', retries = 1) => {
+                        while (true) {
+                          try {
+                            return await fetchJSON<any>('/api/sheets/measure', {
+                              method: 'POST',
+                              body: { candidate: cand, channel },
+                              timeoutMs: 30000,
+                            })
+                          } catch (err: any) {
+                            const msg = String(err?.message || '')
+                            if (retries > 0 && (err?.code === 'ETIMEDOUT' || msg.toLowerCase().includes('timeout'))) {
+                              await new Promise(r => setTimeout(r, 800))
+                              retries -= 1
+                              continue
+                            }
+                            throw err
+                          }
+                        }
+                      }
                       for (const candidate of failedChecks) {
                         console.log(`[SNS 재체크] 시작: ${candidate.name || candidate.email}`)
                         
@@ -2440,20 +2451,19 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.threadsUrl && candidate.threads === 0) {
                           console.log(`[SNS 재체크] Threads URL: ${candidate.threadsUrl}`)
                           try {
-                            const res = await fetch('/api/sheets/measure', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ candidate, channel: 'threads' })
-                            })
-                            
-                            if (!res.ok) {
-                              console.error(`[SNS 재체크] Threads API 오류: ${res.status} ${res.statusText}`)
-                              const errorText = await res.text()
-                              console.error(`[SNS 재체크] Threads 응답:`, errorText)
-                            } else {
-                              const data = await res.json()
+                            try {
+                              const data = await measureWithRetry(candidate, 'threads')
                               console.log(`[SNS 재체크] Threads 결과:`, data)
                               candidate.threads = data.threads || 0
+                              // 즉시 UI 반영
+                              setProjectData(prev => {
+                                const next = { ...prev }
+                                const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                if (idx >= 0) {
+                                  next.step2.candidates[idx] = { ...next.step2.candidates[idx], threads: candidate.threads }
+                                }
+                                return next
+                              })
                               
                               if (data.threads > 0) {
                                 console.log(`[SNS 재체크] ✅ Threads 성공: ${data.threads}명`)
@@ -2462,6 +2472,9 @@ export default function CustomerAcquisitionPage() {
                                 console.warn(`[SNS 재체크] ⚠️ Threads 실패: 0명`)
                                 showNotification(`${candidate.name}: Threads 체크 실패`, 'error')
                               }
+                            } catch (err) {
+                              console.error('[SNS 재체크] Threads 오류:', err)
+                              showNotification(`${candidate.name}: Threads 체크 오류`, 'error')
                             }
                           } catch (e) {
                             console.error('[SNS 재체크] Threads 오류:', e)
@@ -2474,20 +2487,19 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.blogUrl && candidate.blog === 0) {
                           console.log(`[SNS 재체크] Blog URL: ${candidate.blogUrl}`)
                           try {
-                            const res = await fetch('/api/sheets/measure', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ candidate, channel: 'blog' })
-                            })
-                            
-                            if (!res.ok) {
-                              console.error(`[SNS 재체크] Blog API 오류: ${res.status} ${res.statusText}`)
-                              const errorText = await res.text()
-                              console.error(`[SNS 재체크] Blog 응답:`, errorText)
-                            } else {
-                              const data = await res.json()
+                            try {
+                              const data = await measureWithRetry(candidate, 'blog')
                               console.log(`[SNS 재체크] Blog 결과:`, data)
                               candidate.blog = data.blog || 0
+                              // 즉시 UI 반영
+                              setProjectData(prev => {
+                                const next = { ...prev }
+                                const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                if (idx >= 0) {
+                                  next.step2.candidates[idx] = { ...next.step2.candidates[idx], blog: candidate.blog }
+                                }
+                                return next
+                              })
                               
                               if (data.blog > 0) {
                                 console.log(`[SNS 재체크] ✅ Blog 성공: ${data.blog}명`)
@@ -2496,6 +2508,9 @@ export default function CustomerAcquisitionPage() {
                                 console.warn(`[SNS 재체크] ⚠️ Blog 실패: 0명`)
                                 showNotification(`${candidate.name}: 블로그 체크 실패`, 'error')
                               }
+                            } catch (err) {
+                              console.error('[SNS 재체크] Blog 오류:', err)
+                              showNotification(`${candidate.name}: 블로그 체크 오류`, 'error')
                             }
                           } catch (e) {
                             console.error('[SNS 재체크] Blog 오류:', e)
@@ -2508,20 +2523,19 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.instagramUrl && candidate.instagram === 0) {
                           console.log(`[SNS 재체크] Instagram URL: ${candidate.instagramUrl}`)
                           try {
-                            const res = await fetch('/api/sheets/measure', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ candidate, channel: 'instagram' })
-                            })
-                            
-                            if (!res.ok) {
-                              console.error(`[SNS 재체크] Instagram API 오류: ${res.status} ${res.statusText}`)
-                              const errorText = await res.text()
-                              console.error(`[SNS 재체크] Instagram 응답:`, errorText)
-                            } else {
-                              const data = await res.json()
+                            try {
+                              const data = await measureWithRetry(candidate, 'instagram')
                               console.log(`[SNS 재체크] Instagram 결과:`, data)
                               candidate.instagram = data.instagram || 0
+                              // 즉시 UI 반영
+                              setProjectData(prev => {
+                                const next = { ...prev }
+                                const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                if (idx >= 0) {
+                                  next.step2.candidates[idx] = { ...next.step2.candidates[idx], instagram: candidate.instagram }
+                                }
+                                return next
+                              })
                               
                               if (data.instagram > 0) {
                                 console.log(`[SNS 재체크] ✅ Instagram 성공: ${data.instagram}명`)
@@ -2530,6 +2544,9 @@ export default function CustomerAcquisitionPage() {
                                 console.warn(`[SNS 재체크] ⚠️ Instagram 실패: 0명`)
                                 showNotification(`${candidate.name}: 인스타그램 체크 실패`, 'error')
                               }
+                            } catch (err) {
+                              console.error('[SNS 재체크] Instagram 오류:', err)
+                              showNotification(`${candidate.name}: 인스타그램 체크 오류`, 'error')
                             }
                           } catch (e) {
                             console.error('[SNS 재체크] Instagram 오류:', e)
@@ -2575,24 +2592,26 @@ export default function CustomerAcquisitionPage() {
                         step2: updatedStep2
                       }))
                       
-                      // DB에 업데이트 저장 (수정된 데이터로)
+                      // DB에 업데이트 저장 (프로젝트 전체 데이터 형태 유지)
                       if (projectId && campaignId) {
-                        const updateRes = await fetch('/api/projects', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            campaign_id: campaignId,
-                            type: 'customer_acquisition',
-                            step: 2,
-                            data: updatedStep2
+                        try {
+                          // step2만 보내면 projects.data가 step2 구조로 덮여써져
+                          // 다음 방문 시 candidates가 초기화되는 문제가 있어 전체 구조로 저장
+                          const fullProjectData = { ...projectData, step2: updatedStep2 }
+
+                          await fetchJSON('/api/projects', {
+                            method: 'POST',
+                            body: {
+                              campaign_id: campaignId,
+                              type: 'customer_acquisition',
+                              step: 2,
+                              data: fullProjectData,
+                            },
                           })
-                        })
-                        
-                        if (!updateRes.ok) {
-                          console.error('[SNS 재체크] DB 저장 실패:', await updateRes.text())
+                          console.log('[SNS 재체크] DB 저장 성공 (전체 데이터)')
+                        } catch (e) {
+                          console.error('[SNS 재체크] DB 저장 실패:', e)
                           showNotification('재체크 결과를 저장하는 데 실패했습니다', 'error')
-                        } else {
-                          console.log('[SNS 재체크] DB 저장 성공')
                         }
                       } else {
                         console.warn('[SNS 재체크] projectId 또는 campaignId가 없어서 DB 저장을 건너뜁니다')
@@ -2606,8 +2625,8 @@ export default function CustomerAcquisitionPage() {
                       setLoading(false)
                     }
                   }}
-                  disabled={loading}
                   className="px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 flex items-center gap-1 disabled:opacity-50"
+                  disabled={loading || !SHEETS_ENABLED}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2616,27 +2635,70 @@ export default function CustomerAcquisitionPage() {
                 </button>
                 <button
                   onClick={() => {
-                    const rows = (projectData.step2.candidates || []).map((c: any) => ({
-                      이름: c.name || '',
-                      이메일: c.email || '',
-                      연락처: c.phone || '',
-                      Threads: c.threads ?? '',
-                      블로그: c.blog ?? '',
-                      인스타그램: c.instagram ?? '',
-                      상태: c.status === 'selected' ? '선정' : '미달',
-                      스레드URL: c.threadsUrl || '',
-                      인스타URL: c.instagramUrl || '',
-                      블로그URL: c.blogUrl || '',
-                      신청경로: c.source || ''
-                    }))
-                    if (rows.length === 0) {
-                      alert('다운로드할 데이터가 없습니다')
+                    const list: any[] = projectData.step2.candidates || []
+                    if (!list.length) {
+                      showNotification('다운로드할 데이터가 없습니다', 'error')
                       return
                     }
+                    // 1) 모든 응답에서 나타나는 동적 필드 수집(폼의 커스텀 필드 포함)
+                    const allFieldKeys = new Set<string>()
+                    for (const c of list) {
+                      const data = (c && (c.data || c.formData || {})) as Record<string, any>
+                      Object.keys(data || {}).forEach((k) => allFieldKeys.add(k))
+                    }
+                    // 2) 우선순위 필드 정의(상단 고정). 실제로 존재하거나 값이 있는 경우에만 포함
+                    const priority: string[] = ['name', 'email', 'phone', 'threadsUrl', 'instagramUrl', 'blogUrl', 'source']
+                    const existsOnAny = (key: string) => {
+                      if (key === 'name' || key === 'email' || key === 'phone') return true
+                      return list.some((c: any) => {
+                        const data = (c && (c.data || c.formData || {})) as Record<string, any>
+                        const vTop = c?.[key]
+                        const vData = data?.[key]
+                        const v = vTop ?? vData
+                        return !(v === undefined || v === null || String(v).trim() === '')
+                      })
+                    }
+                    const priorityExisting = priority.filter(existsOnAny)
+                    const others = Array.from(allFieldKeys).filter((k) => !priority.includes(k))
+                    const ordered = [...priorityExisting, ...others]
+                    // 3) 헤더명 매핑(가독성)
+                    const headerMap: Record<string, string> = {
+                      name: '이름',
+                      email: '이메일',
+                      phone: '연락처',
+                      threadsUrl: '스레드URL',
+                      instagramUrl: '인스타URL',
+                      blogUrl: '블로그URL',
+                      source: '신청경로',
+                    }
+                    // 4) 엑셀용 행 구성(동적 필드 + SNS 수치 + 상태)
+                    const rows = list.map((c: any) => {
+                      const row: Record<string, any> = {}
+                      const data = (c && (c.data || c.formData || {})) as Record<string, any>
+                      for (const key of ordered) {
+                        const header = headerMap[key] || key
+                        let value = (key === 'name' ? c.name : key === 'email' ? c.email : key === 'phone' ? c.phone : undefined)
+                        if (value === undefined) value = data?.[key]
+                        if (value === undefined || value === null) value = ''
+                        else if (typeof value === 'boolean') value = value ? '예' : '아니오'
+                        else if (Array.isArray(value)) value = value.join(', ')
+                        else if (typeof value === 'object') value = JSON.stringify(value)
+                        row[header] = value
+                      }
+                      // SNS 수치(있으면 표시)
+                      const hasThreadsUrl = (data?.threadsUrl || c.threadsUrl || '').toString().trim() !== ''
+                      const hasInstagramUrl = (data?.instagramUrl || c.instagramUrl || '').toString().trim() !== ''
+                      const hasBlogUrl = (data?.blogUrl || c.blogUrl || '').toString().trim() !== ''
+                      row['Threads팔로워'] = !hasThreadsUrl ? '-' : (c.threads ?? (data?.threads || '')) || (c.threads === 0 ? '체크실패' : '')
+                      row['인스타팔로워'] = !hasInstagramUrl ? '-' : (c.instagram ?? (data?.instagram || '')) || (c.instagram === 0 ? '체크실패' : '')
+                      row['블로그이웃'] = !hasBlogUrl ? '-' : (c.blog ?? (data?.blog || '')) || (c.blog === 0 ? '체크실패' : '')
+                      row['선정상태'] = c.status === 'selected' ? '선정' : (c.status === 'notSelected' ? '미달' : '미정')
+                      return row
+                    })
                     const ws = XLSX.utils.json_to_sheet(rows)
                     const wb = XLSX.utils.book_new()
                     XLSX.utils.book_append_sheet(wb, ws, '지원자')
-                    const fileName = `지원자_${new Date().toISOString().slice(0,10)}.xlsx`
+                    const fileName = `지원자_${new Date().toISOString().split('T')[0]}.xlsx`
                     XLSX.writeFile(wb, fileName)
                   }}
                   className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
@@ -3003,19 +3065,15 @@ export default function CustomerAcquisitionPage() {
                       status: emailComposerType === 'selected' ? 'selected' : 'notSelected'
                     };
 
-                    const res = await fetch('/api/ai/compose-email', {
+                    const data = await fetchJSON('/api/ai/compose-email', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
+                      body: {
                         candidateInfo: sampleCandidate,
                         emailType: emailComposerType,
                         customInstructions: emailComposerInstructions,
                         productInfo: emailComposerProductInfo,
-                      }),
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || '생성 실패');
+                      },
+                    })
 
                     setProjectData({
                       ...projectData,
@@ -3031,7 +3089,7 @@ export default function CustomerAcquisitionPage() {
                     setEmailComposerInstructions('');
                     setEmailComposerProductInfo('');
                   } catch (err) {
-                    showNotification((err as Error).message, 'error');
+                    showErrorFrom(err, '이메일 자동 작성에 실패했습니다')
                   } finally {
                     setComposingEmail(false);
                   }
@@ -3167,12 +3225,7 @@ export default function CustomerAcquisitionPage() {
               <button
                 onClick={async ()=>{
                   try {
-                    const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
-                    const data = await res.json().catch(()=>({}))
-                    if (!res.ok) {
-                      showNotification(data.error || '삭제 실패', 'error')
-                      return
-                    }
+                    await fetchJSON(`/api/projects/${projectId}`, { method: 'DELETE' })
                     setShowDeleteConfirm(false)
                     showNotification('프로젝트가 삭제되었습니다', 'success')
                     // 완전 삭제: 상태 초기화 후 대시보드로 이동
@@ -3184,7 +3237,7 @@ export default function CustomerAcquisitionPage() {
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
                   } catch (e:any) {
-                    showNotification(e?.message || '삭제 중 오류가 발생했습니다', 'error')
+                    showErrorFrom(e, '삭제 중 오류가 발생했습니다')
                   }
                 }}
                 className="px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700"
