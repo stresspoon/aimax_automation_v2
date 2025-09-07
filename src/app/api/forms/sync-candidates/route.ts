@@ -155,16 +155,21 @@ export async function GET(req: Request) {
         
         // 추가 필드들
         source: source || '',
-        
+
         // 체크 상태
         checkStatus: {
           threads: response.sns_check_result?.threads?.checked ? 'completed' : 'pending',
           blog: response.sns_check_result?.blog?.checked ? 'completed' : 'pending',
           instagram: response.sns_check_result?.instagram?.checked ? 'completed' : 'pending'
         },
-        
+
         // 모든 폼 데이터를 포함 (엑셀 다운로드용)
-        data: formData
+        data: formData,
+
+        // 이메일 발송 이력(중복 발송 방지 및 UI 표시)
+        emailSent: !!response.email_sent_at,
+        emailSentAt: response.email_sent_at || null,
+        lastEmailType: response.last_email_type || null,
       }
     })
     
