@@ -33,5 +33,11 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "pointer-landing-template", "trash", "gemini-ai-이미지-스튜디오"]
+  "exclude": [
+    "node_modules",
+    "pointer-landing-template",
+    "trash",
+    "playground",
+    "gemini-ai-이미지-스튜디오"
+  ]
 }

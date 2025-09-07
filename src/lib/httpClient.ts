@@ -3,10 +3,11 @@ export interface FetchJSONOptions {
   headers?: Record<string, string>
   body?: any
   timeoutMs?: number
+  signal?: AbortSignal
 }
 
 export async function fetchJSON<T = any>(url: string | URL, opts: FetchJSONOptions = {}): Promise<T> {
-  const { method = 'GET', headers = {}, body, timeoutMs = 15000 } = opts
+  const { method = 'GET', headers = {}, body, timeoutMs = 15000, signal } = opts
   const controller = new AbortController()
   const init: RequestInit = {
     method,
@@ -14,6 +15,21 @@ export async function fetchJSON<T = any>(url: string | URL, opts: FetchJSONOptio
     signal: controller.signal,
   }
   if (body !== undefined) init.body = typeof body === 'string' ? body : JSON.stringify(body)
+
+  // If caller provided a signal, mirror it to our controller
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort()
+    } else {
+      signal.addEventListener('abort', () => {
+        try { 
+          controller.abort() 
+        } catch (abortError) {
+          console.warn('[HTTPClient] Failed to abort controller:', abortError);
+        }
+      })
+    }
+  }
 
   const timer = setTimeout(() => {
     try { controller.abort() } catch {}
@@ -45,5 +61,10 @@ export async function fetchJSON<T = any>(url: string | URL, opts: FetchJSONOptio
 }
 
 function safeJson(text: string) {
-  try { return JSON.parse(text) } catch { return text }
+  try { 
+    return JSON.parse(text) 
+  } catch (error) { 
+    console.warn('[HTTPClient] Failed to parse JSON:', error);
+    return text 
+  }
 }

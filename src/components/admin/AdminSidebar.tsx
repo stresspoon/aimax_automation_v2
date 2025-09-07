@@ -26,8 +26,8 @@ const menuItems = [
     enabled: true
   },
   {
-    title: '캠페인 모니터링',
-    href: '/admin/campaigns',
+    title: '프로젝트 모니터링',
+    href: '/admin/projects',
     icon: Megaphone,
     enabled: true
   },

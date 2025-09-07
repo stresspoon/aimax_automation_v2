@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, Receipt, Download } from 'lucide-react'
 import { toast } from 'sonner'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface Payment {
   id: string
@@ -30,16 +32,13 @@ export default function PaymentsPage() {
 
   const fetchPayments = async () => {
     try {
-      const response = await fetch('/api/payments/create')
-      if (!response.ok) {
-        throw new Error('결제 내역 조회 실패')
-      }
-
-      const data = await response.json()
+      const data = await fetchJSON<{ payments: Payment[] }>(
+        '/api/payments/create'
+      )
       setPayments(data.payments || [])
     } catch (error) {
       console.error('Fetch payments error:', error)
-      toast.error('결제 내역을 불러올 수 없습니다')
+      toast.error(errorMessage(error, '결제 내역을 불러올 수 없습니다'))
     } finally {
       setIsLoading(false)
     }

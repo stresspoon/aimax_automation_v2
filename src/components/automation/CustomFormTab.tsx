@@ -14,7 +14,10 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import * as XLSX from 'xlsx'
+import { toast } from 'sonner'
 import { createClient as createSbClient } from '@/lib/supabase/client'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface CustomFormTabProps {
   projectId: string | null
@@ -81,28 +84,25 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     
     try {
       console.log('Loading form for projectId:', projectId)
-      const res = await fetch(`/api/forms?projectId=${projectId}`)
-      if (res.ok) {
-        const forms = await res.json()
-        console.log('Forms loaded:', forms)
-        if (forms.length > 0) {
-          const formData = forms[0]
-          setForm(formData)
-          setFormTitle(formData.title || '')
-          setFormDescription(formData.description || '')
-          generateQRCode(formData.slug)
-          
-          // 커스텀 필드 로드
-          if (formData.fields && formData.fields.custom) {
-            const customFieldsArray = Object.entries(formData.fields.custom).map(([key, field]: [string, any]) => ({
-              name: key,
-              label: field.label,
-              type: field.type,
-              required: field.required,
-              order: field.order
-            }))
-            setCustomFields(customFieldsArray)
-          }
+      const forms = await fetchJSON<any[]>(`/api/forms?projectId=${projectId}`)
+      console.log('Forms loaded:', forms)
+      if (forms.length > 0) {
+        const formData = forms[0]
+        setForm(formData)
+        setFormTitle(formData.title || '')
+        setFormDescription(formData.description || '')
+        generateQRCode(formData.slug)
+        
+        // 커스텀 필드 로드
+        if (formData.fields && formData.fields.custom) {
+          const customFieldsArray = Object.entries(formData.fields.custom).map(([key, field]: [string, any]) => ({
+            name: key,
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            order: field.order
+          }))
+          setCustomFields(customFieldsArray)
         }
       }
     } catch (error) {
@@ -114,11 +114,8 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     if (!projectId) return
     
     try {
-      const res = await fetch(`/api/forms/sync-candidates?projectId=${projectId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setCandidates(data.candidates || [])
-      }
+      const data = await fetchJSON<{ candidates: any[] }>(`/api/forms/sync-candidates?projectId=${projectId}`)
+      setCandidates(data.candidates || [])
     } catch (error) {
       console.error('Failed to load candidates:', error)
     }
@@ -141,7 +138,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   // 폼 생성
   const handleCreateForm = async () => {
     if (!projectId) {
-      alert('프로젝트를 먼저 저장해주세요')
+      toast.error('프로젝트를 먼저 저장해주세요')
       return
     }
     
@@ -171,21 +168,16 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
         return acc
       }, {} as any)
       
-      const res = await fetch('/api/forms', {
+      const data = await fetchJSON<any>('/api/forms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           projectId,
           title: formTitle || projectData.businessName || '고객 정보 수집',
           description: formDescription || '아래 정보를 입력해주세요',
           defaultFields: enabledDefaultFields,
           customFields: customFieldsObj
-        })
+        }
       })
-      
-      if (!res.ok) throw new Error('폼 생성 실패')
-      
-      const data = await res.json()
       setForm(data.form)
       generateQRCode(data.form.slug)
       
@@ -196,9 +188,9 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
         formUrl: data.formUrl
       })
       
-      alert('폼이 생성되었습니다!')
+      toast.success('폼이 생성되었습니다!')
     } catch (error) {
-      alert('폼 생성에 실패했습니다')
+      toast.error(errorMessage(error, '폼 생성에 실패했습니다'))
     } finally {
       setLoading(false)
     }
@@ -233,24 +225,20 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
         return acc
       }, {} as any)
       
-      const res = await fetch('/api/forms', {
+      await fetchJSON('/api/forms', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           id: form.id,
           title: formTitle,
           description: formDescription,
           defaultFields: enabledDefaultFields,
           customFields: customFieldsObj
-        })
+        }
       })
-      
-      if (!res.ok) throw new Error('업데이트 실패')
-      
-      alert('폼이 업데이트되었습니다')
+      toast.success('폼이 업데이트되었습니다')
       loadForm()
     } catch (error) {
-      alert('업데이트에 실패했습니다')
+      toast.error(errorMessage(error, '업데이트에 실패했습니다'))
     } finally {
       setLoading(false)
     }
@@ -259,7 +247,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   // 커스텀 필드 추가
   const addCustomField = () => {
     if (!newFieldLabel) {
-      alert('필드 이름을 입력해주세요')
+      toast.error('필드 이름을 입력해주세요')
       return
     }
     
@@ -288,11 +276,8 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     
     setLoadingResponses(true)
     try {
-      const res = await fetch(`/api/forms/responses?formId=${form.id}&projectId=${projectId || ''}`)
-      if (res.ok) {
-        const data = await res.json()
-        setResponses(data)
-      }
+      const data = await fetchJSON<any[]>(`/api/forms/responses?formId=${form.id}&projectId=${projectId || ''}`)
+      setResponses(data)
     } catch (error) {
       console.error('응답 데이터 조회 실패:', error)
     } finally {
@@ -341,7 +326,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   // 엑셀 다운로드
   const downloadExcel = () => {
     if (responses.length === 0) {
-      alert('다운로드할 데이터가 없습니다')
+      toast.error('다운로드할 데이터가 없습니다')
       return
     }
     
@@ -455,8 +440,10 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
   
   // 링크 복사
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    alert('링크가 복사되었습니다')
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success('링크가 복사되었습니다'))
+      .catch(() => toast.error('복사에 실패했습니다'))
   }
   
   return (

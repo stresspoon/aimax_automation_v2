@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { fetchJSON } from '@/lib/httpClient'
 
 interface User {
   id: string;
@@ -42,111 +43,49 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         try {
-          const response = await fetch('/api/auth/login', {
+          const data = await fetchJSON<{ user: User }>('\/api\/auth\/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: { email, password },
           });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || '로그인에 실패했습니다');
-          }
-
-          set({ 
-            user: data.user, 
-            isAuthenticated: true,
-            isLoading: false 
-          });
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
         } catch (error) {
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          set({ user: null, isAuthenticated: false, isLoading: false });
           throw error;
         }
       },
 
       signup: async (userData) => {
         try {
-          const response = await fetch('/api/auth/signup', {
+          const data = await fetchJSON<{ user: User }>('\/api\/auth\/signup', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData),
+            body: userData,
           });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || '회원가입에 실패했습니다');
-          }
-
-          set({ 
-            user: data.user, 
-            isAuthenticated: true,
-            isLoading: false 
-          });
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
         } catch (error) {
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          set({ user: null, isAuthenticated: false, isLoading: false });
           throw error;
         }
       },
 
       logout: async () => {
         try {
-          await fetch('/api/auth/logout', {
-            method: 'POST',
-          });
-
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          await fetchJSON('\/api\/auth\/logout', { method: 'POST' });
         } catch (error) {
           console.error('Logout error:', error);
+        } finally {
           // 에러가 발생해도 로컬 상태는 초기화
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },
 
       checkAuth: async () => {
         try {
           set({ isLoading: true });
-          
-          const response = await fetch('/api/auth/me');
-          
-          if (response.ok) {
-            const data = await response.json();
-            set({ 
-              user: data.user, 
-              isAuthenticated: true,
-              isLoading: false 
-            });
-          } else {
-            set({ 
-              user: null, 
-              isAuthenticated: false,
-              isLoading: false 
-            });
-          }
-        } catch (error) {
-          console.error('Auth check error:', error);
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          const data = await fetchJSON<{ user: User }>('\/api\/auth\/me');
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
+        } catch (error: any) {
+          // 401 등은 비로그인 상태 처리
+          set({ user: null, isAuthenticated: false, isLoading: false });
         }
       },
     }),

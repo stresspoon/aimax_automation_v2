@@ -78,7 +78,7 @@ export async function POST(req: Request) {
           user_id: user.id,
           action: 'approve',
           status: 'failed',
-          request_data: body,
+          request_data: parsed.data,
           response_data: tossData,
           ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
           user_agent: req.headers.get('user-agent')
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
         user_id: user.id,
         action: 'approve',
         status: 'done',
-        request_data: body,
+        request_data: parsed.data,
         response_data: tossData,
         ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
         user_agent: req.headers.get('user-agent')

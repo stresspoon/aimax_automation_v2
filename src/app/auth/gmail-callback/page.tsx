@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { fetchJSON } from '@/lib/httpClient';
+import { errorMessage } from '@/lib/errors';
 
 export default function GmailCallbackPage() {
   const router = useRouter();
@@ -34,22 +36,19 @@ export default function GmailCallbackPage() {
             
             if (providerToken && providerRefreshToken) {
               // Gmail 연결 정보 저장
-              const res = await fetch('/api/auth/gmail', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accessToken: providerToken,
-                  refreshToken: providerRefreshToken,
-                  email: userEmail,
-                }),
-              });
-              
-              if (res.ok) {
+              try {
+                await fetchJSON('/api/auth/gmail', {
+                  method: 'POST',
+                  body: {
+                    accessToken: providerToken,
+                    refreshToken: providerRefreshToken,
+                    email: userEmail,
+                  },
+                })
                 // 성공: customer acquisition 페이지로 리다이렉트
                 router.push('/automation/customer-acquisition?gmail=connected');
-              } else {
-                const data = await res.json();
-                console.error('Gmail save error:', data.error);
+              } catch (e) {
+                console.error('Gmail save error:', errorMessage(e, 'Gmail 저장 실패'));
                 router.push('/automation/customer-acquisition?error=gmail_save_failed');
               }
             } else {

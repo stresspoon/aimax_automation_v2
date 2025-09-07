@@ -3,11 +3,13 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { fetchJSON } from "@/lib/httpClient";
+import { errorMessage } from "@/lib/errors";
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams.get('code');
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -43,24 +45,17 @@ function ResetPasswordForm() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      await fetchJSON('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: { code: token, password },
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || '비밀번호 재설정에 실패했습니다');
-      }
 
       setSuccess(true);
       setTimeout(() => {
         router.push('/login');
       }, 3000);
     } catch (error) {
-      setError((error as Error).message || '오류가 발생했습니다');
+      setError(errorMessage(error, '비밀번호 재설정에 실패했습니다'));
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { fetchJSON } from "@/lib/httpClient";
+import { errorMessage } from "@/lib/errors";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,21 +22,13 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
+      await fetchJSON('/api/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: { email },
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || '비밀번호 재설정 요청에 실패했습니다');
-      }
-
       setSubmitted(true);
     } catch (error) {
-      setError((error as Error).message || '오류가 발생했습니다');
+      setError(errorMessage(error, '비밀번호 재설정 요청에 실패했습니다'));
     } finally {
       setLoading(false);
     }

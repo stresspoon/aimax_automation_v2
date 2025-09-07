@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { toast } from 'sonner'
 import { motion } from "framer-motion";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -59,7 +60,7 @@ export default function ProjectsPage() {
       fetchProjects();
     } catch (error) {
       console.error('Error deleting project:', error);
-      alert('프로젝트 삭제 중 오류가 발생했습니다.');
+      // TODO: connect to a global toast if available
     }
   };
 
@@ -207,7 +208,7 @@ export default function ProjectsPage() {
                       ) : (
                         <button
                           className="text-primary hover:text-primary/80 font-medium text-sm"
-                          onClick={() => alert('프로젝트 상세 페이지 준비 중입니다')}
+                          onClick={() => toast.info('프로젝트 상세 페이지 준비 중입니다')}
                         >
                           상세보기
                         </button>

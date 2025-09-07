@@ -35,6 +35,8 @@ import {
 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { createClient as createSbClient } from '@/lib/supabase/client'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,26 +105,28 @@ export default function ProjectsPage() {
         sortOrder: 'desc'
       })
 
-      const response = await fetch(`/api/admin/projects?${params}`)
-      if (!response.ok) {
-        throw new Error('프로젝트 목록을 불러올 수 없습니다')
-      }
+      const data = await fetchJSON<any>(`/api/admin/projects?${params}`)
+      const items = Array.isArray(data?.projects)
+        ? data.projects
+        : Array.isArray(data?.campaigns)
+          ? data.campaigns
+          : []
+      const pagination = data?.pagination || { totalPages: 1, total: items.length }
 
-      const data = await response.json()
-      setProjects(data.projects)
-      setTotalPages(data.pagination.totalPages)
-      setTotalProjects(data.pagination.total)
+      setProjects(items)
+      setTotalPages(pagination.totalPages)
+      setTotalProjects(pagination.total)
 
       // 통계 계산
-      const activeCount = data.projects.filter((p: Project) => p.status === 'active').length
-      const totalCandidates = data.projects.reduce((sum: number, p: Project) => sum + (p.candidates || 0), 0)
-      const totalSelected = data.projects.reduce((sum: number, p: Project) => sum + (p.selected || 0), 0)
+      const activeCount = items.filter((p: Project) => p.status === 'active').length
+      const totalCandidates = items.reduce((sum: number, p: Project) => sum + (p.candidates || 0), 0)
+      const totalSelected = items.reduce((sum: number, p: Project) => sum + (p.selected || 0), 0)
       const avgConversionRate = totalCandidates > 0 
         ? (totalSelected / totalCandidates * 100)
         : 0
       
       setStats({
-        totalProjects: data.pagination.total,
+        totalProjects: pagination.total,
         activeProjects: activeCount,
         totalImpressions: totalCandidates, // 후보자 수로 대체
         avgCTR: parseFloat(avgConversionRate.toFixed(2)) // 전환율로 대체
@@ -138,7 +142,7 @@ export default function ProjectsPage() {
       console.error('Projects fetch error:', error)
       toast({
         title: '오류',
-        description: '프로젝트 목록 로딩 실패',
+        description: errorMessage(error, '프로젝트 목록 로딩 실패'),
         variant: 'destructive'
       })
     } finally {
@@ -150,18 +154,10 @@ export default function ProjectsPage() {
   // 프로젝트 상태 변경
   const updateProjectStatus = async (projectId: string, status: string) => {
     try {
-      const response = await fetch('/api/admin/projects', {
+      await fetchJSON('/api/admin/projects', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          status
-        })
+        body: { projectId, status }
       })
-
-      if (!response.ok) {
-        throw new Error('프로젝트 상태 변경 실패')
-      }
 
       toast({
         title: '성공',
@@ -172,7 +168,7 @@ export default function ProjectsPage() {
       console.error('Update project error:', error)
       toast({
         title: '오류',
-        description: '프로젝트 상태 변경 실패',
+        description: errorMessage(error, '프로젝트 상태 변경 실패'),
         variant: 'destructive'
       })
     }
@@ -185,13 +181,7 @@ export default function ProjectsPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/projects?projectId=${projectId}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) {
-        throw new Error('프로젝트 삭제 실패')
-      }
+      await fetchJSON(`/api/admin/projects?projectId=${projectId}`, { method: 'DELETE' })
 
       toast({
         title: '성공',
@@ -202,7 +192,7 @@ export default function ProjectsPage() {
       console.error('Delete project error:', error)
       toast({
         title: '오류',
-        description: '프로젝트 삭제 실패',
+        description: errorMessage(error, '프로젝트 삭제 실패'),
         variant: 'destructive'
       })
     }

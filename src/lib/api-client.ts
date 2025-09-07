@@ -1,5 +1,7 @@
 // API Client for frontend usage
 
+import { fetchJSON } from './httpClient'
+
 const API_BASE = '/api'
 
 export interface ApiResponse<T = any> {
@@ -13,23 +15,16 @@ class ApiClient {
     options?: RequestInit
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
+      const data = await fetchJSON<T>(`${API_BASE}${endpoint}`, {
+        method: options?.method || 'GET',
+        headers: options?.headers as Record<string, string>,
+        body: options?.body ? JSON.parse(options.body as string) : undefined,
+        timeoutMs: 15000
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        return { error: data.error || 'An error occurred' }
-      }
-
       return { data }
-    } catch {
-      return { error: 'Network error' }
+    } catch (error: any) {
+      return { error: error.message || 'Network error' }
     }
   }
 

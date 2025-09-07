@@ -59,7 +59,9 @@
       "mcp__serena__execute_shell_command",
       "Bash(git merge:*)",
       "Bash(git clean:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(find:*)",
+      "Bash(git switch:*)"
     ],
     "deny": [],
     "ask": []

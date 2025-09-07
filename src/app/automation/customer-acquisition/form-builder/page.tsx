@@ -13,7 +13,10 @@ import {
   AlertCircle, Download
 } from 'lucide-react'
 import QRCode from 'qrcode'
+import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import { fetchJSON } from '@/lib/httpClient'
+import { errorMessage } from '@/lib/errors'
 
 interface FormField {
   name: string
@@ -76,41 +79,37 @@ function FormBuilderContent() {
         // projectId가 없으면 폼을 로드하지 않음
         return
       }
+      const forms = await fetchJSON<any[]>(`/api/forms?projectId=${projectId}`)
+      // 정확히 현재 projectId와 일치하는 폼만 필터링
+      const projectForms = (forms || []).filter((f: any) => f.project_id === projectId)
       
-      const res = await fetch(`/api/forms?projectId=${projectId}`)
-      if (res.ok) {
-        const forms = await res.json()
-        // 정확히 현재 projectId와 일치하는 폼만 필터링
-        const projectForms = forms.filter((f: any) => f.project_id === projectId)
+      if (projectForms && projectForms.length > 0) {
+        const existingForm = projectForms[0]
+        setForm(existingForm)
+        setFormTitle(existingForm.title || '')
+        setFormDescription(existingForm.description || '')
+        generateQRCode(existingForm.slug)
         
-        if (projectForms && projectForms.length > 0) {
-          const existingForm = projectForms[0]
-          setForm(existingForm)
-          setFormTitle(existingForm.title || '')
-          setFormDescription(existingForm.description || '')
-          generateQRCode(existingForm.slug)
+        // 기존 필드 설정 로드
+        if (existingForm.fields) {
+          // 기본 필드 업데이트
+          if (existingForm.fields.default) {
+            setDefaultFields(prev => prev.map(field => ({
+              ...field,
+              enabled: existingForm.fields.default[field.name] !== undefined
+            })))
+          }
           
-          // 기존 필드 설정 로드
-          if (existingForm.fields) {
-            // 기본 필드 업데이트
-            if (existingForm.fields.default) {
-              setDefaultFields(prev => prev.map(field => ({
-                ...field,
-                enabled: existingForm.fields.default[field.name] !== undefined
-              })))
-            }
-            
-            // 커스텀 필드 로드
-            if (existingForm.fields.custom) {
-              const customFieldsArray = Object.entries(existingForm.fields.custom).map(([name, field]: [string, any]) => ({
-                name,
-                label: field.label,
-                type: field.type,
-                required: field.required,
-                order: field.order
-              }))
-              setCustomFields(customFieldsArray)
-            }
+          // 커스텀 필드 로드
+          if (existingForm.fields.custom) {
+            const customFieldsArray = Object.entries(existingForm.fields.custom).map(([name, field]: [string, any]) => ({
+              name,
+              label: field.label,
+              type: field.type,
+              required: field.required,
+              order: field.order
+            }))
+            setCustomFields(customFieldsArray)
           }
         }
       }
@@ -171,53 +170,44 @@ function FormBuilderContent() {
         return acc
       }, {} as any)
       
-      const res = await fetch('/api/forms', {
+      const data = await fetchJSON<any>('/api/forms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           projectId: cleanProjectId,
           title: formTitle || '고객 정보 수집',
           description: formDescription || '아래 정보를 입력해주세요',
           defaultFields: enabledDefaultFields,
           customFields: customFieldsObj
-        })
+        }
       })
-      
-      if (!res.ok) throw new Error('폼 생성 실패')
-      
-      const data = await res.json()
       setForm(data.form)
       generateQRCode(data.form.slug)
       
       // 프로젝트 데이터에 formId/formUrl 반영 (DB 관리 페이지 표시용)
       try {
         if (cleanProjectId) {
-          const projRes = await fetch(`/api/projects/${cleanProjectId}`)
-          if (projRes.ok) {
-            const project = await projRes.json()
-            const currentData = project?.data || {}
-            const mergedData = {
-              ...currentData,
-              step2: {
-                ...(currentData.step2 || {}),
-                formId: data.form.id,
-                formUrl: `${window.location.origin}/form/${data.form.slug}`,
-              },
-            }
-            await fetch(`/api/projects/${cleanProjectId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ data: mergedData })
-            })
+          const project = await fetchJSON<any>(`/api/projects/${cleanProjectId}`)
+          const currentData = project?.data || {}
+          const mergedData = {
+            ...currentData,
+            step2: {
+              ...(currentData.step2 || {}),
+              formId: data.form.id,
+              formUrl: `${window.location.origin}/form/${data.form.slug}`,
+            },
           }
+          await fetchJSON(`/api/projects/${cleanProjectId}`, {
+            method: 'PUT',
+            body: { data: mergedData },
+          })
         }
       } catch (e) {
         console.error('프로젝트에 폼 정보 반영 실패:', e)
       }
 
-      alert('폼이 생성되었습니다!')
+      toast.success('폼이 생성되었습니다!')
     } catch (error) {
-      alert('폼 생성에 실패했습니다')
+      toast.error(errorMessage(error, '폼 생성에 실패했습니다'))
     } finally {
       setLoading(false)
     }
@@ -255,28 +245,19 @@ function FormBuilderContent() {
         return acc
       }, {} as any)
       
-      const res = await fetch('/api/forms', {
+      const updatedForm = await fetchJSON<any>('/api/forms', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           id: form.id,
           title: formTitle,
           description: formDescription,
           defaultFields: enabledDefaultFields,
           customFields: customFieldsObj
-        })
+        }
       })
-      
-      if (!res.ok) {
-        const error = await res.json()
-        console.error('Form update error:', error)
-        throw new Error(error.error || '업데이트 실패')
-      }
-      
-      const updatedForm = await res.json()
       console.log('Form updated successfully:', updatedForm)
       
-      alert('폼이 업데이트되었습니다')
+      toast.success('폼이 업데이트되었습니다')
       // 즉시 업데이트된 폼을 반영
       setForm(updatedForm)
       // 필요시 재로드
@@ -286,33 +267,29 @@ function FormBuilderContent() {
       try {
         const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
         if (cleanProjectId) {
-          const projRes = await fetch(`/api/projects/${cleanProjectId}`)
-          if (projRes.ok) {
-            const project = await projRes.json()
-            const currentData = project?.data || {}
-            const hasUrl = !!currentData?.step2?.formUrl
-            if (!hasUrl && updatedForm?.slug) {
-              const mergedData = {
-                ...currentData,
-                step2: {
-                  ...(currentData.step2 || {}),
-                  formId: updatedForm.id,
-                  formUrl: `${window.location.origin}/form/${updatedForm.slug}`,
-                },
-              }
-              await fetch(`/api/projects/${cleanProjectId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: mergedData })
-              })
+          const project = await fetchJSON<any>(`/api/projects/${cleanProjectId}`)
+          const currentData = project?.data || {}
+          const hasUrl = !!currentData?.step2?.formUrl
+          if (!hasUrl && updatedForm?.slug) {
+            const mergedData = {
+              ...currentData,
+              step2: {
+                ...(currentData.step2 || {}),
+                formId: updatedForm.id,
+                formUrl: `${window.location.origin}/form/${updatedForm.slug}`,
+              },
             }
+            await fetchJSON(`/api/projects/${cleanProjectId}`, {
+              method: 'PUT',
+              body: { data: mergedData }
+            })
           }
         }
       } catch (e) {
         console.error('프로젝트 폼 URL 보강 실패:', e)
       }
     } catch (error) {
-      alert('업데이트에 실패했습니다')
+      toast.error(errorMessage(error, '업데이트에 실패했습니다'))
     } finally {
       setLoading(false)
     }
@@ -321,13 +298,13 @@ function FormBuilderContent() {
   // 커스텀 필드 추가
   const addCustomField = () => {
     if (!newFieldLabel) {
-      alert('필드 이름을 입력해주세요')
+      toast.error('필드 이름을 입력해주세요')
       return
     }
     
     // 선택 필드인 경우 옵션이 최소 1개는 있어야 함
     if ((newFieldType === 'select' || newFieldType === 'radio') && newFieldOptions.length === 0) {
-      alert('선택 옵션을 최소 1개 이상 추가해주세요')
+      toast.error('선택 옵션을 최소 1개 이상 추가해주세요')
       return
     }
     
@@ -414,8 +391,10 @@ function FormBuilderContent() {
   
   // 링크 복사
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    alert('링크가 복사되었습니다')
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success('링크가 복사되었습니다'))
+      .catch(() => toast.error('복사에 실패했습니다'))
   }
   
   return (
