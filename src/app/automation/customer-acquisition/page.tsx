@@ -1772,7 +1772,7 @@ export default function CustomerAcquisitionPage() {
       
       let data: any
       try {
-        data = await fetchJSON(endpoint, { method: 'POST', body: requestBody })
+        data = await fetchJSON(endpoint, { method: 'POST', body: requestBody, timeoutMs: 120000 })
       } catch (e: any) {
         showErrorFrom(e, '이메일 발송 실패')
         return
