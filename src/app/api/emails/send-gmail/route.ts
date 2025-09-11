@@ -85,8 +85,8 @@ export async function POST(req: Request) {
     // Supabase 클라이언트 생성 (중복 체크용)
     const supabaseClient = await createClient()
     
-    // 각 수신자에게 이메일 발송
-    for (const recipient of recipients) {
+    // 개별 수신자 처리 함수 (컨커런시 처리용)
+    const handleOne = async (recipient: any) => {
       const recipientEmail = recipient?.email || recipient
       
       // 이메일 주소 검증
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
           status: 'failed',
           error: '유효하지 않은 이메일 주소',
         })
-        continue
+        return
       }
       
       try {
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
               status: 'skipped',
               message: '이미 발송됨',
             })
-            continue
+            return
           }
         }
         
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
         const threadsUrl = (typeof recipient === 'object') ? (recipient.threadsUrl || '') : ''
         const instagramUrl = (typeof recipient === 'object') ? (recipient.instagramUrl || '') : ''
         const blogUrl = (typeof recipient === 'object') ? (recipient.blogUrl || '') : ''
-
+    
         let processedSubject = subject
           .replace(/\{\{name\}\}/g, recipientName)
           .replace(/\{이름\}/g, recipientName)
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
           .replace(/\{threadsUrl\}/g, threadsUrl)
           .replace(/\{instagramUrl\}/g, instagramUrl)
           .replace(/\{blogUrl\}/g, blogUrl)
-
+    
         let processedBody = body
           .replace(/\{\{name\}\}/g, recipientName)
           .replace(/\{이름\}/g, recipientName)
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
         const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         
         // Plain text 버전 생성 (HTML 태그 제거)
-        const plainTextBody = processedBody.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
+        const plainTextBody = processedBody.replace(/<br\s*\/?>(?i)/gi, '\n').replace(/<[^>]*>/g, '')
         const plainTextBase64 = Buffer.from(plainTextBody, 'utf-8').toString('base64')
         
         // HTML 본문을 base64로 인코딩
@@ -248,7 +248,7 @@ export async function POST(req: Request) {
             raw: encodedMessage,
           },
         })
-
+    
         // 보낸편지함 라벨 확인은 참고용 경고 로그로만 남김 (일부 계정에서 지연될 수 있음)
         try {
           if (result.data.id) {
@@ -262,7 +262,7 @@ export async function POST(req: Request) {
         } catch (verifyErr) {
           console.warn('Gmail sent verification check failed:', (verifyErr as any)?.message || verifyErr)
         }
-
+    
         // Gmail API 호출 성공 시 성공으로 간주
         results.push({
           recipient: recipientEmail,
@@ -296,6 +296,19 @@ export async function POST(req: Request) {
           status: 'failed',
           error: detailed || '발송 실패',
         })
+      }
+    }
+    
+    // 각 수신자에게 이메일 발송 (컨커런시 제한)
+    const CONCURRENCY = Number(process.env.GMAIL_SEND_CONCURRENCY || 3)
+    const BATCH_DELAY_MS = Number(process.env.GMAIL_BATCH_DELAY_MS || 1000)
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+    for (let i = 0; i < recipients.length; i += CONCURRENCY) {
+      const batch = recipients.slice(i, i + CONCURRENCY)
+      await Promise.all(batch.map((r: any) => handleOne(r)))
+      if (i + CONCURRENCY < recipients.length) {
+        await sleep(BATCH_DELAY_MS)
       }
     }
     
