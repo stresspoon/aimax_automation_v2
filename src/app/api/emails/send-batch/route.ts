@@ -11,6 +11,11 @@ const CandidateSchema = z.object({
   blog: z.number().optional(),
   instagram: z.number().optional(),
   status: z.enum(['selected', 'notSelected']),
+  // 추가 메타데이터(템플릿 변수 확장)
+  source: z.string().optional(),
+  threadsUrl: z.string().optional(),
+  instagramUrl: z.string().optional(),
+  blogUrl: z.string().optional(),
 })
 
 const BodySchema = z.object({
@@ -89,6 +94,10 @@ export async function POST(req: Request) {
               instagram: String(candidate.instagram || 0),
               상태: candidate.status === 'selected' ? '선정' : '미달',
               status: candidate.status,
+              source: candidate.source || '',
+              threadsUrl: candidate.threadsUrl || '',
+              instagramUrl: candidate.instagramUrl || '',
+              blogUrl: candidate.blogUrl || '',
             }
             
             // 제목과 본문 개인화

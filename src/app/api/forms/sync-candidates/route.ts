@@ -170,6 +170,9 @@ export async function GET(req: Request) {
         emailSent: !!response.email_sent_at,
         emailSentAt: response.email_sent_at || null,
         lastEmailType: response.last_email_type || null,
+        
+        // 생성 일시 (기간 필터용)
+        createdAt: response.created_at || null,
       }
     })
     

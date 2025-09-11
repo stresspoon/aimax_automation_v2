@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -40,6 +40,10 @@ interface Candidate {
     instagram?: 'checking' | 'completed' | 'error' | 'no_url';
     instagramError?: string;
   };
+  // 수동 상태 고정 여부(자동 재계산 무시)
+  statusManual?: boolean;
+  // 응답 생성 일시(기간 필터용)
+  createdAt?: string | null;
 }
 
 export default function CustomerAcquisitionPage() {
@@ -94,6 +98,9 @@ export default function CustomerAcquisitionPage() {
       emailBody: "",
       senderEmail: "",
       emailsSent: 0,
+      // 이메일 발송 기간 필터
+      dateFrom: null as string | null,
+      dateTo: null as string | null,
     },
   });
 
@@ -139,12 +146,15 @@ export default function CustomerAcquisitionPage() {
       usingFormData: baseStep2?.usingFormData || false,
     }
 
-    const step3 = dbData?.step3 || {
-      targetType: 'selected',
-      emailSubject: '',
-      emailBody: '',
-      senderEmail: '',
-      emailsSent: 0
+    const step3Base = dbData?.step3 || {}
+    const step3 = {
+      targetType: step3Base?.targetType || 'selected',
+      emailSubject: step3Base?.emailSubject || '',
+      emailBody: step3Base?.emailBody || '',
+      senderEmail: step3Base?.senderEmail || '',
+      emailsSent: step3Base?.emailsSent || 0,
+      dateFrom: step3Base?.dateFrom || null,
+      dateTo: step3Base?.dateTo || null,
     }
 
     return {
@@ -207,6 +217,35 @@ export default function CustomerAcquisitionPage() {
       localStorage.setItem('step3_email_data', JSON.stringify(projectData.step3));
     }
   }, [projectData.step3]);
+
+  // 제목/본문 입력 참조(템플릿 변수 삽입용)
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const insertAtCursor = (el: HTMLInputElement | HTMLTextAreaElement | null, value: string) => {
+    if (!el) return;
+    const start = (el as any).selectionStart ?? el.value.length;
+    const end = (el as any).selectionEnd ?? el.value.length;
+    const newVal = el.value.slice(0, start) + value + el.value.slice(end);
+    el.value = newVal;
+    // 포커스/커서 위치 복원
+    el.focus();
+    const cursorPos = start + value.length;
+    (el as any).setSelectionRange?.(cursorPos, cursorPos);
+  };
+
+  const insertVarIntoSubject = (token: string) => {
+    const v = `{${token}}`;
+    insertAtCursor(subjectRef.current, v);
+    // 상태 반영
+    setProjectData(prev => ({ ...prev, step3: { ...prev.step3, emailSubject: subjectRef.current?.value || prev.step3.emailSubject } }));
+  };
+
+  const insertVarIntoBody = (token: string) => {
+    const v = `{${token}}`;
+    insertAtCursor(bodyRef.current, v);
+    setProjectData(prev => ({ ...prev, step3: { ...prev.step3, emailBody: bodyRef.current?.value || prev.step3.emailBody } }));
+  };
 
   // 사용 제한 정보 가져오기
   useEffect(() => {
@@ -324,10 +363,14 @@ export default function CustomerAcquisitionPage() {
             const mergedCandidates = mergeCandidatesSafely(prev.step2?.candidates, data.candidates)
             // 선정 상태 재계산 (자동 기준 반영)
             const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
-            const recomputed = (mergedCandidates || []).map((c: any) => ({
-              ...c,
-              status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
-            }))
+            const recomputed = (mergedCandidates || []).map((c: any) => {
+              const auto = ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+              // 수동 고정이면 그대로 유지, 아니면 자동값 반영
+              return {
+                ...c,
+                status: c.statusManual ? c.status : auto,
+              }
+            })
             
             return {
               ...prev,
@@ -1682,12 +1725,23 @@ export default function CustomerAcquisitionPage() {
       // Gmail이 연결되어 있으면 Gmail API 사용, 아니면 기존 방식 사용
       const endpoint = gmailEmail ? '/api/emails/send-gmail' : '/api/emails/send-batch';
       
-      // 대상 필터링 - 이미 이메일을 받은 사람은 제외
+      // 대상 필터링 - 이미 이메일을 받은 사람은 제외 + 기간 필터
       const recipients = projectData.step2.candidates.filter(c => {
         // 이미 이메일을 받은 사람은 제외 (emailSent 또는 emailSentAt 체크)
         if (c.emailSent || c.emailSentAt) {
           console.log(`[Email Skip] ${c.email} - 이미 발송됨 (${c.emailSentAt || '이전 발송'})`);
           return false;
+        }
+        // 기간 필터 적용(응답 생성일 기준)
+        const from = projectData.step3.dateFrom ? new Date(`${projectData.step3.dateFrom}T00:00:00`) : null;
+        const to = projectData.step3.dateTo ? new Date(`${projectData.step3.dateTo}T23:59:59.999`) : null;
+        if (from || to) {
+          const created = c.createdAt ? new Date(c.createdAt) : null;
+          // createdAt이 없으면 포함(레거시) — 명시적 제외를 원하면 createdAt 있는 대상만 발송하도록 옵션화 가능
+          if (created) {
+            if (from && created < from) return false;
+            if (to && created > to) return false;
+          }
         }
         
         // 대상 타입에 따른 필터링
@@ -2792,13 +2846,65 @@ export default function CustomerAcquisitionPage() {
                         )}
                       </td>
                       <td className="text-center py-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          candidate.status === "selected" 
-                            ? "bg-green-100 text-green-700" 
-                            : "bg-gray-100 text-gray-700"
-                        }`}>
-                          {candidate.status === "selected" ? "선정" : "미달"}
-                        </span>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            className={`px-2 py-1 rounded text-xs border ${candidate.status === 'selected' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-600 border-gray-300'}`}
+                            title="선정으로 표시"
+                            onClick={() => {
+                              setProjectData(prev => ({
+                                ...prev,
+                                step2: {
+                                  ...prev.step2,
+                                  candidates: prev.step2.candidates.map((c) => (
+                                    c.email === candidate.email && c.name === candidate.name
+                                      ? { ...c, status: 'selected', statusManual: true }
+                                      : c
+                                  )),
+                                },
+                              }))
+                            }}
+                          >선정</button>
+                          <button
+                            className={`px-2 py-1 rounded text-xs border ${candidate.status === 'notSelected' ? 'bg-gray-100 text-gray-700 border-gray-300' : 'bg-white text-gray-600 border-gray-300'}`}
+                            title="비선정으로 표시"
+                            onClick={() => {
+                              setProjectData(prev => ({
+                                ...prev,
+                                step2: {
+                                  ...prev.step2,
+                                  candidates: prev.step2.candidates.map((c) => (
+                                    c.email === candidate.email && c.name === candidate.name
+                                      ? { ...c, status: 'notSelected', statusManual: true }
+                                      : c
+                                  )),
+                                },
+                              }))
+                            }}
+                          >비선정</button>
+                          {candidate.statusManual ? (
+                            <button
+                              className="px-2 py-1 rounded text-xs border bg-white text-blue-600 border-blue-300"
+                              title="자동판정으로 되돌리기"
+                              onClick={() => {
+                                setProjectData(prev => {
+                                  const criteria = prev.step2.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                                  const recomputed = ((candidate.threads || 0) >= criteria.threads || (candidate.blog || 0) >= criteria.blog || (candidate.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+                                  return {
+                                    ...prev,
+                                    step2: {
+                                      ...prev.step2,
+                                      candidates: prev.step2.candidates.map((c) => (
+                                        c.email === candidate.email && c.name === candidate.name
+                                          ? { ...c, status: recomputed, statusManual: false }
+                                          : c
+                                      )),
+                                    }
+                                  }
+                                })
+                              }}
+                            >자동</button>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="text-center py-2">
                         {candidate.emailSent || candidate.emailSentAt ? (
@@ -2868,6 +2974,31 @@ export default function CustomerAcquisitionPage() {
           </div>
         </div>
 
+        {/* 기간 필터 (모집일 기준) */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">기간 필터 (모집일 기준)</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={projectData.step3.dateFrom || ''}
+              onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, dateFrom: e.target.value || null } })}
+              className="px-3 py-2 rounded-lg border border-border"
+            />
+            <span className="text-muted-foreground">~</span>
+            <input
+              type="date"
+              value={projectData.step3.dateTo || ''}
+              onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, dateTo: e.target.value || null } })}
+              className="px-3 py-2 rounded-lg border border-border"
+            />
+            <button
+              onClick={() => setProjectData({ ...projectData, step3: { ...projectData.step3, dateFrom: null, dateTo: null } })}
+              className="px-3 py-2 rounded border text-sm"
+            >필터 해제</button>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">설정된 기간 동안 신청한 인원 중 선택된 대상에게만 발송됩니다.</p>
+        </div>
+
         {/* 발신 이메일 */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
@@ -2902,14 +3033,24 @@ export default function CustomerAcquisitionPage() {
           <label className="block text-sm font-medium text-foreground mb-2">이메일 제목</label>
           <input
             type="text"
+            ref={subjectRef}
             value={projectData.step3.emailSubject}
             onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, emailSubject: e.target.value } })}
             placeholder="예: {이름}님, 특별한 제안이 있습니다"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            템플릿 변수 사용 가능: <code className="bg-muted px-1 rounded">{"{이름}"}</code>, <code className="bg-muted px-1 rounded">{"{이메일}"}</code>
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground mr-1">변수 삽입:</span>
+            {['이름','이메일','전화번호','상태','threads','instagram','blog'].map(tok => (
+              <button
+                key={`subj-${tok}`}
+                type="button"
+                onClick={() => insertVarIntoSubject(tok)}
+                className="px-2 py-1 rounded border text-xs bg-white hover:bg-muted"
+                title={`{${tok}} 삽입`}
+              >{`{${tok}}`}</button>
+            ))}
+          </div>
         </div>
 
         {/* 이메일 본문 */}
@@ -2923,23 +3064,24 @@ export default function CustomerAcquisitionPage() {
             </button>
           </div>
           <textarea
+            ref={bodyRef}
             value={projectData.step3.emailBody}
             onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, emailBody: e.target.value } })}
             placeholder="안녕하세요 {이름}님,&#10;&#10;..."
             rows={8}
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-blue-800 font-medium mb-1">템플릿 변수 사용법:</p>
-            <p className="text-xs text-blue-700">
-              <code className="bg-white px-1 py-0.5 rounded">{"{이름}"}</code> - 수신자 이름<br />
-              <code className="bg-white px-1 py-0.5 rounded">{"{이메일}"}</code> - 수신자 이메일<br />
-              <code className="bg-white px-1 py-0.5 rounded">{"{전화번호}"}</code> - 전화번호<br />
-              <code className="bg-white px-1 py-0.5 rounded">{"{상태}"}</code> - 선정/미달 상태
-            </p>
-            <p className="text-xs text-yellow-700 mt-2 font-semibold">
-              ⚠️ 중괄호 {} 를 반드시 사용하세요!
-            </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground mr-1">변수 삽입:</span>
+            {['이름','이메일','전화번호','상태','threads','instagram','blog','source','threadsUrl','instagramUrl','blogUrl'].map(tok => (
+              <button
+                key={`body-${tok}`}
+                type="button"
+                onClick={() => insertVarIntoBody(tok)}
+                className="px-2 py-1 rounded border text-xs bg-white hover:bg-muted"
+                title={`{${tok}} 삽입`}
+              >{`{${tok}}`}</button>
+            ))}
           </div>
         </div>
 
@@ -3239,7 +3381,7 @@ export default function CustomerAcquisitionPage() {
                     setProjectData({
                       step1: { keyword:'', productDescription:'', contentType:'blog', contentPurpose:'informative', instructions:'', generatedContent:'', generatedImages:[] },
                       step2: { formId: null, formUrl: null, sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
-                      step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0 }
+                      step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0, dateFrom: null, dateTo: null }
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
                   } catch (e:any) {

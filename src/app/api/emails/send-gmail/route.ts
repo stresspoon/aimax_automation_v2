@@ -101,15 +101,23 @@ export async function POST(req: Request) {
       }
       
       try {
-        // 중복 발송 체크 (requestBody에서 가져온 projectId와 targetType 사용)
-        if (requestBody.projectId && requestBody.targetType) {
-          // form_responses_temp에서 이메일 발송 이력 확인
-          const { data: existingResponse } = await supabaseClient
+        // 중복 발송 체크 (project_id 스코프 적용, 다중행 안전 처리)
+        if (requestBody.targetType) {
+          const projectIdForScope = requestBody.projectId || null
+          let dupQuery = supabaseClient
             .from('form_responses_temp')
             .select('id, email_sent_at, email_sent_count, last_email_type')
             .eq('email', recipientEmail)
-            .single()
-          
+          if (projectIdForScope) {
+            dupQuery = dupQuery.eq('project_id', projectIdForScope)
+          }
+          const { data: dupRows, error: dupErr } = await dupQuery
+            .order('email_sent_at', { ascending: false })
+            .limit(1)
+          if (dupErr) {
+            console.warn('[Gmail API] Duplicate check query error:', dupErr.message)
+          }
+          const existingResponse = Array.isArray(dupRows) ? dupRows[0] : null
           if (existingResponse?.email_sent_at && existingResponse?.last_email_type === requestBody.targetType) {
             console.log(`[Gmail API] Skip duplicate: ${recipientEmail} already received ${requestBody.targetType} email`)
             results.push({
@@ -129,7 +137,17 @@ export async function POST(req: Request) {
           ? (recipient.name || recipient.username || '고객님')
           : '고객님'
         
-        // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 모두 지원
+        // 제목과 본문에서 템플릿 변수 치환 - {{name}}, {이름}, {이메일} 등 지원
+        const recipientPhone = (typeof recipient === 'object') ? (recipient.phone || '') : ''
+        const recipientStatus = (typeof recipient === 'object') ? (recipient.status === 'selected' ? '선정' : (recipient.status ? '미달' : '')) : ''
+        const threadsCount = (typeof recipient === 'object' && typeof recipient.threads === 'number') ? String(recipient.threads) : ''
+        const blogCount = (typeof recipient === 'object' && typeof recipient.blog === 'number') ? String(recipient.blog) : ''
+        const instagramCount = (typeof recipient === 'object' && typeof recipient.instagram === 'number') ? String(recipient.instagram) : ''
+        const recipientSource = (typeof recipient === 'object') ? (recipient.source || '') : ''
+        const threadsUrl = (typeof recipient === 'object') ? (recipient.threadsUrl || '') : ''
+        const instagramUrl = (typeof recipient === 'object') ? (recipient.instagramUrl || '') : ''
+        const blogUrl = (typeof recipient === 'object') ? (recipient.blogUrl || '') : ''
+
         let processedSubject = subject
           .replace(/\{\{name\}\}/g, recipientName)
           .replace(/\{이름\}/g, recipientName)
@@ -137,7 +155,18 @@ export async function POST(req: Request) {
           .replace(/\{\{email\}\}/g, recipientEmail || '')
           .replace(/\{이메일\}/g, recipientEmail || '')
           .replace(/\{email\}/g, recipientEmail || '')  // {email} 형식도 추가
-        
+          .replace(/\{전화번호\}/g, recipientPhone)
+          .replace(/\{phone\}/g, recipientPhone)
+          .replace(/\{상태\}/g, recipientStatus)
+          .replace(/\{status\}/g, recipientStatus)
+          .replace(/\{threads\}/g, threadsCount)
+          .replace(/\{blog\}/g, blogCount)
+          .replace(/\{instagram\}/g, instagramCount)
+          .replace(/\{source\}/g, recipientSource)
+          .replace(/\{threadsUrl\}/g, threadsUrl)
+          .replace(/\{instagramUrl\}/g, instagramUrl)
+          .replace(/\{blogUrl\}/g, blogUrl)
+
         let processedBody = body
           .replace(/\{\{name\}\}/g, recipientName)
           .replace(/\{이름\}/g, recipientName)
@@ -145,6 +174,17 @@ export async function POST(req: Request) {
           .replace(/\{\{email\}\}/g, recipientEmail || '')
           .replace(/\{이메일\}/g, recipientEmail || '')
           .replace(/\{email\}/g, recipientEmail || '')  // {email} 형식도 추가
+          .replace(/\{전화번호\}/g, recipientPhone)
+          .replace(/\{phone\}/g, recipientPhone)
+          .replace(/\{상태\}/g, recipientStatus)
+          .replace(/\{status\}/g, recipientStatus)
+          .replace(/\{threads\}/g, threadsCount)
+          .replace(/\{blog\}/g, blogCount)
+          .replace(/\{instagram\}/g, instagramCount)
+          .replace(/\{source\}/g, recipientSource)
+          .replace(/\{threadsUrl\}/g, threadsUrl)
+          .replace(/\{instagramUrl\}/g, instagramUrl)
+          .replace(/\{blogUrl\}/g, blogUrl)
           // 줄바꿈을 HTML <br> 태그로 변환
           .replace(/\n/g, '<br/>')
         
@@ -230,9 +270,9 @@ export async function POST(req: Request) {
           messageId: result.data.id,
         })
         
-        // 발송 성공 시 form_responses_temp 업데이트
-        if (requestBody.projectId && requestBody.targetType) {
-          await supabaseClient
+        // 발송 성공 시 form_responses_temp 업데이트 (project_id 스코프 적용)
+        if (requestBody.targetType) {
+          let updateQuery = supabaseClient
             .from('form_responses_temp')
             .update({
               email_sent_at: new Date().toISOString(),
@@ -240,6 +280,13 @@ export async function POST(req: Request) {
               last_email_type: requestBody.targetType
             })
             .eq('email', recipientEmail)
+          if (requestBody.projectId) {
+            updateQuery = updateQuery.eq('project_id', requestBody.projectId)
+          }
+          const { error: updateErr } = await updateQuery
+          if (updateErr) {
+            console.warn('Failed to update form_responses_temp:', updateErr.message)
+          }
         }
       } catch (error: any) {
         const detailed = error?.response?.data?.error?.message || error?.message || String(error)
@@ -289,13 +336,17 @@ export async function POST(req: Request) {
     }
     
     // 항상 200으로 결과 요약 반환 (클라이언트가 sent/failed에 따라 메시지 표시)
+    const successCount = results.filter((r: any) => r.status === 'success').length
+    const skippedCount = results.filter((r: any) => r.status === 'skipped').length
+    const failedCount = errors.length
     return NextResponse.json({
-      success: errors.length === 0,
-      sent: results.length,
-      failed: errors.length,
+      success: failedCount === 0,
+      sent: successCount,
+      failed: failedCount,
+      skipped: skippedCount,
       results,
       errors,
-      ...(results.length === 0 ? { error: '모든 수신자에게 발송에 실패했습니다.' } : {}),
+      ...(successCount === 0 && failedCount > 0 ? { error: '모든 수신자에게 발송에 실패했습니다.' } : {}),
     })
   } catch (error: any) {
     console.error('Gmail send error:', error)
