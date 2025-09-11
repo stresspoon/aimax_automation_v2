@@ -30,7 +30,6 @@ AS
 SELECT 
   r.id,
   r.form_id,
-  r.project_id,
   r.name,
   r.email,
   r.phone,
