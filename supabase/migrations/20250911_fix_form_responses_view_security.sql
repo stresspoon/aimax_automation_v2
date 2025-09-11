@@ -27,20 +27,7 @@ END $$;
 CREATE OR REPLACE VIEW public.form_responses
 WITH (security_invoker = on)
 AS
-SELECT 
-  r.id,
-  r.form_id,
-  r.name,
-  r.email,
-  r.phone,
-  r.data,
-  r.is_selected,
-  r.sns_check_result,
-  r.email_sent_at,
-  r.email_sent_count,
-  r.last_email_type,
-  r.created_at,
-  r.updated_at
+SELECT r.*
 FROM public.form_responses_temp r;
 
 COMMENT ON VIEW public.form_responses IS 'SECURITY INVOKER: Respects caller RLS; exposes form responses via underlying table policies.';
