@@ -5,7 +5,7 @@ import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function PricingSection() {
-  const [isAnnual, setIsAnnual] = useState(true)
+  const [isAnnual, setIsAnnual] = useState(false)
 
   const pricingPlans = [
     {
@@ -64,23 +64,23 @@ export function PricingSection() {
         <div className="pt-4">
           <div className="p-0.5 bg-muted rounded-lg outline outline-1 outline-border outline-offset-[-1px] flex justify-start items-center gap-1 md:mt-0">
             <button
-              onClick={() => setIsAnnual(true)}
-              className={`pl-2 pr-1 py-1 flex justify-start items-start gap-2 rounded-md ${isAnnual ? "bg-accent shadow-[0px_1px_1px_-0.5px_rgba(0,0,0,0.08)]" : ""}`}
-            >
-              <span
-                className={`text-center text-sm font-medium leading-tight ${isAnnual ? "text-accent-foreground" : "text-muted-foreground"}`}
-              >
-                연간 결제
-              </span>
-            </button>
-            <button
               onClick={() => setIsAnnual(false)}
-              className={`px-2 py-1 flex justify-start items-start rounded-md ${!isAnnual ? "bg-accent shadow-[0px_1px_1px_-0.5px_rgba(0,0,0,0.08)]" : ""}`}
+              className={`pl-2 pr-1 py-1 flex justify-start items-start gap-2 rounded-md ${!isAnnual ? "bg-accent shadow-[0px_1px_1px_-0.5px_rgba(0,0,0,0.08)]" : ""}`}
             >
               <span
                 className={`text-center text-sm font-medium leading-tight ${!isAnnual ? "text-accent-foreground" : "text-muted-foreground"}`}
               >
                 월간 결제
+              </span>
+            </button>
+            <button
+              onClick={() => setIsAnnual(true)}
+              className={`px-2 py-1 flex justify-start items-start rounded-md ${isAnnual ? "bg-accent shadow-[0px_1px_1px_-0.5px_rgba(0,0,0,0.08)]" : ""}`}
+            >
+              <span
+                className={`text-center text-sm font-medium leading-tight ${isAnnual ? "text-accent-foreground" : "text-muted-foreground"}`}
+              >
+                연간 결제
               </span>
             </button>
           </div>
