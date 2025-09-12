@@ -78,9 +78,14 @@ export async function POST(req: Request) {
     // Gmail API 초기화
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
     
-    // 이메일 발송 결과
-    const results = []
-    const errors = []
+    // 이메일 발송 결과 타입 정의 및 배열
+    type SendResult =
+      | { recipient: string; status: 'success'; messageId?: string | null }
+      | { recipient: string; status: 'skipped'; message: string }
+    type SendError = { recipient: string; status: 'failed'; error: string }
+
+    const results: SendResult[] = []
+    const errors: SendError[] = []
     
     // Supabase 클라이언트 생성 (중복 체크용)
     const supabaseClient = await createClient()
@@ -195,7 +200,7 @@ export async function POST(req: Request) {
         const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         
         // Plain text 버전 생성 (HTML 태그 제거)
-        const plainTextBody = processedBody.replace(/<br\s*\/?>(?i)/gi, '\n').replace(/<[^>]*>/g, '')
+        const plainTextBody = processedBody.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<[^>]*>/g, '')
         const plainTextBase64 = Buffer.from(plainTextBody, 'utf-8').toString('base64')
         
         // HTML 본문을 base64로 인코딩
