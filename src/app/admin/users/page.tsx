@@ -467,7 +467,7 @@ export default function UsersPage() {
                 <TableHead>플랜</TableHead>
                 <TableHead>무제한</TableHead>
                 <TableHead>상태</TableHead>
-                <TableHead>캠페인</TableHead>
+                <TableHead>프로젝트</TableHead>
                 <TableHead>가입일</TableHead>
                 <TableHead>마지막 활동</TableHead>
                 <TableHead className="text-right">작업</TableHead>
