@@ -48,6 +48,7 @@ import {
 
 interface Project {
   id: string
+  campaignId?: string
   name: string
   description?: string
   type: string // platform -> type으로 변경
@@ -66,6 +67,8 @@ interface Project {
   updated_at: string
   projectData?: any // 프로젝트 세부 데이터
 }
+interface ActivityItem { id: string; action: string; created_at: string; details?: any }
+type ActivityMap = Record<string, ActivityItem[]>
 
 interface ProjectStats {
   totalProjects: number
@@ -86,6 +89,7 @@ export default function ProjectsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalProjects, setTotalProjects] = useState(0)
   const [stats, setStats] = useState<ProjectStats | null>(null)
+  const [activities, setActivities] = useState<ActivityMap>({})
 
   const limit = 10
 
@@ -131,6 +135,24 @@ export default function ProjectsPage() {
         totalImpressions: totalCandidates, // 후보자 수로 대체
         avgCTR: parseFloat(avgConversionRate.toFixed(2)) // 전환율로 대체
       })
+
+      // 각 프로젝트별 최근 활동 3건씩 조회
+      try {
+        const pairs = await Promise.all(
+          items.map(async (p: Project) => {
+            if (!p.campaignId) return [p.id, []] as [string, ActivityItem[]]
+            const qs = new URLSearchParams({ limit: '3', offset: '0', campaignId: String(p.campaignId) })
+            const data = await fetchJSON<any>(`/api/admin/activity-logs?${qs.toString()}`)
+            const list: ActivityItem[] = Array.isArray(data.logs) ? data.logs : []
+            return [p.id, list.slice(0, 3)] as [string, ActivityItem[]]
+          })
+        )
+        const map: ActivityMap = {}
+        pairs.forEach(([pid, list]) => { map[pid] = list })
+        setActivities(map)
+      } catch (e) {
+        console.warn('최근 활동 조회 실패:', e)
+      }
 
       if (showToast) {
         toast({
@@ -460,6 +482,24 @@ export default function ProjectsPage() {
                     <p className="text-2xl font-bold">{project.conversionRate || 0}%</p>
                     <p className="text-xs text-gray-500">전환율</p>
                   </div>
+                </div>
+
+                {/* 최근 활동 */}
+                <div className="mt-2">
+                  <p className="text-sm font-medium text-gray-700 mb-2">최근 활동</p>
+                  {activities[project.id] && activities[project.id].length > 0 ? (
+                    <ul className="space-y-1 text-sm text-gray-600">
+                      {activities[project.id].map((log) => (
+                        <li key={log.id} className="flex items-center gap-2">
+                          <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                          <span className="truncate">{log.action}</span>
+                          <span className="ml-auto text-xs text-gray-400">{new Date(log.created_at).toLocaleString('ko-KR')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-400">활동 없음</p>
+                  )}
                 </div>
 
                 {/* 액션 버튼 */}
