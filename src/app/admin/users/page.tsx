@@ -91,8 +91,8 @@ export default function UsersPage() {
   const [planFilter, setPlanFilter] = useState('all')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
-
-  const limit = 10
+ 
+  const [limit, setLimit] = useState(10)
 
   // 사용자 목록 가져오기
   const fetchUsers = useCallback(async () => {
@@ -241,7 +241,7 @@ export default function UsersPage() {
   // 초기 로드
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, searchQuery, roleFilter, statusFilter, planFilter, sortBy, sortOrder, fetchUsers])
+  }, [currentPage, searchQuery, roleFilter, statusFilter, planFilter, sortBy, sortOrder, limit, fetchUsers])
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers(prev => 
@@ -435,7 +435,20 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">페이지 크기</span>
+                <Select value={String(limit)} onValueChange={(v) => { setCurrentPage(1); setLimit(parseInt(v, 10)) }}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="페이지 크기" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
                 내보내기
@@ -577,7 +590,7 @@ export default function UsersPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <p className="text-sm text-gray-500">
-                전체 {totalUsers}명 중 {(currentPage - 1) * limit + 1}-{Math.min(currentPage * limit, totalUsers)}명 표시
+                전체 {totalUsers}명 중 {(currentPage - 1) * limit + 1}-{Math.min(currentPage * limit, totalUsers)}명 표시 (페이지당 {limit}명)
               </p>
               <div className="flex gap-2">
                 <Button
