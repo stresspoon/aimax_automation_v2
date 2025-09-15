@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
       
       return {
         id: project.id,
+        campaignId: project.campaign?.id || project.campaign_id,
         name: project.campaign?.name || step1.contentType || '이름 없음',
         description: step1.description || '',
         type: project.type,
