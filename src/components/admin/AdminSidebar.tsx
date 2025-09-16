@@ -112,9 +112,9 @@ export default function AdminSidebar() {
         })}
       </nav>
 
-      {/* 하단 정보 */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-        <div className="text-xs text-gray-500">
+      {/* 하단 정보: 절대 위치 제거로 겹침 방지 (레이아웃 푸터로 이동 권장) */}
+      <div className="p-4 border-t border-gray-200 mt-auto">
+        <div className="text-[10px] text-gray-400">
           <p>AIMAX Admin v2.0</p>
           <p className="mt-1">© 2024 AIMAX</p>
         </div>

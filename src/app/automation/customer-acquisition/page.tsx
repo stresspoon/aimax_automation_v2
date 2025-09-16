@@ -14,6 +14,7 @@ import { contentGuidelines } from '@/lib/contentGuidelines'
 import * as XLSX from 'xlsx'
 import { mergeCandidatesSafely } from '@/lib/candidates/merge'
 import { normalizeProjectData } from '@/lib/projects/normalize'
+import { trackActivity } from '@/lib/analytics'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -994,6 +995,13 @@ export default function CustomerAcquisitionPage() {
                 .eq('id', projectId);
             }
             
+            try {
+              await trackActivity(newRunningState ? 'automation.step2.start' : 'automation.step2.pause', {
+                campaign_id: campaignId || undefined,
+                project_id: projectId || undefined
+              })
+            } catch {}
+            
             return;
           }
         
@@ -1702,6 +1710,10 @@ export default function CustomerAcquisitionPage() {
   };
 
   const handleStep3Send = async () => {
+    await trackActivity('automation.step3.send_attempt', {
+      campaign_id: campaignId || undefined,
+      project_id: projectId || undefined
+    })
     console.log('[handleStep3Send] emailSubject:', projectData.step3.emailSubject);
     console.log('[handleStep3Send] emailBody:', projectData.step3.emailBody);
     
@@ -1839,8 +1851,17 @@ export default function CustomerAcquisitionPage() {
             .eq('id', projectId);
         }
       }
+      await trackActivity('automation.step3.send_success', {
+        campaign_id: campaignId || undefined,
+        project_id: projectId || undefined
+      })
     } catch (err) {
       showNotification('이메일 발송 중 오류가 발생했습니다', 'error');
+      await trackActivity('automation.step3.send_failure', {
+        campaign_id: campaignId || undefined,
+        project_id: projectId || undefined,
+        error: (err as any)?.message || String(err)
+      })
     } finally {
       setLoading(false);
     }
