@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { MockSmsProvider } from '@/lib/sms/mockProvider'
+import { TwilioSmsProvider } from '@/lib/sms/twilioProvider'
 
 export async function POST(req: NextRequest) {
   // 관리자 권한 확인
@@ -18,7 +19,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'to[] and message are required' }, { status: 400 })
     }
 
-    const provider = new MockSmsProvider()
+    const enableTwilio = process.env.ENABLE_TWILIO === 'true'
+    const provider = enableTwilio ? new TwilioSmsProvider() : new MockSmsProvider()
     const result = await provider.send(to, message)
     return NextResponse.json({ provider: provider.providerName, from, ...result })
   } catch (e: any) {
