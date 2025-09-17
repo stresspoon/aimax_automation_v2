@@ -88,6 +88,7 @@ export default function UsersPage() {
   const [smsOpen, setSmsOpen] = useState(false)
   const [smsText, setSmsText] = useState('')
   const [isSendingSms, setIsSendingSms] = useState(false)
+  const [smsFrom, setSmsFrom] = useState('')
   
   // 필터 상태
   const [roleFilter, setRoleFilter] = useState('all')
@@ -267,18 +268,32 @@ export default function UsersPage() {
       const res = await fetch('/api/admin/sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, message: smsText })
+        body: JSON.stringify({ to, message: smsText, from: smsFrom })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || '문자 발송 실패')
       toast({ title: '발송 요청 완료', description: `성공 ${data.successCount}건, 실패 ${data.failed?.length || 0}건` })
       setSmsOpen(false)
       setSmsText('')
+      setSmsFrom('')
     } catch (e) {
       toast({ title: '오류', description: errorMessage(e, '문자 발송 실패'), variant: 'destructive' })
     } finally {
       setIsSendingSms(false)
     }
+  }
+
+  const handleOpenSmsApp = () => {
+    const toNumbers = users.filter(u => selectedUsers.includes(u.id)).map(u => u.email).join(',')
+    const url = `sms:${encodeURIComponent(toNumbers)}?&body=${encodeURIComponent(smsText)}`
+    window.location.href = url
+  }
+
+  const handleCopyLists = async () => {
+    const toNumbers = users.filter(u => selectedUsers.includes(u.id)).map(u => u.email).join(',')
+    const payload = `FROM: ${smsFrom || '(미지정)'}\nTO: ${toNumbers}\n\n${smsText}`
+    await navigator.clipboard.writeText(payload)
+    toast({ title: '복사 완료', description: '발신/수신/메시지 내용을 클립보드에 복사했습니다.' })
   }
 
   const getStatusBadge = (status: string) => {
@@ -382,6 +397,12 @@ export default function UsersPage() {
               </DialogHeader>
               <div className="space-y-3">
                 <p className="text-sm text-gray-500">선택된 사용자: {selectedUsers.length}명</p>
+                <input
+                  className="w-full h-9 border rounded px-2 text-sm"
+                  placeholder="발신번호를 입력하세요 (선택)"
+                  value={smsFrom}
+                  onChange={(e) => setSmsFrom(e.target.value)}
+                />
                 <textarea
                   className="w-full h-32 border rounded p-2 text-sm"
                   placeholder="메시지 내용을 입력하세요"
@@ -390,9 +411,13 @@ export default function UsersPage() {
                 />
               </div>
               <DialogFooter>
-                <Button onClick={handleSendSms} disabled={isSendingSms || !smsText.trim()}>
-                  {isSendingSms ? '발송 중...' : '발송'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleOpenSmsApp} disabled={!smsText.trim() || selectedUsers.length === 0}>문자앱 열기</Button>
+                  <Button variant="outline" onClick={handleCopyLists} disabled={!smsText.trim() || selectedUsers.length === 0}>내용 복사</Button>
+                  <Button onClick={handleSendSms} disabled={isSendingSms || !smsText.trim()}>
+                    {isSendingSms ? '발송 중...' : 'Mock 발송'}
+                  </Button>
+                </div>
               </DialogFooter>
             </DialogContent>
           </Dialog>
