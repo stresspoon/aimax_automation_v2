@@ -49,6 +49,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { fetchJSON } from '@/lib/httpClient'
 import { errorMessage } from '@/lib/errors'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
 interface User {
   id: string
@@ -84,6 +85,9 @@ export default function UsersPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
   const [stats, setStats] = useState<UserStats | null>(null)
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsText, setSmsText] = useState('')
+  const [isSendingSms, setIsSendingSms] = useState(false)
   
   // 필터 상태
   const [roleFilter, setRoleFilter] = useState('all')
@@ -251,6 +255,32 @@ export default function UsersPage() {
     )
   }
 
+  const handleSendSms = async () => {
+    if (!smsText.trim()) {
+      toast({ title: '안내', description: '문자 내용을 입력해주세요.' })
+      return
+    }
+    try {
+      setIsSendingSms(true)
+      // 예시: 이메일을 전화번호로 매핑할 수 있으면 phone 필드를 사용, 여기서는 email을 임시로 사용
+      const to = users.filter(u => selectedUsers.includes(u.id)).map(u => u.email)
+      const res = await fetch('/api/admin/sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, message: smsText })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || '문자 발송 실패')
+      toast({ title: '발송 요청 완료', description: `성공 ${data.successCount}건, 실패 ${data.failed?.length || 0}건` })
+      setSmsOpen(false)
+      setSmsText('')
+    } catch (e) {
+      toast({ title: '오류', description: errorMessage(e, '문자 발송 실패'), variant: 'destructive' })
+    } finally {
+      setIsSendingSms(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       active: "default",
@@ -340,6 +370,32 @@ export default function UsersPage() {
             <UserPlus className="w-4 h-4" />
             새 사용자 추가
           </Button>
+          <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={selectedUsers.length === 0}>
+                문자 보내기 ({selectedUsers.length})
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>문자 발송</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">선택된 사용자: {selectedUsers.length}명</p>
+                <textarea
+                  className="w-full h-32 border rounded p-2 text-sm"
+                  placeholder="메시지 내용을 입력하세요"
+                  value={smsText}
+                  onChange={(e) => setSmsText(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleSendSms} disabled={isSendingSms || !smsText.trim()}>
+                  {isSendingSms ? '발송 중...' : '발송'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
