@@ -219,8 +219,9 @@ export default function CustomerAcquisitionPage() {
 
   // step3 데이터가 변경될 때마다 localStorage에 저장
   useEffect(() => {
-    if (projectData.step3.emailSubject || projectData.step3.emailBody || projectData.step3.senderEmail) {
-      localStorage.setItem('step3_email_data', JSON.stringify(projectData.step3));
+    const s3 = projectData.step3
+    if (s3.emailSubject || s3.emailBody || s3.senderEmail || s3.subjectSelected || s3.bodySelected || s3.subjectNotSelected || s3.bodyNotSelected) {
+      localStorage.setItem('step3_email_data', JSON.stringify(s3));
     }
   }, [projectData.step3]);
 
@@ -3114,8 +3115,8 @@ export default function CustomerAcquisitionPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="block text-sm font-medium text-foreground">이메일 본문 ({projectData.step3.targetType === 'selected' ? '선정' : '비선정'})</label>
-            <button 
-              onClick={() => setShowEmailComposer(true)}
+          <button 
+            onClick={() => setShowEmailComposer(true)}
               className="text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 rounded font-semibold">
               GPT-5로 자동작성
             </button>
