@@ -97,6 +97,11 @@ export default function CustomerAcquisitionPage() {
       targetType: "selected" as "selected" | "notSelected",
       emailSubject: "",
       emailBody: "",
+      // 분리된 템플릿
+      subjectSelected: "",
+      bodySelected: "",
+      subjectNotSelected: "",
+      bodyNotSelected: "",
       senderEmail: "",
       emailsSent: 0,
       // 이메일 발송 기간 필터
@@ -239,13 +244,29 @@ export default function CustomerAcquisitionPage() {
     const v = `{${token}}`;
     insertAtCursor(subjectRef.current, v);
     // 상태 반영
-    setProjectData(prev => ({ ...prev, step3: { ...prev.step3, emailSubject: subjectRef.current?.value || prev.step3.emailSubject } }));
+    setProjectData(prev => ({
+      ...prev,
+      step3: {
+        ...prev.step3,
+        emailSubject: subjectRef.current?.value || prev.step3.emailSubject,
+        subjectSelected: prev.step3.targetType === 'selected' ? (subjectRef.current?.value || prev.step3.subjectSelected) : prev.step3.subjectSelected,
+        subjectNotSelected: prev.step3.targetType === 'notSelected' ? (subjectRef.current?.value || prev.step3.subjectNotSelected) : prev.step3.subjectNotSelected,
+      }
+    }));
   };
 
   const insertVarIntoBody = (token: string) => {
     const v = `{${token}}`;
     insertAtCursor(bodyRef.current, v);
-    setProjectData(prev => ({ ...prev, step3: { ...prev.step3, emailBody: bodyRef.current?.value || prev.step3.emailBody } }));
+    setProjectData(prev => ({
+      ...prev,
+      step3: {
+        ...prev.step3,
+        emailBody: bodyRef.current?.value || prev.step3.emailBody,
+        bodySelected: prev.step3.targetType === 'selected' ? (bodyRef.current?.value || prev.step3.bodySelected) : prev.step3.bodySelected,
+        bodyNotSelected: prev.step3.targetType === 'notSelected' ? (bodyRef.current?.value || prev.step3.bodyNotSelected) : prev.step3.bodyNotSelected,
+      }
+    }));
   };
 
   // 사용 제한 정보 가져오기
@@ -1717,7 +1738,14 @@ export default function CustomerAcquisitionPage() {
     console.log('[handleStep3Send] emailSubject:', projectData.step3.emailSubject);
     console.log('[handleStep3Send] emailBody:', projectData.step3.emailBody);
     
-    if (!projectData.step3.emailSubject || !projectData.step3.emailBody) {
+    const subject = projectData.step3.targetType === 'selected'
+      ? (projectData.step3.subjectSelected || projectData.step3.emailSubject)
+      : (projectData.step3.subjectNotSelected || projectData.step3.emailSubject)
+    const body = projectData.step3.targetType === 'selected'
+      ? (projectData.step3.bodySelected || projectData.step3.emailBody)
+      : (projectData.step3.bodyNotSelected || projectData.step3.emailBody)
+
+    if (!subject || !body) {
       showNotification('제목과 본문을 입력해주세요', 'error');
       return;
     }
@@ -1770,8 +1798,8 @@ export default function CustomerAcquisitionPage() {
       
       const requestBody = {
         recipients: recipients,
-        subject: projectData.step3.emailSubject,
-        body: projectData.step3.emailBody,
+        subject,
+        body,
         replyTo: projectData.step3.senderEmail,
         // 기존 API와의 호환성을 위해
         candidates: recipients,
@@ -3051,12 +3079,20 @@ export default function CustomerAcquisitionPage() {
 
         {/* 이메일 제목 */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">이메일 제목</label>
+          <label className="block text-sm font-medium text-foreground mb-2">이메일 제목 ({projectData.step3.targetType === 'selected' ? '선정' : '비선정'})</label>
           <input
             type="text"
             ref={subjectRef}
-            value={projectData.step3.emailSubject}
-            onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, emailSubject: e.target.value } })}
+            value={projectData.step3.targetType === 'selected' ? (projectData.step3.subjectSelected || '') : (projectData.step3.subjectNotSelected || '')}
+            onChange={(e) => setProjectData({
+              ...projectData,
+              step3: {
+                ...projectData.step3,
+                emailSubject: e.target.value,
+                subjectSelected: projectData.step3.targetType === 'selected' ? e.target.value : projectData.step3.subjectSelected,
+                subjectNotSelected: projectData.step3.targetType === 'notSelected' ? e.target.value : projectData.step3.subjectNotSelected,
+              }
+            })}
             placeholder="예: {이름}님, 특별한 제안이 있습니다"
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
@@ -3077,7 +3113,7 @@ export default function CustomerAcquisitionPage() {
         {/* 이메일 본문 */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-foreground">이메일 본문</label>
+            <label className="block text-sm font-medium text-foreground">이메일 본문 ({projectData.step3.targetType === 'selected' ? '선정' : '비선정'})</label>
             <button 
               onClick={() => setShowEmailComposer(true)}
               className="text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1 rounded font-semibold">
@@ -3086,9 +3122,17 @@ export default function CustomerAcquisitionPage() {
           </div>
           <textarea
             ref={bodyRef}
-            value={projectData.step3.emailBody}
-            onChange={(e) => setProjectData({ ...projectData, step3: { ...projectData.step3, emailBody: e.target.value } })}
-            placeholder="안녕하세요 {이름}님,&#10;&#10;..."
+            value={projectData.step3.targetType === 'selected' ? (projectData.step3.bodySelected || '') : (projectData.step3.bodyNotSelected || '')}
+            onChange={(e) => setProjectData({
+              ...projectData,
+              step3: {
+                ...projectData.step3,
+                emailBody: e.target.value,
+                bodySelected: projectData.step3.targetType === 'selected' ? e.target.value : projectData.step3.bodySelected,
+                bodyNotSelected: projectData.step3.targetType === 'notSelected' ? e.target.value : projectData.step3.bodyNotSelected,
+              }
+            })}
+            placeholder="안녕하세요 {이름}님,\n\n..."
             rows={8}
             className="w-full px-4 py-3 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
@@ -3402,7 +3446,7 @@ export default function CustomerAcquisitionPage() {
                     setProjectData({
                       step1: { keyword:'', productDescription:'', contentType:'blog', contentPurpose:'informative', instructions:'', generatedContent:'', generatedImages:[] },
                       step2: { formId: null, formUrl: null, sheetUrl:'', isRunning:false, candidates:[], usingFormData:false, selectionCriteria:{ threads:500, blog:300, instagram:1000 } },
-                      step3: { targetType:'selected', emailSubject:'', emailBody:'', senderEmail:'', emailsSent:0, dateFrom: null, dateTo: null }
+                      step3: { targetType:'selected', emailSubject:'', emailBody:'', subjectSelected:'', bodySelected:'', subjectNotSelected:'', bodyNotSelected:'', senderEmail:'', emailsSent:0, dateFrom: null, dateTo: null }
                     })
                     window.location.href = '/automation/customer-acquisition/dashboard'
                   } catch (e:any) {
