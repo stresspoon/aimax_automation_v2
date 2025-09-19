@@ -3289,14 +3289,18 @@ export default function CustomerAcquisitionPage() {
                       },
                     })
 
-                    setProjectData({
-                      ...projectData,
+                    setProjectData(prev => ({
+                      ...prev,
                       step3: {
-                        ...projectData.step3,
+                        ...prev.step3,
                         emailSubject: data.subject,
                         emailBody: data.body,
+                        subjectSelected: emailComposerType === 'selected' ? data.subject : prev.step3.subjectSelected,
+                        bodySelected: emailComposerType === 'selected' ? data.body : prev.step3.bodySelected,
+                        subjectNotSelected: emailComposerType === 'notSelected' ? data.subject : prev.step3.subjectNotSelected,
+                        bodyNotSelected: emailComposerType === 'notSelected' ? data.body : prev.step3.bodyNotSelected,
                       },
-                    });
+                    }));
                     
                     showNotification('이메일이 자동 작성되었습니다', 'success');
                     setShowEmailComposer(false);
