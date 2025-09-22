@@ -219,8 +219,8 @@ export async function POST(req: Request) {
   console.log('[Generate API] 요청 시작:', new Date().toISOString())
   
   try {
-    // 사용 제한 확인 (헬퍼 사용)
-    let usage = { limit: 3, used: 0, remaining: 3, feature: 'content_generation' }
+    // 사용 제한 확인 (헬퍼 사용) - 기본값은 checkUsageLimit의 FREE_LIMITS(10)와 일치
+    let usage = { limit: 10, used: 0, remaining: 10, feature: 'content_generation' }
     try {
       await assertWriteQuota('content_generation')
       const usageStartTime = Date.now()

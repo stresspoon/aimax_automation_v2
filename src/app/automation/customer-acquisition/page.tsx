@@ -115,6 +115,7 @@ export default function CustomerAcquisitionPage() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [freeTrialsRemaining, setFreeTrialsRemaining] = useState<number | null>(null);
+  const [freeTrialLimit, setFreeTrialLimit] = useState<number | null>(null);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const SHEETS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_SHEETS_INTEGRATION === 'true'
@@ -658,9 +659,11 @@ export default function CustomerAcquisitionPage() {
         if (json.usage.limit === -1) {
           setIsUnlimited(true)
           setFreeTrialsRemaining(null)
+          setFreeTrialLimit(null)
         } else {
           setIsUnlimited(false)
           setFreeTrialsRemaining(json.usage.remaining)
+          setFreeTrialLimit(typeof json.usage.limit === 'number' ? json.usage.limit : 10)
         }
       }
       
@@ -2051,7 +2054,7 @@ export default function CustomerAcquisitionPage() {
             disabled={loading || !projectData.step1.keyword}
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-lg font-semibold transition disabled:opacity-50"
           >
-            글 생성하기 {freeTrialsRemaining !== null && `(무료 체험 ${freeTrialsRemaining}/3)`}
+            글 생성하기 {freeTrialsRemaining !== null && freeTrialLimit !== null && `(무료 체험 ${freeTrialsRemaining}/${freeTrialLimit})`}
           </button>
         ) : (
           <div className="space-y-3">
