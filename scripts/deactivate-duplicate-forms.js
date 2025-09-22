@@ -21,10 +21,10 @@ async function deactivateDuplicateForms() {
   
   console.log(`✅ 사용자: ${user.email}\n`)
   
-  // 모든 폼 조회
+  // 모든 폼 조회 (잠금 플래그 포함)
   const { data: allForms } = await supabase
     .from('forms')
-    .select('*')
+    .select('*, prevent_auto_deactivate')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
   
@@ -54,9 +54,13 @@ async function deactivateDuplicateForms() {
       const latestForm = forms[0]
       console.log(`  ✅ 유지: ${latestForm.id} (${new Date(latestForm.created_at).toLocaleDateString()})`)
       
-      // 나머지 폼들 비활성화
+      // 나머지 폼들 비활성화 (잠금 폼은 건너뜀)
       for (let i = 1; i < forms.length; i++) {
         const form = forms[i]
+        if (form.prevent_auto_deactivate) {
+          console.log(`  ⛔ 보호됨(비활성화 건너뜀): ${form.id} (${new Date(form.created_at).toLocaleDateString()})`)
+          continue
+        }
         console.log(`  🔒 비활성화: ${form.id} (${new Date(form.created_at).toLocaleDateString()})`)
         
         const { error } = await supabase

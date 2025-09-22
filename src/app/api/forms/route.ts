@@ -184,7 +184,7 @@ export async function PATCH(req: Request) {
     }
     
     const body = await req.json()
-    const { id, title, description, defaultFields, customFields } = body
+    const { id, title, description, defaultFields, customFields, preventAutoDeactivate } = body
     
     console.log('PATCH /api/forms - Received update request:', { 
       id, 
@@ -196,6 +196,7 @@ export async function PATCH(req: Request) {
     const updateData: any = {}
     if (title !== undefined) updateData.title = title
     if (description !== undefined) updateData.description = description
+    if (preventAutoDeactivate !== undefined) updateData.prevent_auto_deactivate = !!preventAutoDeactivate
     
     // 필드 업데이트가 있는 경우
     if (defaultFields !== undefined || customFields !== undefined) {

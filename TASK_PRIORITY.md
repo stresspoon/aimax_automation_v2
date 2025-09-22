@@ -141,6 +141,7 @@
  - 활동 로깅: /api/activity/log 추가, 클라이언트 tracker(analytics.ts) 및 주요 이벤트 계측(step2 토글, step3 발송)
  - SMS: Mock 제공자 + Naver SENS 어댑터 스켈레톤 + 관리자 SMS API 추가
  - 관리자 푸터: 사이드바 absolute 제거, 레이아웃 하단 푸터(정책 좌측/버전 우측)로 이동
+ - 폼 자동 비활성화 재발 방지: `forms.prevent_auto_deactivate` 추가, 비활성화 스크립트 잠금 준수, `/api/forms` PATCH로 토글 지원
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성
