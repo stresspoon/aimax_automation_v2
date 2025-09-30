@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -270,8 +270,8 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     setCustomFields(customFields.filter((_, i) => i !== index))
   }
   
-  // 응답 데이터 가져오기
-  const fetchResponses = async () => {
+  // 응답 데이터 가져오기 - useCallback으로 메모이제이션하여 무한 루프 방지
+  const fetchResponses = useCallback(async () => {
     if (!form?.id) return
     
     setLoadingResponses(true)
@@ -283,13 +283,13 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     } finally {
       setLoadingResponses(false)
     }
-  }
+  }, [form?.id, projectId])
   
   // 폼이 로드되면 응답 데이터도 가져오기
   useEffect(() => {
     if (form?.id) {
       fetchResponses()
-      // 짧은 기간 폴링(상태 완료 시점 반영)
+      // 대량 데이터 처리를 위해 폴링 주기를 5초로 늘림 (이전: 2초)
       const start = Date.now()
       const timer = setInterval(() => {
         if (Date.now() - start > 30000) { // 30초 제한
@@ -297,11 +297,11 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
           return
         }
         fetchResponses()
-      }, 2000)
+      }, 5000) // 2초 → 5초로 변경
       return () => clearInterval(timer)
     }
     return undefined
-  }, [form?.id])
+  }, [form?.id, fetchResponses])
 
   // Realtime: 프로젝트 범위 응답 변경 감지 후 즉시 갱신
   useEffect(() => {
@@ -321,7 +321,7 @@ export default function CustomFormTab({ projectId, projectData, onUpdate }: Cust
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [projectId, form?.id])
+  }, [projectId, form?.id, fetchResponses])
   
   // 엑셀 다운로드
   const downloadExcel = () => {
