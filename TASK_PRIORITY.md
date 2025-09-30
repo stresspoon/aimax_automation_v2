@@ -150,6 +150,7 @@
  - 🚨 **중요 버그 수정**: 폼 응답 1,000개 제한 해결 (Supabase 기본 limit 명시적 설정으로 최대 50,000개까지 조회 가능)
  - 🚨 **긴급 버그 수정**: 대량 데이터 조회 시 무한 루프 문제 해결 (fetchResponses useCallback 메모이제이션, 폴링 주기 2초→5초)
  - 빌드/런타임 경고 완전 정리: 보안 헤더 추가, browserslist 설정, WARNINGS_SUMMARY.md 문서화
+ - 🚨 Pretendard 폰트 404 에러 수정: GitHub CDN → npm CDN 변경, autoprefixer 설정 강화
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성
