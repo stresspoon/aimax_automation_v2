@@ -2,6 +2,9 @@
   "functions": {
     "src/app/api/sns/scrape/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/ai/generate/route.ts": {
+      "maxDuration": 60
     }
   },
   "env": {

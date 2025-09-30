@@ -223,7 +223,7 @@ export default function DashboardPage() {
         {/* 무료 체험 알림 */}
         <div className="mt-12 bg-primary/10 border border-primary/30 rounded-xl p-6 text-center">
           <p className="text-foreground mb-2">
-            <span className="font-bold">무료 체험 3회</span>가 남아있습니다
+            <span className="font-bold">무료 체험 10회</span>가 남아있습니다
           </p>
           <p className="text-muted-foreground text-sm">
             고객모집 자동화를 무료로 체험해보세요

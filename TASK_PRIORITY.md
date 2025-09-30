@@ -142,6 +142,9 @@
  - SMS: Mock 제공자 + Naver SENS 어댑터 스켈레톤 + 관리자 SMS API 추가
  - 관리자 푸터: 사이드바 absolute 제거, 레이아웃 하단 푸터(정책 좌측/버전 우측)로 이동
  - 폼 자동 비활성화 재발 방지: `forms.prevent_auto_deactivate` 추가, 비활성화 스크립트 잠금 준수, `/api/forms` PATCH로 토글 지원
+ - 무료 체험 횟수 표시 3회→10회로 수정 (대시보드, CTA 섹션)
+ - API timeout 해결: vercel.json에 /api/ai/generate maxDuration 60초 추가
+ - Pretendard 폰트 403 에러 해결: CDN URL에 버전 태그(@1.3.9) 추가 및 woff2 우선 적용
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성
@@ -155,5 +158,5 @@
 
 ---
 
-*최종 업데이트: 2025-09-17*
+*최종 업데이트: 2025-09-30*
 *목표: 고객모집 자동화 3단계를 완전히 작동하는 제품으로 만들기*

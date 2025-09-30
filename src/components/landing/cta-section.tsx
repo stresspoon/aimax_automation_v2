@@ -107,7 +107,7 @@ export function CTASection() {
             당신의 시간을 사는 유일한 방법<br/>AIMAX 마케팅 자동화
           </h2>
           <p className="text-muted-foreground text-sm md:text-base font-medium leading-[18.20px] md:leading-relaxed break-words max-w-2xl">
-            3회 무료 체험으로 부담 없이 경험해보세요
+            10회 무료 체험으로 부담 없이 경험해보세요
           </p>
         </div>
         <Link href="/signup">
