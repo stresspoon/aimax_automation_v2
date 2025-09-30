@@ -145,6 +145,7 @@
  - 무료 체험 횟수 표시 3회→10회로 수정 (대시보드, CTA 섹션)
  - API timeout 해결: vercel.json에 /api/ai/generate maxDuration 60초 추가
  - Pretendard 폰트 403 에러 해결: CDN URL에 버전 태그(@1.3.9) 추가 및 woff2 우선 적용
+ - 빌드 경고 정리: @types/jszip 제거, react-is peer dependency 추가
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성
