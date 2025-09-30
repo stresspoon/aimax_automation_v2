@@ -147,6 +147,7 @@
  - Pretendard 폰트 403 에러 해결: CDN URL에 버전 태그(@1.3.9) 추가 및 woff2 우선 적용
  - 빌드 경고 정리: @types/jszip 제거, react-is peer dependency 추가
  - 빌드 경고 완전 제거: package-lock.json 삭제, yarn 통일, googleapis 업데이트(156→160), zod resolutions 추가
+ - 🚨 **중요 버그 수정**: 폼 응답 1,000개 제한 해결 (Supabase 기본 limit 명시적 설정으로 최대 50,000개까지 조회 가능)
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성

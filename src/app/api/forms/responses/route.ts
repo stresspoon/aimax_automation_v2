@@ -396,11 +396,13 @@ export async function GET(req: Request) {
     }
 
     // 2) form_responses_temp 테이블에서 직접 조회
+    // Supabase 기본 limit(1000)을 초과하기 위해 명시적으로 limit 설정
     let viewQuery = supabase
       .from('form_responses_temp')
-      .select('*')
+      .select('*', { count: 'exact' })
       .in('form_id', formIds)
       .order('created_at', { ascending: false })
+      .limit(50000) // 최대 50,000개까지 조회 가능
     
     if (formId) {
       viewQuery = viewQuery.eq('form_id', formId)

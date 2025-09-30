@@ -39,11 +39,13 @@ export async function GET(req: Request) {
     let responses: any[] | null = null
     let error: any = null
     try {
+      // Supabase 기본 limit(1000)을 초과하기 위해 명시적으로 limit 설정
       const { data, error: viewError } = await supabase
         .from('form_responses_temp')
-        .select('*')
+        .select('*', { count: 'exact' })
         .in('form_id', formIds)
         .order('created_at', { ascending: false })
+        .limit(50000) // 최대 50,000개까지 조회 가능
       responses = data
       error = viewError
     } catch (e) {

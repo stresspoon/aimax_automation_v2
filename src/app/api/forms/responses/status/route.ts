@@ -35,11 +35,13 @@ export async function GET(req: Request) {
       })
     } else if (formId) {
       // 폼의 모든 응답 상태 확인
+      // Supabase 기본 limit(1000)을 초과하기 위해 명시적으로 limit 설정
       const { data: responses, error } = await adminSupabase
         .from('form_responses_temp')
-        .select('id, status, is_selected, selection_reason, sns_check_result, processed_at, email, name')
+        .select('id, status, is_selected, selection_reason, sns_check_result, processed_at, email, name', { count: 'exact' })
         .eq('form_id', formId)
         .order('created_at', { ascending: false })
+        .limit(50000) // 최대 50,000개까지 조회 가능
       
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
