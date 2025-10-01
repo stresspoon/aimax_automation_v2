@@ -2601,7 +2601,7 @@ export default function CustomerAcquisitionPage() {
                                 showNotification(`${candidate.name}: Threads ${data.threads}명 확인`, 'success')
                               } else {
                                 console.warn(`[SNS 재체크] ⚠️ Threads 결과: 0명 (스크래핑 실패 가능성)`)
-                                showNotification(`${candidate.name}: Threads 0명 (확인 필요)`, 'warning')
+                                showNotification(`${candidate.name}: Threads 0명 (확인 필요)`, 'info')
                               }
                             } else {
                               console.error('[SNS 재체크] Threads 응답 형식 오류:', data)
@@ -2639,7 +2639,7 @@ export default function CustomerAcquisitionPage() {
                                 showNotification(`${candidate.name}: 블로그 ${data.blog}명 확인`, 'success')
                               } else {
                                 console.warn(`[SNS 재체크] ⚠️ Blog 결과: 0명 (스크래핑 실패 가능성)`)
-                                showNotification(`${candidate.name}: 블로그 0명 (확인 필요)`, 'warning')
+                                showNotification(`${candidate.name}: 블로그 0명 (확인 필요)`, 'info')
                               }
                             } else {
                               console.error('[SNS 재체크] Blog 응답 형식 오류:', data)
@@ -2677,7 +2677,7 @@ export default function CustomerAcquisitionPage() {
                                 showNotification(`${candidate.name}: 인스타그램 ${data.instagram}명 확인`, 'success')
                               } else {
                                 console.warn(`[SNS 재체크] ⚠️ Instagram 결과: 0명 (스크래핑 실패 가능성)`)
-                                showNotification(`${candidate.name}: 인스타그램 0명 (확인 필요)`, 'warning')
+                                showNotification(`${candidate.name}: 인스타그램 0명 (확인 필요)`, 'info')
                               }
                             } else {
                               console.error('[SNS 재체크] Instagram 응답 형식 오류:', data)
