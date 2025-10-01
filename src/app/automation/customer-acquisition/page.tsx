@@ -2517,6 +2517,22 @@ export default function CustomerAcquisitionPage() {
                 <button
                   title={!SHEETS_ENABLED ? '관리자 설정에서 시트 통합을 활성화해야 합니다' : undefined}
                   onClick={async () => {
+                    // SNS API 서버 연결 체크
+                    try {
+                      const healthCheck = await fetch('/api/sns/scrape', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: 'test' })
+                      }).catch(() => null)
+                      
+                      if (!healthCheck) {
+                        showNotification('SNS API 서버에 연결할 수 없습니다. 개발 서버(yarn dev)가 실행 중인지 확인하세요.', 'error')
+                        return
+                      }
+                    } catch (e) {
+                      console.error('SNS API 연결 체크 실패:', e)
+                    }
+                    
                     // SNS 체크 실패한 항목들 찾기
                     const failedChecks = (projectData.step2.candidates || []).filter((c: any) => {
                       const hasThreadsUrl = c.threadsUrl && c.threadsUrl.trim() !== ''
@@ -2564,10 +2580,12 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.threadsUrl && candidate.threads === 0) {
                           console.log(`[SNS 재체크] Threads URL: ${candidate.threadsUrl}`)
                           try {
-                            try {
-                              const data = await measureWithRetry(candidate, 'threads')
-                              console.log(`[SNS 재체크] Threads 결과:`, data)
-                              candidate.threads = data.threads || 0
+                            const data = await measureWithRetry(candidate, 'threads')
+                            console.log(`[SNS 재체크] Threads 결과:`, data)
+                            
+                            // API 응답 유효성 검증
+                            if (data && typeof data.threads === 'number') {
+                              candidate.threads = data.threads
                               // 즉시 UI 반영
                               setProjectData(prev => {
                                 const next = { ...prev }
@@ -2582,16 +2600,16 @@ export default function CustomerAcquisitionPage() {
                                 console.log(`[SNS 재체크] ✅ Threads 성공: ${data.threads}명`)
                                 showNotification(`${candidate.name}: Threads ${data.threads}명 확인`, 'success')
                               } else {
-                                console.warn(`[SNS 재체크] ⚠️ Threads 실패: 0명`)
-                                showNotification(`${candidate.name}: Threads 체크 실패`, 'error')
+                                console.warn(`[SNS 재체크] ⚠️ Threads 결과: 0명 (스크래핑 실패 가능성)`)
+                                showNotification(`${candidate.name}: Threads 0명 (확인 필요)`, 'warning')
                               }
-                            } catch (err) {
-                              console.error('[SNS 재체크] Threads 오류:', err)
-                              showNotification(`${candidate.name}: Threads 체크 오류`, 'error')
+                            } else {
+                              console.error('[SNS 재체크] Threads 응답 형식 오류:', data)
+                              showNotification(`${candidate.name}: Threads API 오류`, 'error')
                             }
-                          } catch (e) {
-                            console.error('[SNS 재체크] Threads 오류:', e)
-                            showNotification(`${candidate.name}: Threads 체크 오류`, 'error')
+                          } catch (err) {
+                            console.error('[SNS 재체크] Threads 오류:', err)
+                            showNotification(`${candidate.name}: Threads 체크 오류 - ${(err as Error).message}`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }
@@ -2600,10 +2618,12 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.blogUrl && candidate.blog === 0) {
                           console.log(`[SNS 재체크] Blog URL: ${candidate.blogUrl}`)
                           try {
-                            try {
-                              const data = await measureWithRetry(candidate, 'blog')
-                              console.log(`[SNS 재체크] Blog 결과:`, data)
-                              candidate.blog = data.blog || 0
+                            const data = await measureWithRetry(candidate, 'blog')
+                            console.log(`[SNS 재체크] Blog 결과:`, data)
+                            
+                            // API 응답 유효성 검증
+                            if (data && typeof data.blog === 'number') {
+                              candidate.blog = data.blog
                               // 즉시 UI 반영
                               setProjectData(prev => {
                                 const next = { ...prev }
@@ -2618,16 +2638,16 @@ export default function CustomerAcquisitionPage() {
                                 console.log(`[SNS 재체크] ✅ Blog 성공: ${data.blog}명`)
                                 showNotification(`${candidate.name}: 블로그 ${data.blog}명 확인`, 'success')
                               } else {
-                                console.warn(`[SNS 재체크] ⚠️ Blog 실패: 0명`)
-                                showNotification(`${candidate.name}: 블로그 체크 실패`, 'error')
+                                console.warn(`[SNS 재체크] ⚠️ Blog 결과: 0명 (스크래핑 실패 가능성)`)
+                                showNotification(`${candidate.name}: 블로그 0명 (확인 필요)`, 'warning')
                               }
-                            } catch (err) {
-                              console.error('[SNS 재체크] Blog 오류:', err)
-                              showNotification(`${candidate.name}: 블로그 체크 오류`, 'error')
+                            } else {
+                              console.error('[SNS 재체크] Blog 응답 형식 오류:', data)
+                              showNotification(`${candidate.name}: 블로그 API 오류`, 'error')
                             }
-                          } catch (e) {
-                            console.error('[SNS 재체크] Blog 오류:', e)
-                            showNotification(`${candidate.name}: 블로그 체크 오류`, 'error')
+                          } catch (err) {
+                            console.error('[SNS 재체크] Blog 오류:', err)
+                            showNotification(`${candidate.name}: 블로그 체크 오류 - ${(err as Error).message}`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }
@@ -2636,10 +2656,12 @@ export default function CustomerAcquisitionPage() {
                         if (candidate.instagramUrl && candidate.instagram === 0) {
                           console.log(`[SNS 재체크] Instagram URL: ${candidate.instagramUrl}`)
                           try {
-                            try {
-                              const data = await measureWithRetry(candidate, 'instagram')
-                              console.log(`[SNS 재체크] Instagram 결과:`, data)
-                              candidate.instagram = data.instagram || 0
+                            const data = await measureWithRetry(candidate, 'instagram')
+                            console.log(`[SNS 재체크] Instagram 결과:`, data)
+                            
+                            // API 응답 유효성 검증
+                            if (data && typeof data.instagram === 'number') {
+                              candidate.instagram = data.instagram
                               // 즉시 UI 반영
                               setProjectData(prev => {
                                 const next = { ...prev }
@@ -2654,16 +2676,16 @@ export default function CustomerAcquisitionPage() {
                                 console.log(`[SNS 재체크] ✅ Instagram 성공: ${data.instagram}명`)
                                 showNotification(`${candidate.name}: 인스타그램 ${data.instagram}명 확인`, 'success')
                               } else {
-                                console.warn(`[SNS 재체크] ⚠️ Instagram 실패: 0명`)
-                                showNotification(`${candidate.name}: 인스타그램 체크 실패`, 'error')
+                                console.warn(`[SNS 재체크] ⚠️ Instagram 결과: 0명 (스크래핑 실패 가능성)`)
+                                showNotification(`${candidate.name}: 인스타그램 0명 (확인 필요)`, 'warning')
                               }
-                            } catch (err) {
-                              console.error('[SNS 재체크] Instagram 오류:', err)
-                              showNotification(`${candidate.name}: 인스타그램 체크 오류`, 'error')
+                            } else {
+                              console.error('[SNS 재체크] Instagram 응답 형식 오류:', data)
+                              showNotification(`${candidate.name}: 인스타그램 API 오류`, 'error')
                             }
-                          } catch (e) {
-                            console.error('[SNS 재체크] Instagram 오류:', e)
-                            showNotification(`${candidate.name}: 인스타그램 체크 오류`, 'error')
+                          } catch (err) {
+                            console.error('[SNS 재체크] Instagram 오류:', err)
+                            showNotification(`${candidate.name}: 인스타그램 체크 오류 - ${(err as Error).message}`, 'error')
                           }
                           await new Promise(resolve => setTimeout(resolve, 500))
                         }

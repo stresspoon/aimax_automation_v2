@@ -50,8 +50,14 @@ export async function POST(req: Request) {
           console.log(`[measure] Threads parseMetrics 결과:`, m)
           threads = m.followers || 0
           console.log(`[measure] Threads 최종 팔로워 수: ${threads}`)
+          
+          // 디버그 정보 추가
+          if (threads === 0 && m.raw?.error) {
+            console.error(`[measure] Threads 스크래핑 실패: ${m.raw.error}`)
+          }
         } catch (e) {
           console.error('[measure] Threads 처리 오류:', e)
+          console.error('[measure] 오류 상세:', (e as Error).message, (e as Error).stack)
         }
       }
     }
@@ -67,8 +73,14 @@ export async function POST(req: Request) {
           console.log(`[measure] Blog parseMetrics 결과:`, m)
           blog = m.neighbors || 0
           console.log(`[measure] Blog 최종 이웃 수: ${blog}`)
+          
+          // 디버그 정보 추가
+          if (blog === 0 && m.raw?.error) {
+            console.error(`[measure] Blog 스크래핑 실패: ${m.raw.error}`)
+          }
         } catch (e) {
           console.error('[measure] Blog 처리 오류:', e)
+          console.error('[measure] 오류 상세:', (e as Error).message, (e as Error).stack)
         }
       }
     }
@@ -84,8 +96,14 @@ export async function POST(req: Request) {
           console.log(`[measure] Instagram parseMetrics 결과:`, m)
           instagram = m.followers || 0
           console.log(`[measure] Instagram 최종 팔로워 수: ${instagram}`)
+          
+          // 디버그 정보 추가
+          if (instagram === 0 && m.raw?.error) {
+            console.error(`[measure] Instagram 스크래핑 실패: ${m.raw.error}`)
+          }
         } catch (e) {
           console.error('[measure] Instagram 처리 오류:', e)
+          console.error('[measure] 오류 상세:', (e as Error).message, (e as Error).stack)
         }
       }
     }
