@@ -152,6 +152,7 @@
 - 빌드/런타임 경고 완전 정리: 보안 헤더 추가, browserslist 설정, WARNINGS_SUMMARY.md 문서화
 - 🚨 Pretendard 폰트 404 에러 수정: GitHub CDN → npm CDN 변경, autoprefixer 설정 강화
 - 🚨 **SNS 재체크 버그 수정**: 재체크 시 0으로 표시되던 문제 해결 (API 응답 유효성 검증, 서버 연결 체크, 상세 에러 로깅 추가)
+- ✨ **목록 새로고침 자동 SNS 체크**: DB 데이터 로드 후 SNS 링크가 있는데 0인 항목 자동으로 팔로워 수 측정
 
 ### 🔄 진행 중
 - 프로젝트 데이터 영속성
