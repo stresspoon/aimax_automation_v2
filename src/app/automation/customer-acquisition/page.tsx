@@ -2483,31 +2483,143 @@ export default function CustomerAcquisitionPage() {
                       showNotification('관리자 설정에서 시트 통합을 활성화해야 합니다', 'info')
                       return
                     }
+                    
+                    setLoading(true)
                     try {
+                      // 1. DB에서 데이터 가져오기
                       const data = await fetchCandidates(projectId!)
                       if (data.candidates) {
+                        const updatedCandidates = (function(){
+                          const prevList = projectData.step2?.candidates || []
+                          const merged = mergeCandidatesSafely(prevList as any, data.candidates as any) as any[]
+                          const criteria = projectData.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
+                          return merged.map((c:any)=>({
+                            ...c,
+                            status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
+                          }))
+                        })()
+                        
                         setProjectData(prev => ({
                           ...prev,
                           step2: {
                             ...prev.step2,
-                            candidates: (function(){
-                              const prevList = prev.step2?.candidates || []
-                              const merged = mergeCandidatesSafely(prevList as any, data.candidates as any) as any[]
-                              const criteria = prev.step2?.selectionCriteria || { threads: 500, blog: 300, instagram: 1000 }
-                              return merged.map((c:any)=>({
-                                ...c,
-                                status: ((c.threads || 0) >= criteria.threads || (c.blog || 0) >= criteria.blog || (c.instagram || 0) >= criteria.instagram) ? 'selected' : 'notSelected'
-                              }))
-                            })()
+                            candidates: updatedCandidates
                           }
                         }))
+                        
                         showNotification('후보 목록을 새로고침했습니다', 'success')
+                        
+                        // 2. SNS 링크가 있는데 0인 항목 찾기
+                        const needsCheck = updatedCandidates.filter((c: any) => {
+                          const hasThreadsUrl = c.threadsUrl && c.threadsUrl.trim() !== ''
+                          const hasInstagramUrl = c.instagramUrl && c.instagramUrl.trim() !== ''
+                          const hasBlogUrl = c.blogUrl && c.blogUrl.trim() !== ''
+                          
+                          return (hasThreadsUrl && c.threads === 0) ||
+                                 (hasInstagramUrl && c.instagram === 0) ||
+                                 (hasBlogUrl && c.blog === 0)
+                        })
+                        
+                        // 3. 자동 SNS 재체크
+                        if (needsCheck.length > 0) {
+                          showNotification(`${needsCheck.length}명의 SNS를 자동 체크합니다`, 'info')
+                          
+                          const measureWithRetry = async (cand: any, channel: 'threads' | 'blog' | 'instagram', retries = 1) => {
+                            while (true) {
+                              try {
+                                return await fetchJSON<any>('/api/sheets/measure', {
+                                  method: 'POST',
+                                  body: { candidate: cand, channel },
+                                  timeoutMs: 30000,
+                                })
+                              } catch (err: any) {
+                                const msg = String(err?.message || '')
+                                if (retries > 0 && (err?.code === 'ETIMEDOUT' || msg.toLowerCase().includes('timeout'))) {
+                                  await new Promise(r => setTimeout(r, 800))
+                                  retries -= 1
+                                  continue
+                                }
+                                throw err
+                              }
+                            }
+                          }
+                          
+                          for (const candidate of needsCheck) {
+                            // Threads 체크
+                            if (candidate.threadsUrl && candidate.threads === 0) {
+                              try {
+                                const data = await measureWithRetry(candidate, 'threads')
+                                if (data && typeof data.threads === 'number' && data.threads > 0) {
+                                  candidate.threads = data.threads
+                                  setProjectData(prev => {
+                                    const next = { ...prev }
+                                    const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                    if (idx >= 0) {
+                                      next.step2.candidates[idx] = { ...next.step2.candidates[idx], threads: candidate.threads }
+                                    }
+                                    return next
+                                  })
+                                }
+                              } catch (err) {
+                                console.error('[자동 체크] Threads 오류:', err)
+                              }
+                              await new Promise(resolve => setTimeout(resolve, 500))
+                            }
+                            
+                            // Blog 체크
+                            if (candidate.blogUrl && candidate.blog === 0) {
+                              try {
+                                const data = await measureWithRetry(candidate, 'blog')
+                                if (data && typeof data.blog === 'number' && data.blog > 0) {
+                                  candidate.blog = data.blog
+                                  setProjectData(prev => {
+                                    const next = { ...prev }
+                                    const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                    if (idx >= 0) {
+                                      next.step2.candidates[idx] = { ...next.step2.candidates[idx], blog: candidate.blog }
+                                    }
+                                    return next
+                                  })
+                                }
+                              } catch (err) {
+                                console.error('[자동 체크] Blog 오류:', err)
+                              }
+                              await new Promise(resolve => setTimeout(resolve, 500))
+                            }
+                            
+                            // Instagram 체크
+                            if (candidate.instagramUrl && candidate.instagram === 0) {
+                              try {
+                                const data = await measureWithRetry(candidate, 'instagram')
+                                if (data && typeof data.instagram === 'number' && data.instagram > 0) {
+                                  candidate.instagram = data.instagram
+                                  setProjectData(prev => {
+                                    const next = { ...prev }
+                                    const idx = next.step2.candidates.findIndex((c: any) => c.email === candidate.email && c.name === candidate.name)
+                                    if (idx >= 0) {
+                                      next.step2.candidates[idx] = { ...next.step2.candidates[idx], instagram: candidate.instagram }
+                                    }
+                                    return next
+                                  })
+                                }
+                              } catch (err) {
+                                console.error('[자동 체크] Instagram 오류:', err)
+                              }
+                              await new Promise(resolve => setTimeout(resolve, 500))
+                            }
+                          }
+                          
+                          showNotification('자동 SNS 체크가 완료되었습니다', 'success')
+                        }
                       }
                     } catch (e) {
                       showNotification('후보 목록 새로고침에 실패했습니다', 'error')
+                    } finally {
+                      setLoading(false)
                     }
                   }}
                   className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                  disabled={loading}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
