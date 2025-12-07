@@ -11,32 +11,32 @@ export function HeroSection() {
     const timer = setInterval(() => {
       setActiveStep(prev => (prev + 1) % 4)
     }, 700) // 0.7초마다 전환
-    
+
     return () => clearInterval(timer)
   }, [])
 
   const steps = [
-    { 
-      id: 1, 
-      title: "콘텐츠 자동 발행", 
+    {
+      id: 1,
+      title: "콘텐츠 자동 발행",
       description: "AI가 마케팅 콘텐츠 작성",
       animation: "type-animation"
     },
-    { 
-      id: 2, 
-      title: "고객이 알아서 모임", 
+    {
+      id: 2,
+      title: "고객이 알아서 모임",
       description: "구글폼으로 자동 수집",
       animation: "funnel-animation"
     },
-    { 
-      id: 3, 
-      title: "DB 저장 → 메일 발송", 
+    {
+      id: 3,
+      title: "DB 저장 → 메일 발송",
       description: "타겟 고객 자동 필터링",
       animation: "mail-animation"
     },
-    { 
-      id: 4, 
-      title: "콘텐츠가 차곡차곡", 
+    {
+      id: 4,
+      title: "콘텐츠가 차곡차곡",
       description: "맞춤형 이메일 자동 발송",
       animation: "shelf-animation"
     }
@@ -271,15 +271,15 @@ export function HeroSection() {
                 key={step.id}
                 className={cn(
                   "bg-background/90 border rounded-lg p-3 md:p-4 lg:p-5 relative overflow-hidden transition-all duration-100 h-[120px] md:h-[140px] lg:h-[160px]",
-                  activeStep === index 
-                    ? "border-primary shadow-lg scale-105" 
+                  activeStep === index
+                    ? "border-primary shadow-lg scale-105"
                     : "border-border/50 opacity-60"
                 )}
               >
                 <h3 className="text-xs md:text-sm lg:text-base font-bold mb-2 relative whitespace-nowrap">
                   {step.id}. {step.title}
                   {/* Animated accent underline */}
-                  <span 
+                  <span
                     className={cn(
                       "absolute bottom-0 left-0 h-0.5 bg-primary transition-all duration-100",
                       activeStep === index ? "w-full" : "w-0"
@@ -304,14 +304,14 @@ export function HeroSection() {
                   <div className="absolute bottom-0 left-0 right-0 h-full overflow-hidden">
                     <div className="relative h-full">
                       {[...Array(15)].map((_, i) => (
-                        <div 
+                        <div
                           key={i}
-                          className="lead-drop" 
-                          style={{ 
-                            left: `${20 + Math.random() * 50}%`, 
+                          className="lead-drop"
+                          style={{
+                            left: `${20 + Math.random() * 50}%`,
                             animationDelay: `${Math.random() * 0.3}s`,
                             animationDuration: `${0.4 + Math.random() * 0.2}s`
-                          }} 
+                          }}
                         />
                       ))}
                     </div>
@@ -325,8 +325,8 @@ export function HeroSection() {
                     <div className="envelope-fly absolute w-12 md:w-14 lg:w-16 h-8 md:h-10 lg:h-12">
                       <div className="relative w-full h-full bg-white border-2 border-primary rounded shadow-md">
                         {/* 봉투 플랩 */}
-                        <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-br from-primary/10 to-primary/20 border-b border-primary" 
-                             style={{ clipPath: 'polygon(0 0, 50% 100%, 100% 0)' }} />
+                        <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-br from-primary/10 to-primary/20 border-b border-primary"
+                          style={{ clipPath: 'polygon(0 0, 50% 100%, 100% 0)' }} />
                       </div>
                     </div>
                   </div>
@@ -370,10 +370,10 @@ export function HeroSection() {
 
       {/* Button with reduced spacing from metrics */}
       <div className="relative z-10 flex flex-col sm:flex-row gap-3 md:gap-4 mt-4 md:mt-5 px-6 md:px-0 mb-12 md:mb-16">
-        <Button 
+        <Button
           onClick={() => window.location.href = '/signup'}
           className="bg-primary text-primary-foreground hover:bg-primary/90 px-12 py-6 rounded-full font-bold text-lg shadow-lg h-auto">
-          무료 체험 시작하기
+          무료로 시작하기
         </Button>
       </div>
     </section>

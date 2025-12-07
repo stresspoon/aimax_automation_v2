@@ -104,10 +104,10 @@ export function CTASection() {
       <div className="relative z-10 flex flex-col justify-start items-center gap-9 w-full max-w-none mx-0">
         <div className="flex flex-col justify-start items-center gap-4 text-center">
           <h2 className="text-foreground text-4xl md:text-5xl lg:text-[68px] font-semibold leading-tight md:leading-tight lg:leading-[76px] break-words w-full">
-            당신의 시간을 사는 유일한 방법<br/>AIMAX 마케팅 자동화
+            당신의 시간을 사는 유일한 방법<br />AIMAX 마케팅 자동화
           </h2>
           <p className="text-muted-foreground text-sm md:text-base font-medium leading-[18.20px] md:leading-relaxed break-words max-w-2xl">
-            10회 무료 체험으로 부담 없이 경험해보세요
+            무료로 부담 없이 경험해보세요
           </p>
         </div>
         <Link href="/signup">

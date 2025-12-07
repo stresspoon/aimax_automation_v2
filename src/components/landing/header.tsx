@@ -38,8 +38,8 @@ export function Header() {
   return (
     <header className={cn(
       "fixed top-0 left-0 right-0 z-50 transition-all duration-300 py-4 px-6",
-      isScrolled 
-        ? "bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm" 
+      isScrolled
+        ? "bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm"
         : "bg-transparent"
     )}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -61,10 +61,10 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button 
+          <Button
             onClick={() => window.location.href = '/signup'}
             className="hidden md:block bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-2 rounded-full font-bold shadow-sm">
-            무료 체험 시작하기
+            무료로 시작하기
           </Button>
           <Sheet>
             <SheetTrigger asChild className="md:hidden">
@@ -88,10 +88,10 @@ export function Header() {
                     {item.name}
                   </Link>
                 ))}
-                <Button 
+                <Button
                   onClick={() => window.location.href = '/signup'}
                   className="bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-2 rounded-full font-bold shadow-sm w-full mt-4">
-                  무료 체험 시작하기
+                  무료로 시작하기
                 </Button>
               </nav>
             </SheetContent>
