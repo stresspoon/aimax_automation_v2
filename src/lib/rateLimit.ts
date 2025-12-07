@@ -1,6 +1,11 @@
 type Bucket = { count: number; resetAt: number }
 const store = new Map<string, Bucket>()
 
+// [WARNING] 이것은 인메모리 속도 제한(Rate Limiter)입니다.
+// Vercel과 같은 서버리스 환경에서는 이 상태가 인스턴스 간에 공유되지 않으며,
+// 람다(Lambda)가 종료되면 데이터가 사라집니다.
+// 프로덕션 환경에서는 Redis(Upstash)나 Supabase와 같은 분산 저장소를 사용해야 합니다.
+
 export interface RateLimitOptions {
   windowMs?: number
   max?: number
