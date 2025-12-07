@@ -28,7 +28,7 @@ export default function DashboardPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  
+
   const fetchUserInfo = async () => {
     try {
       const supabase = createClient();
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
         // 사용자의 프로젝트 가져오기
         const { data: projects, error } = await supabase
@@ -53,7 +53,7 @@ export default function DashboardPage() {
           .select('*')
           .eq('user_id', user.id)
           .order('updated_at', { ascending: false });
-        
+
         if (!error && projects) {
           setUserProjects(projects);
         }
@@ -77,8 +77,8 @@ export default function DashboardPage() {
       id: "detail-page",
       title: "상세페이지 자동화",
       description: "제품 상세페이지를 AI가 자동으로 생성",
-      available: false,
-      href: "#",
+      available: true,
+      href: "/automation/detail-page",
     },
     {
       id: "video",
@@ -117,7 +117,7 @@ export default function DashboardPage() {
               </nav>
             </div>
             <div className="relative" ref={userMenuRef}>
-              <button 
+              <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/50 transition"
               >
@@ -125,7 +125,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </button>
-              
+
               {showUserMenu && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -195,7 +195,7 @@ export default function DashboardPage() {
                 transition={{ delay: index * 0.1 }}
               >
                 {card.available ? (
-                  <div 
+                  <div
                     onClick={() => {
                       window.location.href = card.href;
                     }}
@@ -220,15 +220,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* 무료 체험 알림 */}
-        <div className="mt-12 bg-primary/10 border border-primary/30 rounded-xl p-6 text-center">
-          <p className="text-foreground mb-2">
-            <span className="font-bold">무료 체험 10회</span>가 남아있습니다
-          </p>
-          <p className="text-muted-foreground text-sm">
-            고객모집 자동화를 무료로 체험해보세요
-          </p>
-        </div>
+
       </main>
     </div>
   );

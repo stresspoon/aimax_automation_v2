@@ -6,7 +6,7 @@ import { ProblemSection } from "@/components/landing/problem-section"
 import { BentoSection } from "@/components/landing/bento-section"
 import { UseCasesSection } from "@/components/landing/use-cases-section"
 import { LargeTestimonial } from "@/components/landing/large-testimonial"
-import { PricingSection } from "@/components/landing/pricing-section"
+
 import { TestimonialGridSection } from "@/components/landing/testimonial-grid-section"
 import { FAQSection } from "@/components/landing/faq-section"
 import { CTASection } from "@/components/landing/cta-section"
@@ -19,7 +19,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background relative overflow-hidden pb-0">
       {/* Fixed Header */}
       <Header />
-      
+
       <div className="relative z-10 pt-16">
         <main className="max-w-[1320px] mx-auto relative">
           <HeroSection />
@@ -45,13 +45,7 @@ export default function LandingPage() {
         <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-8 md:mt-16" delay={0.2}>
           <LargeTestimonial />
         </AnimatedSection>
-        <AnimatedSection
-          id="pricing-section"
-          className="relative z-10 max-w-[1320px] mx-auto mt-8 md:mt-16"
-          delay={0.2}
-        >
-          <PricingSection />
-        </AnimatedSection>
+
         <AnimatedSection
           id="testimonials-section"
           className="relative z-10 max-w-[1320px] mx-auto mt-8 md:mt-16"
@@ -69,7 +63,7 @@ export default function LandingPage() {
           <FooterSection />
         </AnimatedSection>
       </div>
-      
+
       {/* Chatbot Popup */}
       <ChatbotPopup />
     </div>
