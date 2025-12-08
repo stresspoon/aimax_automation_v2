@@ -178,18 +178,15 @@ export default function PublicFormPage() {
           />
           <Label htmlFor={key} className="cursor-pointer select-none">
             {isPrivacyConsent ? (
-              <span className="flex items-center flex-wrap gap-1">
-                <span>{field.label}</span>
-                <a
-                  href="/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground underline hover:text-primary"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  [내용보기]
-                </a>
-              </span>
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary underline decoration-1 underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {field.label}
+              </a>
             ) : (
               field.label
             )}

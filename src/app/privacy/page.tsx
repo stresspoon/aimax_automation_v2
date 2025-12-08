@@ -72,7 +72,7 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-bold mb-3 text-gray-800">7. 개인정보 보호책임자</h2>
           <p className="text-gray-700">회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 개인정보 처리와 관련한 정보주체의 불만처리 및 피해구제 등을 위하여 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
           <div className="mt-2 bg-gray-50 p-4 rounded-lg text-gray-700">
-            <p><strong>이메일</strong>: privacy@aimax.ai.kr</p>
+            <p><strong>이메일</strong>: naminsoo@aimax.ai.kr</p>
           </div>
         </section>
 
