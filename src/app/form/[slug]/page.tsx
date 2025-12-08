@@ -34,14 +34,14 @@ interface FormData {
 export default function PublicFormPage() {
   const params = useParams()
   const slug = params.slug as string
-  
+
   const [form, setForm] = useState<FormData | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [formValues, setFormValues] = useState<Record<string, any>>({})
-  
+
   // 폼 정보 로드
   useEffect(() => {
     async function loadForm() {
@@ -50,10 +50,10 @@ export default function PublicFormPage() {
         console.log('Loaded form data:', data)
         console.log('Custom fields:', data.fields?.custom)
         setForm(data)
-        
+
         // 기본값 설정
         const defaults: Record<string, any> = {}
-        
+
         // 기본 필드 기본값
         Object.entries(data.fields.default).forEach(([key, field]: [string, any]) => {
           if (field.type === 'checkbox') {
@@ -62,7 +62,7 @@ export default function PublicFormPage() {
             defaults[key] = ''
           }
         })
-        
+
         // 커스텀 필드 기본값
         Object.entries(data.fields.custom || {}).forEach(([key, field]: [string, any]) => {
           if (field.type === 'checkbox') {
@@ -71,7 +71,7 @@ export default function PublicFormPage() {
             defaults[key] = ''
           }
         })
-        
+
         setFormValues(defaults)
       } catch (err) {
         setError(errorMessage(err, '폼을 찾을 수 없습니다'))
@@ -79,10 +79,10 @@ export default function PublicFormPage() {
         setLoading(false)
       }
     }
-    
+
     loadForm()
   }, [slug])
-  
+
   // 필드 렌더링 함수
   const renderField = (key: string, field: any) => {
     // Textarea
@@ -96,7 +96,7 @@ export default function PublicFormPage() {
           <Textarea
             id={key}
             value={formValues[key] || ''}
-            onChange={(e) => 
+            onChange={(e) =>
               setFormValues(prev => ({ ...prev, [key]: e.target.value }))
             }
             placeholder={field.placeholder || ''}
@@ -106,7 +106,7 @@ export default function PublicFormPage() {
         </>
       )
     }
-    
+
     // Select (dropdown)
     if (field.type === 'select' && field.options) {
       return (
@@ -117,7 +117,7 @@ export default function PublicFormPage() {
           </Label>
           <Select
             value={formValues[key] || ''}
-            onValueChange={(value) => 
+            onValueChange={(value) =>
               setFormValues(prev => ({ ...prev, [key]: value }))
             }
           >
@@ -135,7 +135,7 @@ export default function PublicFormPage() {
         </>
       )
     }
-    
+
     // Radio
     if (field.type === 'radio' && field.options) {
       return (
@@ -146,7 +146,7 @@ export default function PublicFormPage() {
           </Label>
           <RadioGroup
             value={formValues[key] || ''}
-            onValueChange={(value) => 
+            onValueChange={(value) =>
               setFormValues(prev => ({ ...prev, [key]: value }))
             }
           >
@@ -162,26 +162,43 @@ export default function PublicFormPage() {
         </>
       )
     }
-    
+
     // Checkbox
     if (field.type === 'checkbox') {
+      const isPrivacyConsent = key === 'privacyConsent'
+
       return (
         <div className="flex items-center space-x-2">
           <Checkbox
             id={key}
             checked={formValues[key] || false}
-            onCheckedChange={(checked) => 
+            onCheckedChange={(checked) =>
               setFormValues(prev => ({ ...prev, [key]: checked }))
             }
           />
-          <Label htmlFor={key} className="cursor-pointer">
-            {field.label}
+          <Label htmlFor={key} className="cursor-pointer select-none">
+            {isPrivacyConsent ? (
+              <span className="flex items-center flex-wrap gap-1">
+                <span>{field.label}</span>
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground underline hover:text-primary"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  [내용보기]
+                </a>
+              </span>
+            ) : (
+              field.label
+            )}
             {field.required && <span className="text-red-500 ml-1">*</span>}
           </Label>
         </div>
       )
     }
-    
+
     // Default: Input (text, email, tel, url, etc.)
     return (
       <>
@@ -193,15 +210,15 @@ export default function PublicFormPage() {
           id={key}
           type={field.type}
           value={formValues[key] || ''}
-          onChange={(e) => 
+          onChange={(e) =>
             setFormValues(prev => ({ ...prev, [key]: e.target.value }))
           }
           placeholder={
             field.placeholder ||
             (field.type === 'url' ? 'https://...' :
-            field.type === 'email' ? 'example@email.com' :
-            field.type === 'tel' ? '010-0000-0000' :
-            '')
+              field.type === 'email' ? 'example@email.com' :
+                field.type === 'tel' ? '010-0000-0000' :
+                  '')
           }
           required={field.required}
         />
@@ -214,29 +231,29 @@ export default function PublicFormPage() {
     e.preventDefault()
     setSubmitting(true)
     setError('')
-    
+
     try {
       // 필수 필드 검증
       const requiredFields = Object.entries(form?.fields.default || {})
         .filter(([_, field]: [string, any]) => field.required)
         .map(([key]) => key)
-      
+
       for (const field of requiredFields) {
         if (!formValues[field] || formValues[field] === '') {
           throw new Error('모든 필수 항목을 입력해주세요')
         }
       }
-      
+
       // 개인정보 동의 체크
       if (!formValues.privacyConsent) {
         throw new Error('개인정보 활용에 동의해주세요')
       }
-      
+
       const data = await fetchJSON<any>('/api/forms/responses', {
         method: 'POST',
         body: { formId: form?.id, ...formValues }
       })
-      
+
       setSubmitted(true)
     } catch (err) {
       setError(errorMessage(err, '제출 실패'))
@@ -244,7 +261,7 @@ export default function PublicFormPage() {
       setSubmitting(false)
     }
   }
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -252,7 +269,7 @@ export default function PublicFormPage() {
       </div>
     )
   }
-  
+
   if (error && !form) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -264,7 +281,7 @@ export default function PublicFormPage() {
       </div>
     )
   }
-  
+
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -282,7 +299,7 @@ export default function PublicFormPage() {
       </div>
     )
   }
-  
+
   return (
     <div className="min-h-screen py-12 px-4 bg-gray-50">
       <div className="max-w-2xl mx-auto">
@@ -310,10 +327,10 @@ export default function PublicFormPage() {
                     isCustom: true
                   }))
                 ]
-                
+
                 // order로 정렬
                 allFields.sort((a, b) => (a.field.order || 999) - (b.field.order || 999))
-                
+
                 // 렌더링
                 return allFields.map(({ key, field }) => (
                   <div key={key} className="space-y-2">
@@ -321,11 +338,11 @@ export default function PublicFormPage() {
                   </div>
                 ))
               })()}
-              
+
               {error && (
                 <p className="text-sm text-red-500">{error}</p>
               )}
-              
+
               <Button
                 type="submit"
                 className="w-full"
