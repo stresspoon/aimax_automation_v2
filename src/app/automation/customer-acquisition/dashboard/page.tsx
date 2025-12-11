@@ -61,7 +61,7 @@ export default function CustomerAcquisitionDashboard() {
       if (totalLeads > 0) {
         const selectedLeads = projectsData?.reduce((acc, p) => {
           const candidates = p.data?.step2?.candidates || p.data?.step3?.candidates || [];
-          const selected = Array.isArray(candidates) ? 
+          const selected = Array.isArray(candidates) ?
             candidates.filter((c: any) => c.status === 'selected').length : 0;
           return acc + selected;
         }, 0) || 0;
@@ -94,60 +94,14 @@ export default function CustomerAcquisitionDashboard() {
         return;
       }
 
-      const { data: project, error: fetchError } = await supabase
-        .from('projects')
-        .select('campaign_id')
-        .eq('id', projectId)
-        .eq('user_id', user.id)
-        .single();
+      // API를 통한 삭제 (FK 제약조건, 캠페인 정리 등 서버에서 처리)
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
 
-      if (fetchError || !project) {
-        throw new Error('프로젝트를 찾을 수 없습니다.');
-      }
-
-      const { data: forms } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('project_id', projectId)
-        .eq('user_id', user.id);
-
-      if (forms && forms.length > 0) {
-        for (const form of forms) {
-          await supabase
-            .from('form_responses')
-            .delete()
-            .eq('form_id', form.id);
-        }
-
-        await supabase
-          .from('forms')
-          .delete()
-          .eq('project_id', projectId)
-          .eq('user_id', user.id);
-      }
-
-      const { error: deleteProjectError } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId)
-        .eq('user_id', user.id);
-
-      if (deleteProjectError) throw deleteProjectError;
-
-      if (project.campaign_id) {
-        const { data: otherProjects } = await supabase
-          .from('projects')
-          .select('id')
-          .eq('campaign_id', project.campaign_id)
-          .neq('id', projectId);
-
-        if (!otherProjects || otherProjects.length === 0) {
-          await supabase
-            .from('campaigns')
-            .delete()
-            .eq('id', project.campaign_id)
-            .eq('user_id', user.id);
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || '프로젝트 삭제 실패');
       }
 
       setProjects(prev => prev.filter(p => p.id !== projectId));
@@ -161,7 +115,7 @@ export default function CustomerAcquisitionDashboard() {
       if (totalLeads > 0) {
         const selectedLeads = updatedProjects.reduce((acc, p) => {
           const candidates = p.data?.step2?.candidates || p.data?.step3?.candidates || [];
-          const selected = Array.isArray(candidates) ? 
+          const selected = Array.isArray(candidates) ?
             candidates.filter((c: any) => c.status === 'selected').length : 0;
           return acc + selected;
         }, 0);
@@ -181,6 +135,7 @@ export default function CustomerAcquisitionDashboard() {
       console.error('Error deleting project:', error);
       // 간단한 피드백: 브라우저 alert 대신 상태로 대체하거나 상단 알림 컴포넌트가 생기면 연결
       fetchProjects();
+      alert('프로젝트 삭제 중 오류가 발생했습니다.');
     }
   };
 
@@ -268,7 +223,7 @@ export default function CustomerAcquisitionDashboard() {
               <span className="ml-4 text-muted-foreground">/ 고객모집 자동화</span>
             </div>
             <div className="flex items-center space-x-4">
-              <button 
+              <button
                 onClick={() => setShowNameModal(true)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold transition"
               >
@@ -320,7 +275,7 @@ export default function CustomerAcquisitionDashboard() {
           ) : projects.length === 0 ? (
             <div className="p-12 text-center">
               <p className="text-muted-foreground mb-4">아직 프로젝트가 없습니다</p>
-              <button 
+              <button
                 onClick={() => setShowNameModal(true)}
                 className="inline-block bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition"
               >

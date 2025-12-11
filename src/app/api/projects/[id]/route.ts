@@ -97,6 +97,18 @@ export async function DELETE(
       return unauthorized()
     }
 
+    // 0. 프로젝트 정보 먼저 가져오기 (캠페인 ID 확인용)
+    const { data: project, error: fetchError } = await supabase
+      .from('projects')
+      .select('campaign_id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (fetchError || !project) {
+      return notFound('Project not found')
+    }
+
     // 1. Service Role Client 생성 (RLS 우회용)
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const adminSupabase = createAdminClient()
@@ -113,6 +125,7 @@ export async function DELETE(
       return badRequest('Failed to cleanup related constraints: ' + unlinkError.message)
     }
 
+    // 3. 프로젝트 삭제
     const { error } = await supabase
       .from('projects')
       .delete()
@@ -121,6 +134,21 @@ export async function DELETE(
 
     if (error) {
       return badRequest(error.message)
+    }
+
+    // 4. 캠페인이 비었는지 확인하고 비었으면 삭제
+    if (project.campaign_id) {
+      const { count } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', project.campaign_id)
+
+      if (count === 0) {
+        await supabase
+          .from('campaigns')
+          .delete()
+          .eq('id', project.campaign_id)
+      }
     }
 
     // 삭제 후에도 무료 플랜 재생성은 금지되도록 플래그는 유지
