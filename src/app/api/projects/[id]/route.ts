@@ -101,19 +101,15 @@ export async function DELETE(
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const adminSupabase = createAdminClient()
 
-    // 2. 관련된 emails_sent 기록들의 project_id를 NULL로 업데이트
-    // 사용자는 자신의 emails_sent를 수정할 권한(RLS)이 없을 수 있으므로 admin 권한으로 처리
+    // 2. 관련된 emails_sent 기록들을 삭제
+    // project_id가 NOT NULL 제약조건이 있으므로 삭제해야 함
     const { error: unlinkError } = await adminSupabase
       .from('emails_sent')
-      .update({ project_id: null })
+      .delete()
       .eq('project_id', id)
 
     if (unlinkError) {
-      // 로그만 남기고 진행할지, 에러를 리턴할지 결정. 
-      // 데이터 무결성을 위해 일단 에러가 나면 중단하지 않고 진행하거나, 
-      // 만약 FK 제약조건 때문에 삭제가 안되는 것이 확실하다면 여기서 에러를 내는게 맞음.
-      // 하지만 "삭제가 안되는" 상황을 해결하는 것이므로, 여기서 실패하면 뒤의 delete도 실패할 확률 100%.
-      console.error('Failed to unlink emails:', unlinkError)
+      console.error('Failed to delete related emails:', unlinkError)
       return badRequest('Failed to cleanup related constraints: ' + unlinkError.message)
     }
 
