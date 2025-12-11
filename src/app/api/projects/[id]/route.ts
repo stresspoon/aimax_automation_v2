@@ -10,11 +10,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    
+
     const supabase = await createClient()
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return unauthorized()
     }
@@ -42,11 +42,11 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    
+
     const supabase = await createClient()
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return unauthorized()
     }
@@ -88,13 +88,33 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    
+
     const supabase = await createClient()
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return unauthorized()
+    }
+
+    // 1. Service Role Client 생성 (RLS 우회용)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminSupabase = createAdminClient()
+
+    // 2. 관련된 emails_sent 기록들의 project_id를 NULL로 업데이트
+    // 사용자는 자신의 emails_sent를 수정할 권한(RLS)이 없을 수 있으므로 admin 권한으로 처리
+    const { error: unlinkError } = await adminSupabase
+      .from('emails_sent')
+      .update({ project_id: null })
+      .eq('project_id', id)
+
+    if (unlinkError) {
+      // 로그만 남기고 진행할지, 에러를 리턴할지 결정. 
+      // 데이터 무결성을 위해 일단 에러가 나면 중단하지 않고 진행하거나, 
+      // 만약 FK 제약조건 때문에 삭제가 안되는 것이 확실하다면 여기서 에러를 내는게 맞음.
+      // 하지만 "삭제가 안되는" 상황을 해결하는 것이므로, 여기서 실패하면 뒤의 delete도 실패할 확률 100%.
+      console.error('Failed to unlink emails:', unlinkError)
+      return badRequest('Failed to cleanup related constraints: ' + unlinkError.message)
     }
 
     const { error } = await supabase
@@ -109,7 +129,8 @@ export async function DELETE(
 
     // 삭제 후에도 무료 플랜 재생성은 금지되도록 플래그는 유지
     return ok({ message: 'Project deleted successfully' })
-  } catch {
+  } catch (error) {
+    console.error('Project delete error:', error)
     return serverError()
   }
 }
