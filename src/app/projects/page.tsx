@@ -49,18 +49,23 @@ export default function ProjectsPage() {
     if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?')) return;
 
     try {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
+      // Supabase 직접 삭제 대신 API 호출로 변경 (FK 제약조건 처리 로직 포함)
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
-      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || '프로젝트 삭제 실패');
+      }
+
       // 목록 새로고침
       fetchProjects();
-    } catch (error) {
+      // 성공 알림 (toast가 있다면)
+      // toast.success('프로젝트가 삭제되었습니다');
+    } catch (error: any) {
       console.error('Error deleting project:', error);
-      // TODO: connect to a global toast if available
+      alert(error.message || '프로젝트 삭제 중 오류가 발생했습니다');
     }
   };
 
@@ -124,7 +129,7 @@ export default function ProjectsPage() {
             <h1 className="text-3xl font-bold text-foreground">내 프로젝트</h1>
             <p className="text-muted-foreground mt-2">진행 중인 모든 프로젝트를 확인하고 관리하세요</p>
           </div>
-          <Link 
+          <Link
             href="/automation/customer-acquisition"
             className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold transition"
           >
@@ -145,7 +150,7 @@ export default function ProjectsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <p className="text-muted-foreground mb-4">아직 프로젝트가 없습니다</p>
-              <Link 
+              <Link
                 href="/automation/customer-acquisition"
                 className="inline-block bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition"
               >
@@ -171,10 +176,10 @@ export default function ProjectsPage() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mb-3">
-                        생성일: {new Date(project.created_at).toLocaleDateString('ko-KR')} | 
+                        생성일: {new Date(project.created_at).toLocaleDateString('ko-KR')} |
                         마지막 수정: {new Date(project.updated_at).toLocaleDateString('ko-KR')}
                       </p>
-                      
+
                       {/* 고객모집 자동화 프로젝트의 진행 상황 */}
                       {(project.keyword || project.step1_completed !== undefined) && (
                         <div className="flex items-center space-x-6 text-sm">
@@ -196,7 +201,7 @@ export default function ProjectsPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center space-x-3">
                       {(project.keyword || project.step1_completed !== undefined) ? (
                         <Link
