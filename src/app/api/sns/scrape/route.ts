@@ -22,38 +22,38 @@ async function getBrowser(): Promise<{ browser: Browser, index: number }> {
     await new Promise(resolve => setTimeout(resolve, 500))
   }
   browserLock = true
-  
+
   // 기존 브라우저가 있으면 재사용
   if (browserPool.length > 0 && !browserInUse[0]) {
     browserInUse[0] = true
     return { browser: browserPool[0], index: 0 }
   }
-  
+
   // 새 브라우저 생성
   console.log(`Creating new browser instance (${browserPool.length + 1}/${MAX_BROWSERS})`)
   const browser = await puppeteer.launch(
     isDev
       ? {
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-          executablePath: process.platform === 'darwin'
-            ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-            : process.platform === 'win32'
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        executablePath: process.platform === 'darwin'
+          ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+          : process.platform === 'win32'
             ? 'C:\Program Files\Google\Chrome\Application\chrome.exe'
             : '/usr/bin/google-chrome'
-        }
+      }
       : {
-          args: [...(chromium as any).args, '--disable-dev-shm-usage'],
-          defaultViewport: (chromium as any).defaultViewport || { width: 1920, height: 1080 },
-          executablePath: await chromium.executablePath(),
-          headless: (chromium as any).headless ?? true,
-        }
+        args: [...(chromium as any).args, '--disable-dev-shm-usage'],
+        defaultViewport: (chromium as any).defaultViewport || { width: 1920, height: 1080 },
+        executablePath: await chromium.executablePath(),
+        headless: (chromium as any).headless ?? true,
+      }
   )
-  
+
   const index = browserPool.length
   browserPool.push(browser)
   browserInUse.push(true)
-  
+
   return { browser, index }
 }
 
@@ -82,33 +82,33 @@ async function cleanupBrowsers() {
 // Instagram 팔로워 추출 함수
 function extractInstagramFollowers(html: string): number {
   console.log('인스타그램 팔로워 추출 시작...');
-  
+
   // Meta 태그에서 찾기
   const metaPatterns = [
     /<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i,
     /<meta[^>]*content="([^"]*)"[^>]*property="og:description"/i,
     /<meta[^>]*name="description"[^>]*content="([^"]*)"/i
   ];
-  
+
   for (const pattern of metaPatterns) {
     const match = html.match(pattern);
     if (match && match[1]) {
       const content = match[1];
       console.log('Meta 태그 내용:', content);
-      
+
       // "663M Followers", "300M followers" 등 처리
       const followerPatterns = [
         /([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/,
         /([\d,]+\.?\d*[KMk]?)\s*팔로워/,
         /팔로워\s*([\d,]+\.?\d*[KMk만천]?)명?/,
       ];
-      
+
       for (const fPattern of followerPatterns) {
         const fMatch = content.match(fPattern);
         if (fMatch) {
           let number: any = fMatch[1];
           console.log(`매치된 팔로워 텍스트: "${number}"`);
-          
+
           // K, M 처리
           if (typeof number === 'string') {
             if (number.toUpperCase().includes('K')) {
@@ -121,14 +121,14 @@ function extractInstagramFollowers(html: string): number {
               number = parseInt(number.replace(/,/g, ''));
             }
           }
-          
+
           console.log(`인스타그램 팔로워 수: ${number}`);
           return parseInt(number) || 0;
         }
       }
     }
   }
-  
+
   return 0;
 }
 
@@ -136,7 +136,7 @@ function extractInstagramFollowers(html: string): number {
 function extractThreadsFollowers(html: string): number {
   console.log('Threads 팔로워 추출 시작...');
   console.log('HTML 길이:', html.length);
-  
+
   // 1. 주입된 데이터 확인
   const extractedPattern = /<!-- THREADS_FOLLOWERS_EXTRACTED: ([\d,]+) -->/;
   const extractedMatch = html.match(extractedPattern);
@@ -145,13 +145,13 @@ function extractThreadsFollowers(html: string): number {
     console.log(`✅ Threads 팔로워 수 (추출): ${number}`);
     return number;
   }
-  
+
   // 2. Meta 태그에서 찾기
   const metaPatterns = [
     /<meta[^>]*property="og:description"[^>]*content="([^"]*[Ff]ollowers[^"]*)"/i,
     /<meta[^>]*content="([^"]*[Ff]ollowers[^"]*)"[^>]*property="og:description"/i,
   ];
-  
+
   for (const pattern of metaPatterns) {
     const match = html.match(pattern);
     if (match) {
@@ -171,7 +171,7 @@ function extractThreadsFollowers(html: string): number {
       }
     }
   }
-  
+
   return 0;
 }
 
@@ -207,206 +207,250 @@ function normalizeUrl(input: string): string {
 
 export async function POST(req: NextRequest) {
   const { url: rawUrl } = await req.json();
-  
+
   console.log('\n========================================');
   console.log('[SNS Scrape API] 요청 받음');
   console.log('원본 입력:', rawUrl);
-  
+
   if (!rawUrl) {
     return NextResponse.json({ error: 'URL is required' }, { status: 400 });
   }
-  
+
   // URL 정규화
   const url = normalizeUrl(rawUrl);
   console.log('정규화된 URL:', url);
   console.log('========================================\n');
-  
+
   let browserInfo: { browser: Browser, index: number } | null = null;
   let page = null;
-  
+
   try {
     console.log(`[SNS Scrape API] Puppeteer로 동적 콘텐츠 가져오기 시작...`);
-    
+
     // 브라우저 풀에서 가져오기
     browserInfo = await getBrowser();
     const browser = browserInfo.browser;
     console.log(`Using browser instance ${browserInfo.index + 1}`);
-    
+
     page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
+
     // 페이지 로드
-    await page.goto(url, { 
+    await page.goto(url, {
       waitUntil: 'domcontentloaded',
       timeout: 30000
     });
-    
+
     // 플랫폼별 처리
     let html = '';
     let platform = '';
     let followers = 0;
-    
+
     if (url.includes('instagram.com')) {
       platform = 'instagram';
       console.log('[Instagram] 팔로워 추출 시작');
-      
-      // 페이지 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
+      // 페이지 로드 대기 (안정성 강화)
+      try {
+        await page.waitForNetworkIdle({ timeout: 5000 }).catch(() => console.log('Network idle timeout'));
+      } catch (e) { /* ignore */ }
+
       // 동적 추출 시도
       const followerData = await page.evaluate(() => {
-        // 팔로워 링크 찾기
-        const links = document.querySelectorAll('a[href*="/followers"]');
-        for (const link of links) {
-          const text = link.textContent || '';
-          const match = text.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
-          if (match) {
-            return match[1];
+        // 1. Meta tag (가장 신뢰성 높음 - CSR이라도 초기에 박혀있을 수 있음)
+        const metas = document.querySelectorAll('meta[property="og:description"], meta[name="description"]');
+        for (const meta of metas) {
+          const content = meta.getAttribute('content');
+          if (content && content.includes('Followers')) {
+            const match = content.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
+            if (match) return match[1];
           }
         }
-        
-        // span[title] 찾기
+
+        // 2. 상단 프로필 팔로워 링크 (a 태그)
+        // 보통 href에 'followers'가 포함됨
+        const links = document.querySelectorAll('a[href*="/followers/"], a[href*="/followers"]');
+        for (const link of links) {
+          const text = link.textContent || '';
+          // 텍스트 구조: "1.2M followers" 또는 "1,200 팔로워"
+          // span 등으로 감싸져 있을 수 있으므로 내부 텍스트 전체 검사
+          const match = text.match(/([\d,]+\.?\d*[KMk]?)/); // 숫자만 우선 추출
+
+          // 링크의 부모나 형제를 확인하여 '팔로워' 텍스트 확인은 복잡하므로,
+          // href가 followers인 링크의 첫번째 숫자는 팔로워 수일 확률이 매우 높음
+          if (match) return text;
+        }
+
+        // 3. span[title] (전통적인 방식)
         const spans = document.querySelectorAll('span[title]');
         for (const span of spans) {
           const title = span.getAttribute('title');
+          // 정확히 숫자 형식인 경우만
           if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
-            const parent = span.parentElement;
-            if (parent && parent.textContent?.toLowerCase().includes('follower')) {
+            // 부모 텍스트 확인
+            const parentText = span.parentElement?.innerText || '';
+            if (parentText.includes('follower') || parentText.includes('팔로워')) {
               return title;
             }
           }
         }
-        
+
         return null;
       });
-      
+
       if (followerData) {
         console.log('[Instagram] 동적 추출 성공:', followerData);
-        let number: any = followerData;
-        if (number.includes('K') || number.includes('k')) {
-          number = parseFloat(number.replace(/[Kk,]/g, '')) * 1000;
-        } else if (number.includes('M')) {
-          number = parseFloat(number.replace(/[Mm,]/g, '')) * 1000000;
+        // 텍스트에서 숫자 부분만 추출 및 파싱
+        const kMatch = followerData.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/) || followerData.match(/([\d,]+\.?\d*[KMk]?)/);
+        let numberStr = kMatch ? kMatch[1] : followerData;
+
+        let number: number = 0;
+        if (numberStr.toUpperCase().includes('K')) {
+          number = parseFloat(numberStr.replace(/[Kk,]/g, '')) * 1000;
+        } else if (numberStr.toUpperCase().includes('M')) {
+          number = parseFloat(numberStr.replace(/[Mm,]/g, '')) * 1000000;
         } else {
-          number = parseInt(number.replace(/,/g, ''));
+          number = parseInt(numberStr.replace(/,/g, ''));
         }
-        followers = parseInt(number) || 0;
+        followers = Math.floor(number) || 0;
       }
-      
+
       html = await page.content();
-      
-      // 동적 추출 실패시 정적 추출
+
+      // 동적 추출 실패시 정적 추출 (HTML 텍스트 기반)
       if (followers === 0) {
+        console.log('[Instagram] 동적 추출 실패, 정적(Meta) 추출 시도');
         followers = extractInstagramFollowers(html);
       }
-      
+
     } else if (url.includes('threads.net') || url.includes('threads.com')) {
       platform = 'threads';
       console.log('[Threads] 팔로워 추출 시작');
-      
+
       // 페이지 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      try {
+        await page.waitForNetworkIdle({ timeout: 5000 }).catch(() => console.log('Network idle timeout'));
+      } catch (e) { /* ignore */ }
+
       // 동적 추출 시도
       const followerData = await page.evaluate(() => {
-        // 방법 1: 특정 클래스 조합으로 찾기
-        const containers = document.querySelectorAll('div.x78zum5.x2lah0s');
-        for (const container of containers) {
-          const spans = container.querySelectorAll('span > span[title]');
-          for (const span of spans) {
-            const title = span.getAttribute('title');
-            if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
-              const parent = span.parentElement;
-              if (parent && parent.textContent?.includes('팔로워')) {
-                return title;
+        // 1. JSON-LD 확인 (가장 정확함)
+        const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const script of scripts) {
+          try {
+            const json = JSON.parse(script.textContent || '{}');
+            if (json.interactionStatistic) {
+              const stats = Array.isArray(json.interactionStatistic)
+                ? json.interactionStatistic
+                : [json.interactionStatistic];
+
+              for (const stat of stats) {
+                if (stat.interactionType === 'http://schema.org/FollowAction' || stat.interactionType?.includes('FollowAction')) {
+                  return stat.userInteractionCount.toString();
+                }
               }
             }
+          } catch (e) { }
+        }
+
+        // 2. 텍스트 매칭 (팔로워)
+        // Threads는 DOM이 복잡하므로 텍스트 포함 여부로 근사
+        const allElements = document.querySelectorAll('span, div');
+        for (const el of allElements) {
+          // 직계 텍스트만 확인
+          const text = Array.from(el.childNodes)
+            .filter(node => node.nodeType === 3)
+            .map(node => node.textContent)
+            .join('');
+
+          if (text.includes('팔로워') || text.toLowerCase().includes('followers')) {
+            // 숫자 찾기 (형제 노드나 같은 노드 내)
+            const fullText = el.textContent || '';
+            const match = fullText.match(/([\d,]+\.?\d*[KMk]?)\s*([Ff]ollowers|팔로워)/);
+            if (match) return match[1];
           }
         }
-        
-        // 방법 2: barcelona 레이아웃
-        const layoutRoot = document.querySelector('#barcelona-page-layout');
-        if (layoutRoot) {
-          const followerSpan = layoutRoot.querySelector('div.x78zum5.x2lah0s span[title]') as HTMLSpanElement | null;
-          if (followerSpan) {
-            const title = followerSpan.getAttribute('title');
-            if (title && /^\d{1,3}(,\d{3})*$/.test(title)) {
-              return title;
-            }
-          }
-        }
-        
+
         return null;
       });
-      
+
       if (followerData) {
         console.log('[Threads] 동적 추출 성공:', followerData);
-        followers = parseInt(followerData.replace(/,/g, '')) || 0;
+        let numberStr = followerData.replace(/,/g, '');
+        let number: number = 0;
+
+        if (numberStr.toUpperCase().includes('K')) {
+          number = parseFloat(numberStr.replace(/[Kk]/g, '')) * 1000;
+        } else if (numberStr.toUpperCase().includes('M')) {
+          number = parseFloat(numberStr.replace(/[Mm]/g, '')) * 1000000;
+        } else {
+          number = parseInt(numberStr);
+        }
+
+        followers = Math.floor(number) || 0;
         html = await page.content();
-        html += `\n<!-- THREADS_FOLLOWERS_EXTRACTED: ${followerData} -->`;
+        html += `\n<!-- THREADS_FOLLOWERS_EXTRACTED: ${number} -->`;
       } else {
         html = await page.content();
         followers = extractThreadsFollowers(html);
       }
-      
+
     } else if (url.includes('blog.naver.com')) {
       platform = 'naver_blog';
       console.log('[네이버 블로그] 이웃수 추출 시작');
-      
+
       // 페이지 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      try {
+        await page.waitForNetworkIdle({ timeout: 5000 }).catch(() => console.log('Network idle timeout'));
+      } catch (e) { /* ignore */ }
+
       // iframe 찾기 및 전환
       const frames = page.frames();
       console.log(`[네이버 블로그] 총 ${frames.length}개의 프레임 발견`);
-      
+
       for (const frame of frames) {
         try {
           const frameUrl = frame.url();
-          console.log(`프레임 URL: ${frameUrl}`);
-          
-          // mainFrame 찾기 (blog.naver.com iframe)
-          if (frameUrl.includes('blog.naver.com') && frameUrl !== url) {
-            console.log(`[네이버 블로그] iframe 발견: ${frameUrl}`);
-            
+          // mainFrame 찾기 (blog.naver.com iframe) - URL이 다르거나, 이름이 mainFrame인 경우
+          // 보통 네이버 블로그는 메인 페이지 안에 실제 블로그 내용이 있는 iframe이 있음
+          if ((frameUrl.includes('blog.naver.com') && frameUrl !== url) || frame.name() === 'mainFrame') {
+            console.log(`[네이버 블로그] iframe 발견: ${frameUrl} (name: ${frame.name()})`);
+
             try {
+              // iframe 로드 대기
+              await frame.waitForSelector('.buddy_cnt, #widget-stat, .flick-cm-col1', { timeout: 3000 }).catch(() => { });
+
               // iframe 내에서 이웃 수 찾기
               const neighborInfo = await frame.evaluate(() => {
-                // 우선순위 셀렉터들
+                // 1. 위젯 통계 (가장 일반적)
+                const widgetEm = document.querySelector('#widget-stat em');
+                if (widgetEm && widgetEm.textContent) {
+                  return parseInt(widgetEm.textContent.replace(/,/g, ''));
+                }
+
+                // 2. 모바일/반응형 뷰 선택자
                 const selectors = [
                   '.flick-cm-col1 em',
                   '.cm-col1 em',
-                  '#widget-stat em',
                   '.buddy_cnt',
-                  'em'
+                  '.neighbor_list em',
+                  '#category-list .buddy'
                 ];
-                
+
                 for (const selector of selectors) {
                   const elements = document.querySelectorAll(selector);
                   for (const el of elements) {
-                    const parent = el.parentElement;
-                    if (parent && (parent.textContent?.includes('블로그 이웃') || parent.textContent?.includes('이웃'))) {
-                      const text = (el.textContent || '').trim();
-                      // 숫자 형식 확인 (예: 2,298)
-                      if (/^\d{1,3}(,\d{3})*$/.test(text)) {
-                        return parseInt(text.replace(/,/g, ''));
-                      }
+                    const text = (el.textContent || '').trim();
+                    if (/^\d{1,3}(,\d{3})*$/.test(text)) {
+                      // 부모나 형제 텍스트 확인으로 확신 높이기
+                      return parseInt(text.replace(/,/g, ''));
                     }
                   }
                 }
-                
-                // 직접 텍스트 매칭
-                const links = document.querySelectorAll('a[href*="BuddyMe"]');
-                for (const link of links) {
-                  const match = (link.textContent || '').match(/이웃\s*([\d,]+)/);
-                  if (match) {
-                    return parseInt(match[1].replace(/,/g, ''));
-                  }
-                }
-                
+
                 return 0;
               });
-              
+
               if (neighborInfo > 0) {
                 console.log(`[네이버 블로그] iframe에서 이웃 수 발견: ${neighborInfo}`);
                 followers = neighborInfo;
@@ -420,33 +464,36 @@ export async function POST(req: NextRequest) {
           console.log(`프레임 처리 중 오류:`, e);
         }
       }
-      
-      // iframe에서 못 찾으면 메인 페이지에서 시도
+
+      // iframe에서 못 찾으면 메인 페이지에서 시도 (모바일 버전일 경우 등)
       if (followers === 0) {
         const mainPageNeighbors = await page.evaluate(() => {
           const bodyText = document.body.textContent || '';
-          const match = bodyText.match(/이웃\s*(\d+)\s*명/);
-          return match ? parseInt(match[1]) : 0;
+          // 텍스트 전체에서 "이웃 1,234명" 패턴 찾기
+          const match = bodyText.match(/이웃\s*(\d{1,3}(,\d{3})*)\s*명/);
+          if (match) return parseInt(match[1].replace(/,/g, ''));
+
+          return 0;
         });
-        
+
         if (mainPageNeighbors > 0) {
           console.log(`[네이버 블로그] 메인 페이지에서 이웃 수 발견: ${mainPageNeighbors}`);
           followers = mainPageNeighbors;
         }
       }
-      
+
       html = await page.content();
     }
-    
+
     // 브라우저는 풀로 반환되므로 여기서 닫지 않음
     // await browser.close(); // REMOVED
-    
+
     console.log('\n========================================');
     console.log(`[SNS Scrape API] 최종 결과`);
     console.log(`플랫폼: ${platform}`);
     console.log(`팔로워: ${followers}`);
     console.log('========================================\n');
-    
+
     return NextResponse.json({
       platform,
       followers,
@@ -459,10 +506,10 @@ export async function POST(req: NextRequest) {
         success: followers > 0
       }
     });
-    
+
   } catch (error) {
     console.error('[SNS Scrape API] 스크래핑 에러:', error);
-    
+
     // 페이지 정리
     if (page) {
       try {
@@ -471,15 +518,15 @@ export async function POST(req: NextRequest) {
         console.error('Page close error:', e);
       }
     }
-    
+
     // 브라우저를 풀로 반환 (닫지 않음)
     if (browserInfo) {
       releaseBrowser(browserInfo.index);
     }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Failed to fetch SNS content',
-      details: (error as Error).message 
+      details: (error as Error).message
     }, { status: 500 });
   } finally {
     // 페이지 정리
@@ -490,7 +537,7 @@ export async function POST(req: NextRequest) {
         console.error('Page close error:', e);
       }
     }
-    
+
     // 브라우저를 풀로 반환 (닫지 않음)
     if (browserInfo) {
       releaseBrowser(browserInfo.index);
