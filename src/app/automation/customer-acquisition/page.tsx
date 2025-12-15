@@ -2779,64 +2779,103 @@ export default function CustomerAcquisitionPage() {
                       <td className="py-2">{candidate.name}</td>
                       <td className="py-2">{candidate.email}</td>
                       <td className="text-center py-2">
-                        {candidate.checkStatus?.threads === 'checking' ? (
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs text-blue-500">체크중...</span>
-                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
-                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                        <div className="flex items-center justify-center gap-2">
+                          {candidate.threadsUrl && (
+                            <a
+                              href={candidate.threadsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-blue-500 transition-colors"
+                              title="Threads 바로가기"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                          )}
+                          {candidate.checkStatus?.threads === 'checking' ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs text-blue-500">체크중...</span>
+                              <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                                <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                              </div>
                             </div>
-                          </div>
-                        ) : candidate.checkStatus?.threads === 'error' ? (
-                          <span className="text-xs text-red-500" title={candidate.checkStatus?.threadsError}>오류</span>
-                        ) : candidate.checkStatus?.threads === 'no_url' ? (
-                          <span className="text-xs text-gray-400">-</span>
-                        ) : typeof candidate.threads === 'number' ? (
-                          <span className={candidate.threads >= (projectData.step2.selectionCriteria?.threads || 500) ? "text-green-600 font-semibold" : ""}>
-                            {candidate.threads}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
+                          ) : candidate.checkStatus?.threads === 'error' ? (
+                            <span className="text-xs text-red-500" title={candidate.checkStatus?.threadsError}>오류</span>
+                          ) : candidate.checkStatus?.threads === 'no_url' ? (
+                            <span className="text-xs text-gray-400">-</span>
+                          ) : typeof candidate.threads === 'number' ? (
+                            <span className={candidate.threads >= (projectData.step2.selectionCriteria?.threads || 500) ? "text-green-600 font-semibold" : ""}>
+                              {candidate.threads?.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-center py-2">
-                        {candidate.checkStatus?.blog === 'checking' ? (
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs text-blue-500">체크중...</span>
-                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
-                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                        <div className="flex items-center justify-center gap-2">
+                          {candidate.blogUrl && (
+                            <a
+                              href={candidate.blogUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-green-500 transition-colors"
+                              title="블로그 바로가기"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                          )}
+                          {candidate.checkStatus?.blog === 'checking' ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs text-blue-500">체크중...</span>
+                              <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                                <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                              </div>
                             </div>
-                          </div>
-                        ) : candidate.checkStatus?.blog === 'error' ? (
-                          <span className="text-xs text-red-500" title={candidate.checkStatus?.blogError}>오류</span>
-                        ) : candidate.checkStatus?.blog === 'no_url' ? (
-                          <span className="text-xs text-gray-400">-</span>
-                        ) : typeof candidate.blog === 'number' ? (
-                          <span className={candidate.blog >= (projectData.step2.selectionCriteria?.blog || 300) ? "text-green-600 font-semibold" : ""}>
-                            {candidate.blog}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
+                          ) : candidate.checkStatus?.blog === 'error' ? (
+                            <span className="text-xs text-red-500" title={candidate.checkStatus?.blogError}>오류</span>
+                          ) : candidate.checkStatus?.blog === 'no_url' ? (
+                            <span className="text-xs text-gray-400">-</span>
+                          ) : typeof candidate.blog === 'number' ? (
+                            <span className={candidate.blog >= (projectData.step2.selectionCriteria?.blog || 300) ? "text-green-600 font-semibold" : ""}>
+                              {candidate.blog?.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-center py-2">
-                        {candidate.checkStatus?.instagram === 'checking' ? (
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs text-blue-500">체크중...</span>
-                            <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
-                              <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                        <div className="flex items-center justify-center gap-2">
+                          {candidate.instagramUrl && (
+                            <a
+                              href={candidate.instagramUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-pink-500 transition-colors"
+                              title="인스타그램 바로가기"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                          )}
+                          {candidate.checkStatus?.instagram === 'checking' ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs text-blue-500">체크중...</span>
+                              <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                                <div className="h-1 bg-blue-500 rounded-full animate-pulse" style={{ width: '50%' }}></div>
+                              </div>
                             </div>
-                          </div>
-                        ) : candidate.checkStatus?.instagram === 'error' ? (
-                          <span className="text-xs text-red-500" title={candidate.checkStatus?.instagramError}>오류</span>
-                        ) : candidate.checkStatus?.instagram === 'no_url' ? (
-                          <span className="text-xs text-gray-400">-</span>
-                        ) : typeof candidate.instagram === 'number' ? (
-                          <span className={candidate.instagram >= (projectData.step2.selectionCriteria?.instagram || 1000) ? "text-green-600 font-semibold" : ""}>
-                            {candidate.instagram}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
+                          ) : candidate.checkStatus?.instagram === 'error' ? (
+                            <span className="text-xs text-red-500" title={candidate.checkStatus?.instagramError}>오류</span>
+                          ) : candidate.checkStatus?.instagram === 'no_url' ? (
+                            <span className="text-xs text-gray-400">-</span>
+                          ) : typeof candidate.instagram === 'number' ? (
+                            <span className={candidate.instagram >= (projectData.step2.selectionCriteria?.instagram || 1000) ? "text-green-600 font-semibold" : ""}>
+                              {candidate.instagram?.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-center py-2">
                         <div className="flex items-center justify-center gap-2">
