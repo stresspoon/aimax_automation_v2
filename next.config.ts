@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  
+
   // 보안 헤더 설정
   async headers() {
     return [
@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
       },
     ]
   },
-  
+
   // 개발 중 캐시 문제 해결
   experimental: {
     // 서버 컴포넌트 무효화 시간 (더 안정적으로 조정)
@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
       static: 180,
     },
   },
+
+  // 패키지 트랜스파일 설정 (Supabase 빌드 에러 해결)
+  transpilePackages: ['@supabase/supabase-js', '@supabase/ssr'],
+
   // 개발 서버 최적화
   onDemandEntries: {
     // 페이지를 메모리에 유지하는 시간 (밀리초)
@@ -59,7 +63,7 @@ const nextConfig: NextConfig = {
           config: [__filename],
         },
       };
-      
+
       // 파일 변경 감지 최적화
       config.watchOptions = {
         poll: false,  // CPU 사용량 감소
