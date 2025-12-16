@@ -13,6 +13,10 @@ export interface Candidate {
   statusManual?: boolean
   // 응답 생성 시각(기간 필터용)
   createdAt?: string | null
+  // 제품 발송 여부
+  isProductSent?: boolean
+  // 후기 링크
+  reviewUrl?: string
 }
 
 // 새 값이 0이면 기존 값을 보존하며 병합
@@ -29,6 +33,8 @@ export function mergeCandidatesSafely(prevList: Candidate[] = [], nextList: Cand
       checkStatus: ex.checkStatus || n.checkStatus,
       statusManual: ex.statusManual || n.statusManual,
       createdAt: n.createdAt || ex.createdAt || null,
+      isProductSent: (typeof n.isProductSent === 'boolean') ? n.isProductSent : ex.isProductSent,
+      reviewUrl: n.reviewUrl || ex.reviewUrl,
       // 이메일 발송 표시는 신뢰도 높은 값 우선
       emailSent: (n.emailSent === true) || (ex.emailSent === true) || Boolean(n.emailSentAt || ex.emailSentAt),
       emailSentAt: n.emailSentAt || ex.emailSentAt || null,

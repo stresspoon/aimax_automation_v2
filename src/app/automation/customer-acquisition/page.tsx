@@ -45,6 +45,10 @@ interface Candidate {
   statusManual?: boolean;
   // 응답 생성 일시(기간 필터용)
   createdAt?: string | null;
+  // 제품 발송 여부
+  isProductSent?: boolean;
+  // 후기 링크
+  reviewUrl?: string;
 }
 
 export default function CustomerAcquisitionPage() {
@@ -255,6 +259,19 @@ export default function CustomerAcquisitionPage() {
     }));
   };
 
+  const updateCandidateField = async (email: string, name: string, field: keyof Candidate, value: any) => {
+    // 1. Optimistic Update (useEffect triggers save)
+    setProjectData(prev => {
+      const next = { ...prev }
+      const idx = next.step2.candidates.findIndex((c: any) => c.email === email && c.name === name)
+      if (idx >= 0) {
+        next.step2.candidates[idx] = { ...next.step2.candidates[idx], [field]: value }
+      }
+      return next
+    })
+  };
+
+
   const insertVarIntoBody = (token: string) => {
     const v = `{${token}}`;
     insertAtCursor(bodyRef.current, v);
@@ -376,6 +393,11 @@ export default function CustomerAcquisitionPage() {
               status: c.statusManual ? c.status : auto,
             }
           })
+
+          // 변경 사항이 없으면 업데이트 방지 (무한 루프/저장 방지)
+          if (JSON.stringify(prev.step2?.candidates) === JSON.stringify(recomputed)) {
+            return prev;
+          }
 
           return {
             ...prev,
@@ -2764,20 +2786,30 @@ export default function CustomerAcquisitionPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-text/10">
+                    <th className="text-left py-2 whitespace-nowrap">양식 제출일</th>
                     <th className="text-left py-2">이름</th>
                     <th className="text-left py-2">이메일</th>
                     <th className="text-center py-2">Threads</th>
                     <th className="text-center py-2">블로그</th>
                     <th className="text-center py-2">인스타</th>
                     <th className="text-center py-2">상태</th>
+                    <th className="text-center py-2">제품 발송여부</th>
+                    <th className="text-center py-2 w-48">후기 링크</th>
                     <th className="text-center py-2">이메일</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projectData.step2.candidates.map((candidate, idx) => (
-                    <tr key={idx} className="border-b border-text/5">
-                      <td className="py-2">{candidate.name}</td>
-                      <td className="py-2">{candidate.email}</td>
+                    <tr key={idx} className="border-b border-text/5 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {candidate.createdAt ? new Date(candidate.createdAt).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        }).replace(/\.$/, '') : '-'}
+                      </td>
+                      <td className="py-2 font-medium">{candidate.name}</td>
+                      <td className="py-2 text-gray-600">{candidate.email}</td>
                       <td className="text-center py-2">
                         <div className="flex items-center justify-center gap-2">
                           {candidate.threadsUrl && (
@@ -2938,10 +2970,51 @@ export default function CustomerAcquisitionPage() {
                           ) : null}
                         </div>
                       </td>
+                      <td className="text-center py-2 h-full">
+                        <div className="flex items-center justify-center h-full">
+                          <button
+                            onClick={() => updateCandidateField(candidate.email, candidate.name, 'isProductSent', !candidate.isProductSent)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${candidate.isProductSent ? 'bg-blue-600' : 'bg-gray-200'
+                              }`}
+                          >
+                            <span
+                              className={`${candidate.isProductSent ? 'translate-x-6' : 'translate-x-1'
+                                } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                            />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="text-center py-2">
+                        <div className="relative flex items-center gap-2 px-2">
+                          <input
+                            type="text"
+                            defaultValue={candidate.reviewUrl || ''}
+                            onBlur={(e) => updateCandidateField(candidate.email, candidate.name, 'reviewUrl', e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur()
+                              }
+                            }}
+                            placeholder="URL 입력"
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+                          />
+                          {candidate.reviewUrl && (
+                            <a
+                              href={candidate.reviewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-blue-600 flex-shrink-0"
+                              title="후기 링크 바로가기"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                          )}
+                        </div>
+                      </td>
                       <td className="text-center py-2">
                         {candidate.emailSent || candidate.emailSentAt ? (
                           <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
-                            발송완료
+                            완료
                           </span>
                         ) : (
                           <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-500">
