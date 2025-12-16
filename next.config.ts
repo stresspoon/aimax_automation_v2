@@ -43,8 +43,8 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // 패키지 트랜스파일 설정 (Supabase 빌드 에러 해결)
-  transpilePackages: ['@supabase/supabase-js', '@supabase/ssr'],
+  // 패키지 트랜스파일 설정 (Supabase 빌드 에러 해결) - 2.48.1 버전에서는 불필요할 수 있음
+  // transpilePackages: ['@supabase/supabase-js', '@supabase/ssr'],
 
   // 개발 서버 최적화
   onDemandEntries: {
