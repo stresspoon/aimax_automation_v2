@@ -68,36 +68,10 @@ const ChartContainer = React.forwardRef<
 ChartContainer.displayName = "Chart"
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([_, config]) => config.theme || config.color
-  )
-
-  if (!colorConfig.length) {
-    return null
-  }
-
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  )
+  // Security Audit: This component used dangerouslySetInnerHTML to inject styles.
+  // Since it appears to be currently unused in the project, we are disabling it to prevent XSS risks.
+  // If this component is needed in the future, please implement a safer styling solution (e.g. CSS modules or styled-components).
+  return null
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
@@ -105,19 +79,19 @@ const ChartTooltip = RechartsPrimitive.Tooltip
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-      active?: boolean
-      payload?: any[]
-      hideLabel?: boolean
-      hideIndicator?: boolean
-      indicator?: "line" | "dot" | "dashed"
-      nameKey?: string
-      labelKey?: string
-      label?: string
-      labelFormatter?: (value: any, payload?: any[]) => React.ReactNode
-      labelClassName?: string
-      formatter?: (value: any, name?: string, entry?: any, index?: number) => React.ReactNode
-      color?: string
-    }
+    active?: boolean
+    payload?: any[]
+    hideLabel?: boolean
+    hideIndicator?: boolean
+    indicator?: "line" | "dot" | "dashed"
+    nameKey?: string
+    labelKey?: string
+    label?: string
+    labelFormatter?: (value: any, payload?: any[]) => React.ReactNode
+    labelClassName?: string
+    formatter?: (value: any, name?: string, entry?: any, index?: number) => React.ReactNode
+    color?: string
+  }
 >(
   (
     {
@@ -267,11 +241,11 @@ const ChartLegend = RechartsPrimitive.Legend
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-      payload?: any[]
-      verticalAlign?: "top" | "middle" | "bottom"
-      hideIcon?: boolean
-      nameKey?: string
-    }
+    payload?: any[]
+    verticalAlign?: "top" | "middle" | "bottom"
+    hideIcon?: boolean
+    nameKey?: string
+  }
 >(
   (
     { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
@@ -335,8 +309,8 @@ function getPayloadConfigFromPayload(
 
   const payloadPayload =
     "payload" in payload &&
-    typeof payload.payload === "object" &&
-    payload.payload !== null
+      typeof payload.payload === "object" &&
+      payload.payload !== null
       ? payload.payload
       : undefined
 

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
   )
   const searchParams = request.nextUrl.searchParams
-  
+
   // 쿼리 파라미터
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '10')
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // 기본 쿼리
     let query = supabase
       .from('user_profiles')
-      .select('*', { count: 'exact' })
+      .select('id, email, full_name, role, status, plan, created_at, updated_at, last_sign_in_at', { count: 'exact' })
 
     // 검색 필터
     if (search) {
@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
 
     // auth.users에서 추가 정보 가져오기 (마지막 로그인 시간 등)
     const userIds = users?.map(u => u.id) || []
-    
+
     // Supabase Admin API로 auth 정보 가져오기 (service role key 필요)
     // 현재는 user_profiles 데이터만 사용
-    
+
     // 캠페인 통계 가져오기
     const { data: campaignStats } = await supabase
       .from('campaigns')
@@ -127,7 +127,7 @@ export async function PATCH(request: NextRequest) {
       auth: { persistSession: false, autoRefreshToken: false },
     }
   )
-  
+
   try {
     const body = await request.json()
     const { userId, updates } = body

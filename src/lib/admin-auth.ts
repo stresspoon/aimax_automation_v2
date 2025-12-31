@@ -19,10 +19,10 @@ type VerifyAdminResult = VerifyAdminSuccess | VerifyAdminError
 
 export async function verifyAdmin(request: NextRequest): Promise<VerifyAdminResult> {
   const supabase = await createClient()
-  
+
   // 현재 사용자 확인
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  
+
   if (authError || !user) {
     return {
       user: null,
@@ -40,18 +40,12 @@ export async function verifyAdmin(request: NextRequest): Promise<VerifyAdminResu
     .eq('id', user.id)
     .single()
 
-  if (profileError) {
-    // 프로필이 없는 경우 이메일로 체크
-    const isAdminEmail = user.email?.endsWith('@aimax.kr') || 
-                         user.email === 'admin@aimax.kr'
-    
-    if (!isAdminEmail) {
-      return {
-        user: null,
-        error: {
-          message: '관리자 권한이 필요합니다',
-          status: 403
-        }
+  if (profileError || !profile) {
+    return {
+      user: null,
+      error: {
+        message: '관리자 권한이 확인되지 않습니다',
+        status: 403
       }
     }
   } else {
