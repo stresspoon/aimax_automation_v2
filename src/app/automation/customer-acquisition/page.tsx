@@ -174,21 +174,23 @@ export default function CustomerAcquisitionPage() {
     }
   }
 
-  // localStorage에서 step2, step3 데이터 복원
+  // localStorage에서 step2(선정기준만), step3 데이터 복원
   useEffect(() => {
-    // Step2 데이터 복원
+    // Step2: selectionCriteria만 복원 (isRunning은 DB에서만 로드 - 프로젝트 공유 오염 방지)
     const savedStep2 = localStorage.getItem('step2_automation_data');
     if (savedStep2) {
       try {
         const parsedData = JSON.parse(savedStep2);
-        setProjectData(prev => ({
-          ...prev,
-          step2: {
-            ...prev.step2,
-            isRunning: parsedData.isRunning || false,
-            selectionCriteria: parsedData.selectionCriteria || prev.step2.selectionCriteria
-          }
-        }));
+        if (parsedData.selectionCriteria) {
+          setProjectData(prev => ({
+            ...prev,
+            step2: {
+              ...prev.step2,
+              // isRunning은 DB에서만 로드 (공유 localStorage 오염 방지)
+              selectionCriteria: parsedData.selectionCriteria || prev.step2.selectionCriteria
+            }
+          }));
+        }
       } catch (error) {
         console.error('Failed to parse step2 data:', error);
       }
@@ -212,13 +214,12 @@ export default function CustomerAcquisitionPage() {
     }
   }, []);
 
-  // step2 자동화 상태가 변경될 때마다 localStorage에 저장
+  // step2 selectionCriteria만 localStorage에 저장 (isRunning은 DB로만 관리)
   useEffect(() => {
     localStorage.setItem('step2_automation_data', JSON.stringify({
-      isRunning: projectData.step2.isRunning,
       selectionCriteria: projectData.step2.selectionCriteria
     }));
-  }, [projectData.step2.isRunning, projectData.step2.selectionCriteria]);
+  }, [projectData.step2.selectionCriteria]);
 
   // step3 데이터가 변경될 때마다 localStorage에 저장
   useEffect(() => {
@@ -420,7 +421,8 @@ export default function CustomerAcquisitionPage() {
     const loadCampaignData = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const campaign = urlParams.get('campaign');
-      const projectIdParam = urlParams.get('projectId');
+      // ?projectId= 또는 ?id= 모두 지원 (dashboard는 ?id=로 라우팅함)
+      const projectIdParam = urlParams.get('projectId') || urlParams.get('id');
 
       if (projectIdParam) {
         // projectId로 직접 로드
@@ -2056,8 +2058,8 @@ export default function CustomerAcquisitionPage() {
           폼 생성/수정하기
         </button>
 
-        {/* 폼 상태 표시 */}
-        {projectData.step2.formUrl || projectData.step2.usingFormData || projectData.step2.isRunning || (projectData.step2.candidates?.length || 0) > 0 ? (
+        {/* 폼 상태 표시 - formUrl이 있거나 실제 후보자가 있을 때만 생성됨으로 표시 */}
+        {projectData.step2.formUrl || (projectData.step2.candidates?.length || 0) > 0 ? (
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm text-green-700 mb-2">
               {projectData.step2.formUrl ? '폼이 생성되었습니다!' : '폼이 생성되어 자동화가 정상적으로 동작 중입니다'}

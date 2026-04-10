@@ -25,11 +25,21 @@ export default function CustomerAcquisitionDashboard() {
   useEffect(() => {
     fetchProjects();
 
-    const interval = setInterval(() => {
-      fetchProjects();
-    }, 5000);
+    // 30초 간격 폴링 (5초 → 30초로 변경, 불필요 요청 6배 감소)
+    const interval = setInterval(fetchProjects, 30000);
 
-    return () => clearInterval(interval);
+    // 탭 복귀 시 즉시 새로고침
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchProjects();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const fetchProjects = async () => {
@@ -183,7 +193,7 @@ export default function CustomerAcquisitionDashboard() {
 
       if (error) throw error;
 
-      router.push(`/automation/customer-acquisition?id=${newProject.id}`);
+      router.push(`/automation/customer-acquisition?projectId=${newProject.id}`);
     } catch (error) {
       console.error('Error creating project:', error);
     }
