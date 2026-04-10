@@ -1,6 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-export function createAdminClient() {
+let adminClient: SupabaseClient | null = null
+
+export function createAdminClient(): SupabaseClient {
+  if (adminClient) return adminClient
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -8,9 +12,9 @@ export function createAdminClient() {
     throw new Error('Supabase service configuration missing')
   }
 
-  return createClient(url, serviceKey, {
+  adminClient = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+
+  return adminClient
 }
-
-

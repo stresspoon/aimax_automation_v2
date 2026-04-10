@@ -13,10 +13,10 @@ export async function GET(_request: NextRequest) {
       return unauthorized('인증이 필요합니다')
     }
 
-    // 프로필 정보 가져오기
+    // 프로필 정보 가져오기 (필요 컬럼만)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('*')
+      .select('full_name, username, phone, company_name')
       .eq('id', user.id)
       .single()
 

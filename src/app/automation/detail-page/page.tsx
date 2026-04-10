@@ -1,29 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
+import GlobalNav from '@/components/global-nav';
 
 export default function DetailPageAutomation() {
     return (
         <div className="min-h-screen bg-background">
-            {/* 헤더 */}
-            <header className="bg-card border-b">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div className="flex items-center">
-                            <Link href="/dashboard" className="text-2xl font-bold text-primary">
-                                AIMAX
-                            </Link>
-                            <span className="ml-4 text-muted-foreground">
-                                / 상세페이지 자동화
-                            </span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">메인으로</Link>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            <GlobalNav pageTitle="상세페이지 자동화" />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <motion.div

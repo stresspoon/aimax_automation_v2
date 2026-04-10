@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
 
+const ProfileUpdateSchema = z.object({
+  username: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/, '영문, 숫자, -, _ 만 사용 가능').optional(),
+  full_name: z.string().min(1).max(100).optional(),
+  avatar_url: z.string().url().max(500).optional(),
+}).strict() // 허용되지 않은 필드 차단
 
 export async function GET(_request: NextRequest) {
   try {
@@ -18,7 +24,7 @@ export async function GET(_request: NextRequest) {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, username, full_name, avatar_url, phone, company_name, subscription_plan, subscription_status, is_unlimited, updated_at')
       .eq('id', user.id)
       .single()
 
@@ -29,7 +35,9 @@ export async function GET(_request: NextRequest) {
       )
     }
 
-    return NextResponse.json(profile)
+    return NextResponse.json(profile, {
+      headers: { 'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=10' }
+    })
   } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -53,23 +61,28 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { username, full_name, avatar_url } = body
+    const parsed = ProfileUpdateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: '입력값이 올바르지 않습니다' },
+        { status: 400 }
+      )
+    }
 
     const { data: profile, error } = await supabase
       .from('profiles')
       .update({
-        username,
-        full_name,
-        avatar_url,
+        ...parsed.data,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id)
-      .select()
+      .select('id, username, full_name, avatar_url, phone, company_name, subscription_plan, subscription_status, is_unlimited, updated_at')
       .single()
 
     if (error) {
+      console.error('Profile update error:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: '프로필 업데이트에 실패했습니다' },
         { status: 400 }
       )
     }

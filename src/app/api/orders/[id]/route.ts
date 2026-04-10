@@ -21,7 +21,7 @@ export async function GET(
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, order_number, items, total_price, payment_method, shipping_info, status, created_at, updated_at')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -84,8 +84,9 @@ export async function PUT(
       .single()
 
     if (error) {
+      console.error('Order update error:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: '주문 업데이트에 실패했습니다' },
         { status: 400 }
       )
     }
@@ -146,8 +147,9 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (error) {
+      console.error('Order delete error:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: '주문 삭제에 실패했습니다' },
         { status: 400 }
       )
     }

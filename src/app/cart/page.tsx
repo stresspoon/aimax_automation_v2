@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import GlobalNav from '@/components/global-nav';
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
@@ -23,22 +24,7 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 헤더 */}
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="text-2xl font-bold text-primary">
-                AIMAX
-              </Link>
-              <span className="ml-4 text-muted-foreground">/ 장바구니</span>
-            </div>
-            <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
-              대시보드로 돌아가기
-            </Link>
-          </div>
-        </div>
-      </header>
+      <GlobalNav pageTitle="장바구니" />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-foreground mb-8">장바구니</h1>

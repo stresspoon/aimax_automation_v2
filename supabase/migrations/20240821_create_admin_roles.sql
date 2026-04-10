@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
 -- 시스템 설정 테이블 생성
 CREATE TABLE IF NOT EXISTS public.system_settings (
     key TEXT PRIMARY KEY,
-    value JSONB NOT NULL,
+    value TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
     updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );

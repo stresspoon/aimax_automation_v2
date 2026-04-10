@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
+
+const CampaignUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  status: z.enum(['draft', 'active', 'paused', 'completed', 'archived']).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
+})
 
 
 export async function GET(
@@ -22,7 +29,7 @@ export async function GET(
 
     const { data: campaign, error } = await supabase
       .from('campaigns')
-      .select('*')
+      .select('id, name, status, data, created_at, updated_at')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -63,10 +70,18 @@ export async function PUT(
 
     const body = await request.json()
 
+    const parsed = CampaignUpdateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
     const { data: campaign, error } = await supabase
       .from('campaigns')
       .update({
-        ...body,
+        ...parsed.data,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

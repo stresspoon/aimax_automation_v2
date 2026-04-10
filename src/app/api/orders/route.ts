@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     
     let query = supabase
       .from('orders')
-      .select('*')
+      .select('id, order_number, items, total_price, payment_method, status, created_at, updated_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -40,8 +40,9 @@ export async function GET(request: NextRequest) {
     const { data: orders, error } = await query
 
     if (error) {
+      console.error('Orders fetch error:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: '주문 조회에 실패했습니다' },
         { status: 400 }
       )
     }
@@ -94,8 +95,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      console.error('Order create error:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: '주문 생성에 실패했습니다' },
         { status: 400 }
       )
     }

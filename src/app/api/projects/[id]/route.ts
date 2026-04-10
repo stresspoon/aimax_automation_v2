@@ -21,7 +21,7 @@ export async function GET(
 
     const { data: project, error } = await supabase
       .from('projects')
-      .select('*, campaigns(name, status)')
+      .select('id, campaign_id, type, step, status, campaign_name, leads_count, emails_sent, content_count, data, created_at, updated_at, campaigns(name, status)')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -140,7 +140,7 @@ export async function DELETE(
     if (project.campaign_id) {
       const { count } = await supabase
         .from('projects')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('campaign_id', project.campaign_id)
 
       if (count === 0) {

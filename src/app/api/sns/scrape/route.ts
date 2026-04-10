@@ -142,31 +142,62 @@ function extractThreadsFollowers(html: string): number {
   const extractedMatch = html.match(extractedPattern);
   if (extractedMatch) {
     const number = parseInt(extractedMatch[1].replace(/,/g, ''));
-    console.log(`✅ Threads 팔로워 수 (추출): ${number}`);
+    console.log(`Threads 팔로워 수 (추출): ${number}`);
     return number;
   }
 
-  // 2. Meta 태그에서 찾기
+  // 2. 인라인 스크립트에서 follower_count 추출 (가장 정확함)
+  const fcMatch = html.match(/"follower_count"\s*:\s*(\d+)/);
+  if (fcMatch) {
+    const number = parseInt(fcMatch[1]);
+    console.log(`Threads 팔로워 수 (follower_count): ${number}`);
+    return number;
+  }
+
+  // 3. span title 속성에서 정확한 숫자 추출
+  // 구조: <span title="5,445,331">544.5만</span>
+  const titlePattern = /팔로워[^<]*<span[^>]*title="([\d,]+)"[^>]*>/i;
+  const titleMatch = html.match(titlePattern);
+  if (titleMatch) {
+    const number = parseInt(titleMatch[1].replace(/,/g, ''));
+    console.log(`Threads 팔로워 수 (span title): ${number}`);
+    return number;
+  }
+
+  // 4. Meta 태그에서 찾기 (한국어 + 영어 포맷)
   const metaPatterns = [
-    /<meta[^>]*property="og:description"[^>]*content="([^"]*[Ff]ollowers[^"]*)"/i,
-    /<meta[^>]*content="([^"]*[Ff]ollowers[^"]*)"[^>]*property="og:description"/i,
+    /<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i,
+    /<meta[^>]*content="([^"]*)"[^>]*property="og:description"/i,
+    /<meta[^>]*property="description"[^>]*content="([^"]*)"/i,
+    /<meta[^>]*name="description"[^>]*content="([^"]*)"/i,
   ];
 
   for (const pattern of metaPatterns) {
     const match = html.match(pattern);
-    if (match) {
-      console.log(`Meta 태그 내용:`, match[1].substring(0, 100));
-      const numMatch = match[1].match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
-      if (numMatch) {
-        let number: any = numMatch[1];
+    if (match && match[1]) {
+      const content = match[1];
+      console.log(`Meta 태그 내용:`, content.substring(0, 100));
+
+      // 한국어: "팔로워 544.5만명"
+      const korMatch = content.match(/팔로워\s*([\d,.]+)\s*만/);
+      if (korMatch) {
+        const number = Math.round(parseFloat(korMatch[1].replace(/,/g, '')) * 10000);
+        console.log(`Threads 팔로워 수 (meta 한국어): ${number}`);
+        return number;
+      }
+
+      // 영어: "123K followers" or "1.2M followers"
+      const engMatch = content.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
+      if (engMatch) {
+        let number: any = engMatch[1];
         if (number.includes('K') || number.includes('k')) {
-          number = parseFloat(number.replace(/[Kk]/g, '')) * 1000;
+          number = parseFloat(number.replace(/[Kk,]/g, '')) * 1000;
         } else if (number.includes('M')) {
           number = parseFloat(number.replace('M', '')) * 1000000;
         } else {
           number = parseInt(number.replace(/,/g, ''));
         }
-        console.log(`✅ Threads 팔로워 수 (meta): ${number}`);
+        console.log(`Threads 팔로워 수 (meta 영어): ${number}`);
         return parseInt(number) || 0;
       }
     }
@@ -334,9 +365,19 @@ export async function POST(req: NextRequest) {
 
       // 동적 추출 시도
       const followerData = await page.evaluate(() => {
-        // 1. JSON-LD 확인 (가장 정확함)
-        const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+        // 1. 인라인 스크립트에서 follower_count 추출 (가장 정확함)
+        const scripts = document.querySelectorAll('script:not([src])');
         for (const script of scripts) {
+          const text = script.textContent || '';
+          const fcMatch = text.match(/"follower_count"\s*:\s*(\d+)/);
+          if (fcMatch) {
+            return fcMatch[1];
+          }
+        }
+
+        // 2. JSON-LD 확인 (레거시 지원)
+        const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const script of ldScripts) {
           try {
             const json = JSON.parse(script.textContent || '{}');
             if (json.interactionStatistic) {
@@ -353,22 +394,52 @@ export async function POST(req: NextRequest) {
           } catch (e) { }
         }
 
-        // 2. 텍스트 매칭 (팔로워)
-        // Threads는 DOM이 복잡하므로 텍스트 포함 여부로 근사
-        const allElements = document.querySelectorAll('span, div');
-        for (const el of allElements) {
-          // 직계 텍스트만 확인
-          const text = Array.from(el.childNodes)
+        // 3. DOM에서 span[title] 숫자 추출 (팔로워 텍스트 내부의 span)
+        // 구조: <span>팔로워 <span title="5,445,331">544.5만</span>명</span>
+        const allSpans = document.querySelectorAll('span');
+        for (const span of allSpans) {
+          const directText = Array.from(span.childNodes)
             .filter(node => node.nodeType === 3)
             .map(node => node.textContent)
             .join('');
 
-          if (text.includes('팔로워') || text.toLowerCase().includes('followers')) {
-            // 숫자 찾기 (형제 노드나 같은 노드 내)
-            const fullText = el.textContent || '';
-            const match = fullText.match(/([\d,]+\.?\d*[KMk]?)\s*([Ff]ollowers|팔로워)/);
-            if (match) return match[1];
+          if (directText.includes('팔로워') || directText.toLowerCase().includes('followers')) {
+            // 내부 span의 title 속성에서 정확한 숫자 추출
+            const innerSpan = span.querySelector('span[title]');
+            if (innerSpan) {
+              const title = innerSpan.getAttribute('title') || '';
+              const cleaned = title.replace(/,/g, '');
+              if (/^\d+$/.test(cleaned)) {
+                return cleaned;
+              }
+            }
+            // title 없으면 전체 텍스트에서 숫자 추출
+            const fullText = span.textContent || '';
+            // 한국어: "팔로워 544.5만명" → 숫자+만 패턴
+            const korMatch = fullText.match(/팔로워\s*([\d,.]+)\s*만/);
+            if (korMatch) {
+              const num = parseFloat(korMatch[1].replace(/,/g, '')) * 10000;
+              return Math.round(num).toString();
+            }
+            // 영어: "123K followers" or "1.2M followers"
+            const engMatch = fullText.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
+            if (engMatch) return engMatch[1];
           }
+        }
+
+        // 4. meta og:description에서 추출 (한국어 포맷)
+        const ogDesc = document.querySelector('meta[property="og:description"]');
+        if (ogDesc) {
+          const content = ogDesc.getAttribute('content') || '';
+          // "팔로워 544.5만명" 패턴
+          const korMatch = content.match(/팔로워\s*([\d,.]+)\s*만/);
+          if (korMatch) {
+            const num = parseFloat(korMatch[1].replace(/,/g, '')) * 10000;
+            return Math.round(num).toString();
+          }
+          // "N followers" 패턴
+          const engMatch = content.match(/([\d,]+\.?\d*[KMk]?)\s*[Ff]ollowers/);
+          if (engMatch) return engMatch[1];
         }
 
         return null;

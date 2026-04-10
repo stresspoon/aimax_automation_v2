@@ -4,12 +4,12 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   feature TEXT NOT NULL,
   metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Index for faster queries
-  INDEX idx_usage_logs_user_feature (user_id, feature),
-  INDEX idx_usage_logs_created (created_at)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_usage_logs_user_feature ON usage_logs(user_id, feature);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created ON usage_logs(created_at);
 
 -- Add RLS policies
 ALTER TABLE usage_logs ENABLE ROW LEVEL SECURITY;

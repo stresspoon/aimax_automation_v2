@@ -13,53 +13,60 @@ export async function GET(req: Request) {
     const adminSupabase = createAdminClient()
     
     if (responseId) {
-      // 특정 응답의 상태 확인
+      // 특정 응답의 상태 확인 (필요 컬럼만)
       const { data: response, error } = await adminSupabase
         .from('form_responses_temp')
-        .select('*')
+        .select('id, status, is_selected, selection_reason, sns_check_result, processed_at, error_message')
         .eq('id', responseId)
         .single()
-      
+
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 404 })
       }
-      
-      return NextResponse.json({
-        id: response.id,
-        status: response.status,
-        is_selected: response.is_selected,
-        selection_reason: response.selection_reason,
-        sns_check_result: response.sns_check_result,
-        processed_at: response.processed_at,
-        error_message: response.error_message
-      })
+
+      return NextResponse.json(response)
     } else if (formId) {
-      // 폼의 모든 응답 상태 확인
-      // Supabase 기본 limit(1000)을 초과하기 위해 명시적으로 limit 설정
-      const { data: responses, error } = await adminSupabase
-        .from('form_responses_temp')
-        .select('id, status, is_selected, selection_reason, sns_check_result, processed_at, email, name', { count: 'exact' })
-        .eq('form_id', formId)
-        .order('created_at', { ascending: false })
-        .limit(50000) // 최대 50,000개까지 조회 가능
-      
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+      // 폼의 응답 상태 확인 (페이지네이션 + 통계를 병렬 조회)
+      const page = Math.max(1, parseInt(new URL(req.url).searchParams.get('page') || '1', 10))
+      const pageSize = Math.min(500, Math.max(1, parseInt(new URL(req.url).searchParams.get('pageSize') || '100', 10)))
+      const offset = (page - 1) * pageSize
+
+      // 응답 목록과 상태별 카운트를 병렬 조회
+      const [responsesResult, totalResult, pendingResult, processingResult, completedResult, errorResult, selectedResult, rejectedResult] = await Promise.all([
+        adminSupabase
+          .from('form_responses_temp')
+          .select('id, status, is_selected, selection_reason, sns_check_result, processed_at, email, name', { count: 'exact' })
+          .eq('form_id', formId)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + pageSize - 1),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('status', 'pending'),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('status', 'processing'),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('status', 'completed'),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('status', 'error'),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('is_selected', true),
+        adminSupabase.from('form_responses_temp').select('id', { count: 'exact', head: true }).eq('form_id', formId).eq('is_selected', false),
+      ])
+
+      if (responsesResult.error) {
+        return NextResponse.json({ error: responsesResult.error.message }, { status: 500 })
       }
-      
-      // 처리 상태별 카운트
+
       const stats = {
-        total: responses.length,
-        pending: responses.filter(r => r.status === 'pending').length,
-        processing: responses.filter(r => r.status === 'processing').length,
-        completed: responses.filter(r => r.status === 'completed').length,
-        error: responses.filter(r => r.status === 'error').length,
-        selected: responses.filter(r => r.is_selected === true).length,
-        rejected: responses.filter(r => r.is_selected === false).length
+        total: totalResult.count || 0,
+        pending: pendingResult.count || 0,
+        processing: processingResult.count || 0,
+        completed: completedResult.count || 0,
+        error: errorResult.count || 0,
+        selected: selectedResult.count || 0,
+        rejected: rejectedResult.count || 0
       }
-      
+
       return NextResponse.json({
-        responses,
+        data: responsesResult.data,
+        total: responsesResult.count || 0,
+        page,
+        pageSize,
         stats
       })
     } else {

@@ -13,15 +13,14 @@ export async function POST(req: Request) {
     }
     const text = await req.text()
 
-    // 서명 검증: secret이 있으면 항상 체크, 없고 prod면 거부
+    // 서명 검증: secret 필수 (모든 환경)
     const secret = process.env.FORMS_WEBHOOK_SECRET
-    const signature = req.headers.get('x-forms-signature')
-    if (secret) {
-      const valid = verifyFormsSignature(text, signature, secret)
-      if (!valid) return unauthorized('Invalid webhook signature')
-    } else if (process.env.NODE_ENV === 'production') {
+    if (!secret) {
       return serverError('Missing FORMS_WEBHOOK_SECRET')
     }
+    const signature = req.headers.get('x-forms-signature')
+    const valid = verifyFormsSignature(text, signature, secret)
+    if (!valid) return unauthorized('Invalid webhook signature')
 
     const json = JSON.parse(text)
     const parsed = FormWebhookSchema.safeParse(json)

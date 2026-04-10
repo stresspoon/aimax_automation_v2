@@ -75,22 +75,28 @@ export async function GET(request: NextRequest) {
     // Supabase Admin API로 auth 정보 가져오기 (service role key 필요)
     // 현재는 user_profiles 데이터만 사용
 
-    // 캠페인 통계 가져오기
-    const { data: campaignStats } = await supabase
-      .from('campaigns')
-      .select('user_id')
-      .in('user_id', userIds)
+    // 캠페인 통계 가져오기 - 사용자별 개별 count 쿼리 (병렬 실행)
+    // Supabase JS에서 GROUP BY 미지원이므로, 페이지 사용자 수만큼 head count 병렬 실행
+    const campaignCountResults = await Promise.all(
+      userIds.map(uid =>
+        supabase
+          .from('campaigns')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', uid)
+          .then(res => ({ uid, count: res.count || 0 }))
+      )
+    )
 
-    const campaignCounts = campaignStats?.reduce((acc: any, campaign) => {
-      acc[campaign.user_id] = (acc[campaign.user_id] || 0) + 1
-      return acc
-    }, {}) || {}
+    const campaignCounts: Record<string, number> = {}
+    for (const { uid, count: cnt } of campaignCountResults) {
+      campaignCounts[uid] = cnt
+    }
 
     // 응답 데이터 구성
     const enrichedUsers = users?.map(user => ({
       ...user,
       campaigns: campaignCounts[user.id] || 0,
-      lastActive: user.last_sign_in_at || user.updated_at, // last_sign_in_at이 있으면 사용, 없으면 updated_at 사용
+      lastActive: user.last_sign_in_at || user.updated_at,
     })) || []
 
     return NextResponse.json({

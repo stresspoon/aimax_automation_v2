@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 -- Enable RLS
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
+-- Drop any existing policy with same name from earlier migration
+DROP POLICY IF EXISTS "Anyone can read settings" ON public.system_settings;
+DROP POLICY IF EXISTS "Admins can manage system settings" ON public.system_settings;
+
 -- Allow all authenticated users to READ settings only
 CREATE POLICY "Anyone can read settings" ON public.system_settings
   FOR SELECT

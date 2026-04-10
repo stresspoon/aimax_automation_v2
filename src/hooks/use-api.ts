@@ -14,7 +14,9 @@ export function useCampaigns(status?: string) {
       if (response.error) {
         setError(response.error)
       } else {
-        setCampaigns(response.data || [])
+        // API 응답이 { data: [...], total, page, pageSize } 형태
+        const result = response.data
+        setCampaigns(Array.isArray(result) ? result : result?.data || [])
       }
       
       setLoading(false)

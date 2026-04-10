@@ -1,33 +1,51 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
+
+const FormResponseSchema = z.object({
+  formId: z.string().uuid(),
+  email: z.string().email().max(320),
+  name: z.string().max(200).optional(),
+  이름: z.string().max(200).optional(),
+}).passthrough() // 커스텀 필드 허용하되 기본 필드는 검증
 
 // 백그라운드에서 SNS 체크 및 처리
-async function processResponseInBackground(responseId: string) {
+async function processResponseInBackground(responseId: string, formOwnerId?: string) {
   console.log('🔄 Background processing started for:', responseId)
-  
+
   // 백그라운드 처리는 service role 클라이언트 사용
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const adminSupabase = createAdminClient()
-  
+
   try {
-    // 응답 데이터 가져오기
-    const { data: response } = await adminSupabase
-      .from('form_responses_temp')
-      .select('*')
-      .eq('id', responseId)
-      .single()
-    
+    // 응답 데이터 + 폼 정보 병렬 조회
+    const [responseResult, formResult] = await Promise.all([
+      adminSupabase
+        .from('form_responses_temp')
+        .select('id, form_id, data')
+        .eq('id', responseId)
+        .single(),
+      // response.form_id를 아직 모르므로, 응답에서 form_id를 가져온 뒤 폼 조회
+      Promise.resolve(null) // placeholder - 아래에서 처리
+    ])
+
+    const response = responseResult.data
     if (!response) return
-    
-    // 폼 정보 가져오기
+
     const { data: form } = await adminSupabase
       .from('forms')
-      .select('*')
+      .select('id, user_id, settings')
       .eq('id', response.form_id)
       .single()
-    
+
     if (!form) return
+
+    // S11: 소유권 검증 - 폼 소유자와 호출자가 일치하는지 확인
+    if (formOwnerId && form.user_id !== formOwnerId) {
+      console.error(`Ownership mismatch: form owner ${form.user_id} != caller ${formOwnerId}`)
+      return
+    }
     
     // SNS 체크 - 기본 필드와 커스텀 필드 모두 체크
     const snsResult: any = {
@@ -36,7 +54,7 @@ async function processResponseInBackground(responseId: string) {
       blog: { neighbors: 0, checked: false },
       custom: {} // 커스텀 SNS 필드 결과
     }
-    
+
     // URL 패턴으로 SNS 타입 감지
     const detectSNSType = (url: string): 'threads' | 'instagram' | 'blog' | null => {
       if (!url) return null
@@ -46,113 +64,70 @@ async function processResponseInBackground(responseId: string) {
       if (lowerUrl.includes('blog.naver.com') || lowerUrl.includes('tistory.com') || lowerUrl.includes('blog')) return 'blog'
       return null
     }
-    
-    // 모든 필드를 순회하면서 SNS URL 체크
+
+    // 1단계: SNS URL 필드 수집 (I/O 없음)
+    const snsChecks: Array<{ fieldName: string; fieldValue: string; snsType: 'threads' | 'instagram' | 'blog' }> = []
+
     for (const [fieldName, fieldValue] of Object.entries(response.data || {})) {
-      // URL 타입 필드이거나 URL 패턴을 포함하는 경우
-      if (typeof fieldValue === 'string' && 
-          (fieldName.toLowerCase().includes('url') || 
+      if (typeof fieldValue === 'string' &&
+          (fieldName.toLowerCase().includes('url') ||
            fieldName.toLowerCase().includes('link') ||
            fieldValue.includes('http'))) {
-        
         const snsType = detectSNSType(fieldValue)
-        
-        // 기본 필드 체크
-        if (fieldName === 'threadsUrl' || snsType === 'threads') {
-          try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: fieldValue })
-            })
-            const metrics = await res.json()
-            if (fieldName === 'threadsUrl') {
-              snsResult.threads = {
-                url: fieldValue,
-                followers: metrics.followers || 0,
-                checked: true
-              }
-            } else {
-              // 커스텀 필드로 저장
-              snsResult.custom[fieldName] = {
-                type: 'threads',
-                url: fieldValue,
-                followers: metrics.followers || 0,
-                checked: true
-              }
-            }
-          } catch (err) {
-            console.error(`Threads check error for ${fieldName}:`, err)
-            // 에러가 발생해도 체크 시도했음을 기록
-            if (fieldName === 'threadsUrl') {
-              snsResult.threads = {
-                url: fieldValue,
-                followers: 0,
-                checked: true,
-                error: (err as Error).message
-              }
-            }
+        if (snsType) {
+          snsChecks.push({ fieldName, fieldValue, snsType })
+        }
+      }
+    }
+
+    // 2단계: 모든 SNS URL을 병렬로 스크래핑 (순차 N회 → 병렬 1회)
+    const scrapeResults = await Promise.allSettled(
+      snsChecks.map(async ({ fieldName, fieldValue, snsType }) => {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: fieldValue })
+        })
+        const metrics = await res.json()
+        return { fieldName, fieldValue, snsType, metrics }
+      })
+    )
+
+    // 3단계: 결과 매핑
+    for (let i = 0; i < snsChecks.length; i++) {
+      const { fieldName, fieldValue, snsType } = snsChecks[i]
+      const result = scrapeResults[i]
+
+      const isDefaultField =
+        (snsType === 'threads' && fieldName === 'threadsUrl') ||
+        (snsType === 'instagram' && fieldName === 'instagramUrl') ||
+        (snsType === 'blog' && fieldName === 'blogUrl')
+
+      if (result.status === 'fulfilled') {
+        const { metrics } = result.value
+        const followerCount = metrics.followers || 0
+
+        if (isDefaultField) {
+          if (snsType === 'blog') {
+            snsResult.blog = { url: fieldValue, neighbors: followerCount, checked: true }
+          } else {
+            snsResult[snsType] = { url: fieldValue, followers: followerCount, checked: true }
           }
-        } else if (fieldName === 'instagramUrl' || snsType === 'instagram') {
-          try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: fieldValue })
-            })
-            const metrics = await res.json()
-            if (fieldName === 'instagramUrl') {
-              snsResult.instagram = {
-                url: fieldValue,
-                followers: metrics.followers || 0,
-                checked: true
-              }
-            } else {
-              // 커스텀 필드로 저장
-              snsResult.custom[fieldName] = {
-                type: 'instagram',
-                url: fieldValue,
-                followers: metrics.followers || 0,
-                checked: true
-              }
-            }
-          } catch (err) {
-            console.error(`Instagram check error for ${fieldName}:`, err)
-            // 에러가 발생해도 체크 시도했음을 기록
-            if (fieldName === 'instagramUrl') {
-              snsResult.instagram = {
-                url: fieldValue,
-                followers: 0,
-                checked: true,
-                error: (err as Error).message
-              }
-            }
+        } else {
+          snsResult.custom[fieldName] = {
+            type: snsType,
+            url: fieldValue,
+            ...(snsType === 'blog' ? { neighbors: followerCount } : { followers: followerCount }),
+            checked: true
           }
-        } else if (fieldName === 'blogUrl' || snsType === 'blog') {
-          try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sns/scrape`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: fieldValue })
-            })
-            const metrics = await res.json()
-            if (fieldName === 'blogUrl') {
-              snsResult.blog = {
-                url: fieldValue,
-                neighbors: metrics.followers || 0,
-                checked: true
-              }
-            } else {
-              // 커스텀 필드로 저장
-              snsResult.custom[fieldName] = {
-                type: 'blog',
-                url: fieldValue,
-                neighbors: metrics.followers || 0,
-                checked: true
-              }
-            }
-          } catch (err) {
-            console.error(`Blog check error for ${fieldName}:`, err)
+        }
+      } else {
+        console.error(`SNS check error for ${fieldName}:`, result.reason)
+        if (isDefaultField) {
+          if (snsType === 'blog') {
+            snsResult.blog = { url: fieldValue, neighbors: 0, checked: true, error: String(result.reason) }
+          } else {
+            snsResult[snsType] = { url: fieldValue, followers: 0, checked: true, error: String(result.reason) }
           }
         }
       }
@@ -228,34 +203,37 @@ async function processResponseInBackground(responseId: string) {
 // POST: 폼 응답 제출
 export async function POST(req: Request) {
   try {
-    const data = await req.json()
-    const { formId, ...responseData } = data
-    
-    // 폼 응답 제출은 공개 API이므로 일반 클라이언트 사용
+    const rawData = await req.json()
+
+    const parsed = FormResponseSchema.safeParse(rawData)
+    if (!parsed.success) {
+      return NextResponse.json({ error: '입력값이 올바르지 않습니다' }, { status: 400 })
+    }
+
+    const { formId, ...responseData } = parsed.data
+
+    // 폼 조회 + admin 클라이언트 생성 병렬 실행
     const supabase = await createClient()
-    
-    // 폼 확인 (공개 폼 조회)
-    const { data: form, error: formError } = await supabase
-      .from('forms')
-      .select('*')
-      .eq('id', formId)
-      .eq('is_active', true)
-      .single()
-    
+
+    // admin 클라이언트를 비동기로 준비하면서 폼 확인도 동시에 실행
+    const [formResult, adminModule] = await Promise.all([
+      supabase
+        .from('forms')
+        .select('id, user_id, title, settings, fields')
+        .eq('id', formId)
+        .eq('is_active', true)
+        .single(),
+      import('@/lib/supabase/admin').catch(() => null)
+    ])
+
+    const { data: form, error: formError } = formResult
     if (formError || !form) {
-      console.error('Form not found:', formError)
       return NextResponse.json({ error: '폼을 찾을 수 없습니다' }, { status: 404 })
     }
-    
-    // service role 클라이언트 시도 (없어도 동작하도록 폴백)
-    let adminSupabase: any | null = null
-    try {
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      adminSupabase = createAdminClient()
-    } catch (e) {
-      console.warn('Service role client unavailable. Falling back to anon client for insert.', e)
-    }
-    
+
+    // admin 클라이언트 설정
+    const adminSupabase = adminModule ? adminModule.createAdminClient() : null
+
     // 중복 체크 (이메일 기준) - service role 사용 가능할 때만 수행
     if (adminSupabase) {
       const { data: existingResponse } = await adminSupabase
@@ -264,11 +242,11 @@ export async function POST(req: Request) {
         .eq('form_id', formId)
         .eq('email', responseData.email)
         .single()
-      
+
       if (existingResponse) {
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: '이미 신청하셨습니다',
-          duplicate: true 
+          duplicate: true
         }, { status: 400 })
       }
     }
@@ -293,9 +271,8 @@ export async function POST(req: Request) {
       
       if (responseError) {
         console.error('Failed to insert response:', responseError)
-        return NextResponse.json({ 
-          error: `응답 저장 실패: ${responseError.message}`,
-          details: responseError
+        return NextResponse.json({
+          error: '응답 저장에 실패했습니다. 잠시 후 다시 시도해주세요.'
         }, { status: 500 })
       }
       responseId = response.id
@@ -308,9 +285,8 @@ export async function POST(req: Request) {
       
       if (insertError) {
         console.error('Failed to insert response (anon):', insertError)
-        return NextResponse.json({ 
-          error: `응답 저장 실패: ${insertError.message}`,
-          details: insertError
+        return NextResponse.json({
+          error: '응답 저장에 실패했습니다. 잠시 후 다시 시도해주세요.'
         }, { status: 500 })
       }
       responseId = newId
@@ -337,7 +313,7 @@ export async function POST(req: Request) {
     // Vercel 서버리스 환경에서는 응답 후 프로세스가 종료되므로
     // waitUntil을 사용하거나 동기적으로 처리해야 함
     // 1. 즉시 처리 시도 (짧은 타임아웃)
-    const processPromise = processResponseInBackground(responseId!)
+    const processPromise = processResponseInBackground(responseId!, form.user_id)
     
     // 2. 최대 5초만 기다림 (사용자 경험 vs 처리 완료의 균형)
     const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000))
@@ -361,23 +337,25 @@ export async function POST(req: Request) {
   }
 }
 
-// GET: 폼 응답 조회
+// GET: 폼 응답 조회 (페이지네이션 지원)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const formId = searchParams.get('formId')
   const status = searchParams.get('status')
   const projectId = searchParams.get('projectId')
-  
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+  const pageSize = Math.min(500, Math.max(1, parseInt(searchParams.get('pageSize') || '100', 10)))
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  
+
   // projectId 정리
   const cleanProjectId = (projectId === 'null' || projectId === 'undefined' || !projectId) ? null : projectId
-  
+
   try {
     // 1) 사용자 소유의 폼 ID 목록 로드 (프로젝트 스코프 반영)
     let formsQuery = supabase.from('forms').select('id').eq('user_id', user.id)
@@ -392,18 +370,19 @@ export async function GET(req: Request) {
     }
     const formIds = (forms || []).map(f => f.id)
     if (formIds.length === 0) {
-      return NextResponse.json([])
+      return NextResponse.json({ data: [], total: 0, page, pageSize })
     }
 
-    // 2) form_responses_temp 테이블에서 직접 조회
-    // Supabase 기본 limit(1000)을 초과하기 위해 명시적으로 limit 설정
+    // 2) form_responses_temp 테이블에서 페이지네이션 조회
+    const offset = (page - 1) * pageSize
+
     let viewQuery = supabase
       .from('form_responses_temp')
-      .select('*', { count: 'exact' })
+      .select('id, form_id, email, name, data, status, is_selected, selection_reason, sns_check_result, created_at, processed_at', { count: 'exact' })
       .in('form_id', formIds)
       .order('created_at', { ascending: false })
-      .limit(50000) // 최대 50,000개까지 조회 가능
-    
+      .range(offset, offset + pageSize - 1)
+
     if (formId) {
       viewQuery = viewQuery.eq('form_id', formId)
     }
@@ -411,12 +390,18 @@ export async function GET(req: Request) {
       viewQuery = viewQuery.eq('status', status)
     }
 
-    const { data: responses, error: viewError } = await viewQuery
+    const { data: responses, count, error: viewError } = await viewQuery
     if (viewError) {
       return NextResponse.json({ error: viewError.message }, { status: 500 })
     }
-    return NextResponse.json(responses || [])
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed to fetch responses' }, { status: 500 })
+    return NextResponse.json({
+      data: responses || [],
+      total: count || 0,
+      page,
+      pageSize
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to fetch responses'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

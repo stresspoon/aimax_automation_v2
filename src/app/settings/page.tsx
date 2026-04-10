@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
+import GlobalNav from '@/components/global-nav';
 
 interface UserProfile {
   id: string;
@@ -131,10 +132,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
+
 
   const getPlanLabel = (plan: string) => {
     switch (plan) {
@@ -160,37 +158,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 헤더 */}
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="text-2xl font-bold text-primary">
-                AIMAX
-              </Link>
-              <nav className="ml-10 flex space-x-6">
-                <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
-                  대시보드
-                </Link>
-                <Link href="/projects" className="text-muted-foreground hover:text-foreground">
-                  프로젝트
-                </Link>
-                <Link href="/settings" className="text-primary font-semibold">
-                  설정
-                </Link>
-              </nav>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={handleLogout}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                로그아웃
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <GlobalNav pageTitle="설정" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-4 gap-8">

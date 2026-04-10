@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     
     let query = supabase
       .from('projects')
-      .select('*, campaigns(name, status)')
+      .select('id, campaign_id, type, step, status, campaign_name, leads_count, emails_sent, content_count, data, created_at, updated_at, campaigns(name, status)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
     if (error) {
       return badRequest(error.message)
     }
-    return ok(projects)
+    // 프로젝트 목록은 짧은 캐시 적용 (10초)
+    const response = ok(projects)
+    response.headers.set('Cache-Control', 'private, s-maxage=10, stale-while-revalidate=5')
+    return response
   } catch {
     return serverError()
   }
@@ -99,10 +102,10 @@ export async function POST(request: NextRequest) {
       // 한도 확인 실패 시 계속 진행 (보수적)
     }
 
-    // 기존 프로젝트 있는지 확인
+    // 기존 프로젝트 있는지 확인 (id만 필요)
     const { data: existing } = await supabase
       .from('projects')
-      .select('*')
+      .select('id')
       .eq('campaign_id', campaign_id)
       .eq('user_id', user.id)
       .eq('type', type)

@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx'
 import { mergeCandidatesSafely } from '@/lib/candidates/merge'
 import { normalizeProjectData } from '@/lib/projects/normalize'
 import { trackActivity } from '@/lib/analytics'
+import GlobalNav from '@/components/global-nav'
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -3446,37 +3447,22 @@ export default function CustomerAcquisitionPage() {
         </div>
       )}
       {/* 헤더 */}
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="text-2xl font-bold text-primary">
-                AIMAX
-              </Link>
-              <span className="ml-4 text-muted-foreground">
-                / 고객모집 자동화 {campaignName && `- ${campaignName}`}
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/automation/customer-acquisition/dashboard"
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold transition"
-              >
-                대시보드 보기
-              </Link>
-              {projectId && (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-red-600 hover:text-red-700 border border-red-200 px-3 py-2 rounded"
-                >
-                  프로젝트 삭제
-                </button>
-              )}
-              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">메인으로</Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <GlobalNav
+        pageTitle={campaignName ? `고객모집 자동화 - ${campaignName}` : '고객모집 자동화'}
+        rightSlot={
+          projectId ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-red-500 hover:text-red-600 text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition mr-2 hidden sm:flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              삭제
+            </button>
+          ) : undefined
+        }
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 프로세스 선택 카드 */}

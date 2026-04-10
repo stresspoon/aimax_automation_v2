@@ -1,45 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import GlobalNav from '@/components/global-nav';
 
 export default function DashboardPage() {
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>("");
   const [userProjects, setUserProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchProjects();
-    fetchUserInfo();
   }, []);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setShowUserMenu(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const fetchUserInfo = async () => {
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || "");
-      }
-    } catch (error) {
-      console.error('사용자 정보 로드 실패:', error);
-    }
-  };
 
   const fetchProjects = async () => {
     try {
@@ -89,91 +64,11 @@ export default function DashboardPage() {
     },
   ];
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
 
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 헤더 */}
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">AIMAX</h1>
-              <nav className="ml-10 flex space-x-6">
-                <Link href="/dashboard" className="text-primary font-semibold">
-                  대시보드
-                </Link>
-                <Link href="/projects" className="text-muted-foreground hover:text-foreground">
-                  프로젝트
-                </Link>
-                <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-                  설정
-                </Link>
-              </nav>
-            </div>
-            <div className="relative" ref={userMenuRef}>
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/50 transition"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </button>
-
-              {showUserMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="absolute right-0 mt-2 w-64 bg-card rounded-lg shadow-lg border z-50"
-                >
-                  <div className="p-4 border-b">
-                    <p className="text-sm text-muted-foreground">로그인 계정</p>
-                    <p className="text-sm font-medium truncate">{userEmail}</p>
-                  </div>
-                  <div className="p-2">
-                    <Link
-                      href="/settings"
-                      className="flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span>계정 설정</span>
-                    </Link>
-                    <Link
-                      href="/projects"
-                      className="flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>내 프로젝트</span>
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-lg hover:bg-muted/50 transition text-left"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      <span>로그아웃</span>
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <GlobalNav />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 환영 메시지 */}

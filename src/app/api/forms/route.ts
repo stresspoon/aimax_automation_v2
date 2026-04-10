@@ -9,10 +9,10 @@ export async function GET(req: Request) {
   const supabase = await createClient()
   
   if (slug) {
-    // 공개 폼 조회 (slug로)
+    // 공개 폼 조회 (slug로) - 부분 인덱스 활용
     const { data: form, error } = await supabase
       .from('forms')
-      .select('*')
+      .select('id, slug, title, description, fields, settings, is_active, google_sheet_id, google_sheet_url, google_sheet_name')
       .eq('slug', slug)
       .eq('is_active', true)
       .single()
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
   
   let query = supabase
     .from('forms')
-    .select('*')
+    .select('id, slug, title, description, is_active, project_id, fields, settings, google_sheet_id, google_sheet_url, created_at, updated_at')
     .eq('user_id', user.id)
   
   // projectId가 있으면 해당 프로젝트의 폼만 조회
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
   if (!error && cleanProjectId && (!forms || forms.length === 0)) {
     const fallback = await supabase
       .from('forms')
-      .select('*')
+      .select('id, slug, title, description, is_active, project_id, fields, settings, google_sheet_id, google_sheet_url, created_at, updated_at')
       .eq('user_id', user.id)
       .is('project_id', null)
       .order('created_at', { ascending: false })

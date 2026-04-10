@@ -1,5 +1,16 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== 'production'
+
+// 개발: 로컬 Supabase (http://127.0.0.1) 허용 + blob: 스크립트 허용
+// 프로덕션: HTTPS만 허용
+const cspConnectSrc = isDev
+  ? "connect-src 'self' http://127.0.0.1:* https:;"
+  : "connect-src 'self' https:;"
+const cspScriptSrc = isDev
+  ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com;"
+  : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com;"
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
@@ -35,7 +46,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; font-src 'self' data:; connect-src 'self' https:;"
+            value: `default-src 'self'; ${cspScriptSrc} style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; font-src 'self' data: https://cdn.jsdelivr.net; ${cspConnectSrc}`
           }
         ],
       },

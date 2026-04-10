@@ -61,7 +61,13 @@
       "Bash(git clean:*)",
       "Bash(psql:*)",
       "Bash(find:*)",
-      "Bash(git switch:*)"
+      "Bash(git switch:*)",
+      "Bash(supabase --version:*)",
+      "Bash(supabase status:*)",
+      "Bash(docker info:*)",
+      "Bash(python3:*)",
+      "Bash(supabase projects list:*)",
+      "Bash(source .env.local)"
     ],
     "deny": [],
     "ask": []

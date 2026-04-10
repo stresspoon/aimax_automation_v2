@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { fetchJSON } from '@/lib/httpClient'
 import { errorMessage } from '@/lib/errors'
+import GlobalNav from '@/components/global-nav'
 
 interface FormField {
   name: string
@@ -416,22 +417,19 @@ function FormBuilderContent() {
   
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <span className="ml-4 text-xl font-semibold">폼 생성/수정</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <GlobalNav
+        pageTitle="폼 생성/수정"
+        rightSlot={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="mr-1"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        }
+      />
       
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>

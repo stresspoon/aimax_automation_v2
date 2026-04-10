@@ -38,17 +38,17 @@ export async function POST(request: NextRequest) {
     let profile = null;
     const { data: userProfile } = await supabase
       .from('user_profiles')
-      .select('*')
+      .select('id, email, full_name, username, role, plan, status, created_at')
       .eq('id', data.user.id)
       .single();
-    
+
     if (userProfile) {
       profile = userProfile;
     } else {
       // fallback to profiles table
       const { data: legacyProfile } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, name, username, role, plan, status, created_at')
         .eq('id', data.user.id)
         .single();
       profile = legacyProfile;

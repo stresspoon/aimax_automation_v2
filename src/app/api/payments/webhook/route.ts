@@ -11,13 +11,12 @@ export async function POST(req: Request) {
     const signature = req.headers.get('toss-signature')
     const secret = process.env.TOSS_WEBHOOK_SECRET
 
-    // 서명 검증: secret이 설정되어 있으면 항상 검증. 없으면 prod에서는 거부
-    if (secret) {
-      const isValid = verifyTossSignature(body, signature, secret)
-      if (!isValid) return unauthorized('Invalid signature')
-    } else if (process.env.NODE_ENV === 'production') {
+    // 서명 검증: secret 필수 (모든 환경)
+    if (!secret) {
       return serverError('Missing TOSS_WEBHOOK_SECRET')
     }
+    const isValid = verifyTossSignature(body, signature, secret)
+    if (!isValid) return unauthorized('Invalid signature')
 
     const data = JSON.parse(body)
     const { eventType, data: eventData } = data
@@ -119,7 +118,7 @@ async function handleDepositCallback(supabase: any, eventData: any) {
   // 구독 활성화 처리
   const { data: payment } = await supabase
     .from('payments')
-    .select('*')
+    .select('id, user_id, order_id, amount, status, product_type, metadata')
     .eq('order_id', orderId)
     .single()
 
@@ -145,7 +144,7 @@ async function handlePaymentCanceled(supabase: any, eventData: any) {
   // 구독 취소 처리
   const { data: payment } = await supabase
     .from('payments')
-    .select('*')
+    .select('id, user_id, order_id, amount, status, product_type, metadata')
     .eq('order_id', orderId)
     .single()
 
@@ -166,7 +165,7 @@ async function handlePaymentRefunded(supabase: any, eventData: any) {
 
   const { data: payment } = await supabase
     .from('payments')
-    .select('*')
+    .select('id, user_id, order_id, amount, status, product_type, metadata')
     .eq('order_id', orderId)
     .single()
 

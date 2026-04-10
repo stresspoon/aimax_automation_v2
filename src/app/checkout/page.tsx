@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { toast } from 'sonner'
 import { useRouter } from "next/navigation";
+import GlobalNav from '@/components/global-nav';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -103,19 +104,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 헤더 */}
-      <header className="bg-card border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="text-2xl font-bold text-primary">
-                AIMAX
-              </Link>
-              <span className="ml-4 text-muted-foreground">/ 결제</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <GlobalNav pageTitle="결제" />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-foreground mb-8">결제하기</h1>

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { badRequest, created, ok, serverError, conflict } from '@/lib/http'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { badRequest, created, serverError, conflict } from '@/lib/http'
 import { SignupSchema } from '@/app/api/auth/schema'
 import { ipKey, rateLimit } from '@/lib/rateLimit'
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Supabase로 사용자 생성
+    // 1차 시도: 일반 signUp (이메일 확인 포함)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -36,56 +37,127 @@ export async function POST(request: NextRequest) {
       if (error.message.includes('already registered')) {
         return conflict('이미 사용 중인 이메일입니다')
       }
-      throw error;
+
+      // DB 트리거 실패 시 admin API로 fallback
+      if (error.message.includes('Database error')) {
+        console.warn('Signup trigger failed, falling back to admin createUser:', error.message)
+        return await adminSignupFallback(email, password, name, phone, companyName, agreeMarketing)
+      }
+
+      throw error
     }
 
     if (!data.user) {
       return serverError('회원가입 중 오류가 발생했습니다')
     }
 
-    // user_profiles 테이블에 사용자 추가 (관리자 대시보드용)
-    await supabase
-      .from('user_profiles')
-      .upsert({
-        id: data.user.id,
-        email: data.user.email,
-        full_name: name,
-        role: 'user', // 기본 역할
-        plan: 'basic', // 기본 플랜
-        status: 'active', // 활성 상태
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id',
-        ignoreDuplicates: false
-      })
-
-    // profiles 테이블도 업데이트 (호환성을 위해 - 나중에 제거 예정)
-    await supabase
-      .from('profiles')
-      .upsert({
-        id: data.user.id,
-        email,
-        full_name: name,
-        name,
-        phone,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id',
-        ignoreDuplicates: false
-      })
+    // 트리거가 성공했으므로 프로필 upsert (트리거와 중복되어도 ON CONFLICT로 안전)
+    await ensureProfiles(supabase, data.user.id, data.user.email!, name, phone)
 
     return created({
       success: true,
       user: {
         id: data.user.id,
         email: data.user.email,
-        name: name,
+        name,
       },
     })
   } catch (error: any) {
-    console.error('Signup error')
+    console.error('Signup error:', error?.message || error)
     return serverError('회원가입 중 오류가 발생했습니다')
   }
+}
+
+/**
+ * DB 트리거 실패 시 admin API로 사용자 생성 후 프로필을 수동 생성
+ */
+async function adminSignupFallback(
+  email: string,
+  password: string,
+  name: string,
+  phone: string,
+  companyName?: string,
+  agreeMarketing?: boolean,
+) {
+  const admin = createAdminClient()
+
+  // admin API로 사용자 생성 (email_confirm: false → 이메일 확인 필요)
+  const { data: adminData, error: adminError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: false,
+    user_metadata: {
+      full_name: name,
+      phone,
+      company_name: companyName,
+      agree_marketing: agreeMarketing || false,
+    },
+  })
+
+  if (adminError) {
+    if (adminError.message.includes('already been registered') || adminError.message.includes('already exists')) {
+      return conflict('이미 사용 중인 이메일입니다')
+    }
+    console.error('Admin signup fallback failed:', adminError.message)
+    return serverError('회원가입 중 오류가 발생했습니다')
+  }
+
+  if (!adminData.user) {
+    return serverError('회원가입 중 오류가 발생했습니다')
+  }
+
+  // 트리거가 실패했으므로 프로필을 수동 생성 (admin client로 RLS 우회)
+  await ensureProfiles(admin, adminData.user.id, email, name, phone)
+
+  return created({
+    success: true,
+    user: {
+      id: adminData.user.id,
+      email: adminData.user.email,
+      name,
+    },
+  })
+}
+
+/**
+ * user_profiles + profiles 테이블에 레코드 보장 (upsert)
+ */
+async function ensureProfiles(
+  client: any,
+  userId: string,
+  email: string,
+  name: string,
+  phone: string,
+) {
+  const now = new Date().toISOString()
+
+  // user_profiles (관리자 대시보드용)
+  const { error: upErr } = await client
+    .from('user_profiles')
+    .upsert({
+      id: userId,
+      email,
+      full_name: name,
+      role: 'user',
+      plan: 'basic',
+      status: 'active',
+      created_at: now,
+      updated_at: now,
+    }, { onConflict: 'id', ignoreDuplicates: false })
+
+  if (upErr) console.warn('user_profiles upsert warning:', upErr.message)
+
+  // profiles (호환성 유지)
+  const { error: pErr } = await client
+    .from('profiles')
+    .upsert({
+      id: userId,
+      email,
+      name,
+      phone,
+      created_at: now,
+      updated_at: now,
+    }, { onConflict: 'id', ignoreDuplicates: false })
+
+  if (pErr) console.warn('profiles upsert warning:', pErr.message)
 }

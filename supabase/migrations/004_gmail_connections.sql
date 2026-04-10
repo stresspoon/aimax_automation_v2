@@ -13,17 +13,26 @@ ALTER TABLE public.gmail_connections ENABLE ROW LEVEL SECURITY;
 
 -- Only owner can read/write their own connection from client if needed.
 -- For server-side admin usage we will use service role key.
-CREATE POLICY IF NOT EXISTS "Users can view own gmail connection" ON public.gmail_connections
-  FOR SELECT USING (auth.uid() = user_id);
+-- Only owner can read/write their own connection from client if needed.
+-- For server-side admin usage we will use service role key.
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Users can view own gmail connection" ON public.gmail_connections;
+    CREATE POLICY "Users can view own gmail connection" ON public.gmail_connections
+      FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can upsert own gmail connection" ON public.gmail_connections
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+    DROP POLICY IF EXISTS "Users can upsert own gmail connection" ON public.gmail_connections;
+    CREATE POLICY "Users can upsert own gmail connection" ON public.gmail_connections
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can update own gmail connection" ON public.gmail_connections
-  FOR UPDATE USING (auth.uid() = user_id);
+    DROP POLICY IF EXISTS "Users can update own gmail connection" ON public.gmail_connections;
+    CREATE POLICY "Users can update own gmail connection" ON public.gmail_connections
+      FOR UPDATE USING (auth.uid() = user_id);
+END $$;
 
 -- Update trigger for updated_at
-CREATE TRIGGER IF NOT EXISTS update_gmail_connections_updated_at BEFORE UPDATE ON public.gmail_connections
+DROP TRIGGER IF EXISTS update_gmail_connections_updated_at ON public.gmail_connections;
+CREATE TRIGGER update_gmail_connections_updated_at BEFORE UPDATE ON public.gmail_connections
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 

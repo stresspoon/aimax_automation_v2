@@ -171,25 +171,57 @@ function extractInstagramFollowers($: cheerio.CheerioAPI): number | null {
 
 function extractThreadsFollowers($: cheerio.CheerioAPI): number | null {
   console.log('Threads 팔로워 수 추출 시작...')
-  
-  // 방법 1: 메타 태그에서 추출
+
+  // 방법 1: 인라인 스크립트에서 follower_count 추출 (가장 정확함)
+  const fullHtml = $.html()
+  const fcMatch = fullHtml.match(/"follower_count"\s*:\s*(\d+)/)
+  if (fcMatch) {
+    const count = parseInt(fcMatch[1])
+    if (count > 0) {
+      console.log(`인라인 스크립트 follower_count에서 발견: ${count}`)
+      return count
+    }
+  }
+
+  // 방법 2: span[title] 에서 정확한 숫자 추출
+  // 구조: 팔로워 <span title="5,445,331">544.5만</span>명
+  const titleMatch = fullHtml.match(/팔로워[^<]*<span[^>]*title="([\d,]+)"[^>]*>/i)
+  if (titleMatch) {
+    const count = parseInt(titleMatch[1].replace(/,/g, ''))
+    if (count > 0) {
+      console.log(`span title에서 발견: ${count}`)
+      return count
+    }
+  }
+
+  // 방법 3: 메타 태그에서 추출 (한국어 + 영어)
   const descriptions = [
     $('meta[property="og:description"]').attr('content'),
+    $('meta[property="description"]').attr('content'),
     $('meta[name="description"]').attr('content'),
     $('meta[name="twitter:description"]').attr('content'),
     $('title').text()
   ].filter(Boolean)
-  
+
   for (const desc of descriptions) {
     if (desc) {
-      const patterns = [
+      // 한국어: "팔로워 544.5만명"
+      const korMatch = desc.match(/팔로워\s*([\d,.]+)\s*만/)
+      if (korMatch) {
+        const count = Math.round(parseFloat(korMatch[1].replace(/,/g, '')) * 10000)
+        if (count > 0) {
+          console.log(`메타 태그(한국어)에서 발견: ${count}`)
+          return count
+        }
+      }
+
+      // 영어: "123K followers" or "1.2M followers"
+      const engPatterns = [
         /(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)\s*followers/gi,
         /(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)\s*팔로워/gi,
-        /followers.*?(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)/gi,
-        /팔로워.*?(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)/gi
       ]
-      
-      for (const pattern of patterns) {
+
+      for (const pattern of engPatterns) {
         const match = desc.match(pattern)
         if (match) {
           const count = normalizeCompactNumber(match[1])
@@ -201,16 +233,25 @@ function extractThreadsFollowers($: cheerio.CheerioAPI): number | null {
       }
     }
   }
-  
-  // 방법 2: 페이지 텍스트에서 정규식으로 추출
+
+  // 방법 4: 페이지 텍스트에서 정규식으로 추출
   const pageText = $('body').text()
+
+  // 한국어 패턴 우선
+  const korTextMatch = pageText.match(/팔로워\s*([\d,.]+)\s*만/)
+  if (korTextMatch) {
+    const count = Math.round(parseFloat(korTextMatch[1].replace(/,/g, '')) * 10000)
+    if (count > 0) {
+      console.log(`페이지 텍스트(한국어)에서 발견: ${count}`)
+      return count
+    }
+  }
+
   const textPatterns = [
     /(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)\s*followers/gi,
     /(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)\s*팔로워/gi,
-    /followers[\s\S]*?(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)/gi,
-    /팔로워[\s\S]*?(\d+(?:,\d{3})*(?:\.\d+)?[KMB]?)/gi
   ]
-  
+
   for (const pattern of textPatterns) {
     const matches = Array.from(pageText.matchAll(pattern))
     for (const match of matches) {
@@ -221,7 +262,7 @@ function extractThreadsFollowers($: cheerio.CheerioAPI): number | null {
       }
     }
   }
-  
+
   console.log('Threads 팔로워 수를 찾을 수 없음')
   return null
 }

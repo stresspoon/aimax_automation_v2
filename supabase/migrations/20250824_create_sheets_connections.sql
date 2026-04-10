@@ -15,26 +15,20 @@ CREATE TABLE IF NOT EXISTS public.sheets_connections (
 ALTER TABLE public.sheets_connections ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
-CREATE POLICY "Users can view their own sheets connections"
-  ON public.sheets_connections
-  FOR SELECT
-  USING (auth.uid() = user_id);
+DO $$ 
+BEGIN
+  DROP POLICY IF EXISTS "Users can view their own sheets connections" ON public.sheets_connections;
+  CREATE POLICY "Users can view their own sheets connections" ON public.sheets_connections FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own sheets connections"
-  ON public.sheets_connections
-  FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  DROP POLICY IF EXISTS "Users can insert their own sheets connections" ON public.sheets_connections;
+  CREATE POLICY "Users can insert their own sheets connections" ON public.sheets_connections FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own sheets connections"
-  ON public.sheets_connections
-  FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  DROP POLICY IF EXISTS "Users can update their own sheets connections" ON public.sheets_connections;
+  CREATE POLICY "Users can update their own sheets connections" ON public.sheets_connections FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own sheets connections"
-  ON public.sheets_connections
-  FOR DELETE
-  USING (auth.uid() = user_id);
+  DROP POLICY IF EXISTS "Users can delete their own sheets connections" ON public.sheets_connections;
+  CREATE POLICY "Users can delete their own sheets connections" ON public.sheets_connections FOR DELETE USING (auth.uid() = user_id);
+END $$;
 
 -- Create index for better performance
 CREATE INDEX IF NOT EXISTS idx_sheets_connections_user_id ON public.sheets_connections(user_id);
