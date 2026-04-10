@@ -184,6 +184,7 @@ function FormBuilderContent() {
       generateQRCode(data.form.slug)
       
       // 프로젝트 데이터에 formId/formUrl 반영 (DB 관리 페이지 표시용)
+      const formUrlForProject = `${window.location.origin}/form/${data.form.slug}`
       try {
         if (cleanProjectId) {
           const project = await fetchJSON<any>(`/api/projects/${cleanProjectId}`)
@@ -193,16 +194,32 @@ function FormBuilderContent() {
             step2: {
               ...(currentData.step2 || {}),
               formId: data.form.id,
-              formUrl: `${window.location.origin}/form/${data.form.slug}`,
+              formUrl: formUrlForProject,
             },
           }
           await fetchJSON(`/api/projects/${cleanProjectId}`, {
             method: 'PUT',
             body: { data: mergedData },
           })
+          // localStorage 백업 (돌아갔을 때 refreshFormLink fallback용)
+          try {
+            localStorage.setItem(`form_url_${cleanProjectId}`, JSON.stringify({
+              formId: data.form.id,
+              formUrl: formUrlForProject,
+            }))
+          } catch { }
         }
       } catch (e) {
         console.error('프로젝트에 폼 정보 반영 실패:', e)
+        // DB 반영 실패해도 localStorage에는 백업
+        if (cleanProjectId) {
+          try {
+            localStorage.setItem(`form_url_${cleanProjectId}`, JSON.stringify({
+              formId: data.form.id,
+              formUrl: formUrlForProject,
+            }))
+          } catch { }
+        }
       }
 
       toast.success('폼이 생성되었습니다!')

@@ -861,6 +861,28 @@ export default function CustomerAcquisitionPage() {
   useEffect(() => {
     const refreshFormLink = async () => {
       if (expandedStep !== 2 || !projectId) return
+
+      // 1) localStorage 백업 먼저 확인 (즉시 반영, DB보다 빠름)
+      try {
+        const cached = localStorage.getItem(`form_url_${projectId}`)
+        if (cached) {
+          const { formId: cachedFormId, formUrl: cachedFormUrl } = JSON.parse(cached)
+          if (cachedFormUrl) {
+            setProjectData(prev => {
+              if (prev.step2.formUrl === cachedFormUrl) return prev // 이미 최신이면 스킵
+              return {
+                ...prev,
+                step2: {
+                  ...prev.step2,
+                  formUrl: cachedFormUrl,
+                  formId: cachedFormId || prev.step2.formId || null,
+                }
+              }
+            })
+          }
+        }
+      } catch { }
+
       try {
         const supabase = createClient()
         const { data: project } = await supabase
@@ -879,31 +901,52 @@ export default function CustomerAcquisitionPage() {
               formId: formId || prev.step2.formId || null,
             }
           }))
+          return // formUrl이 확인됐으면 바로 반환
         }
 
         // Fallback: if no formUrl in project data, try to infer from forms API
-        if (!formUrl) {
-          try {
-            const forms = await fetchJSON<any[]>(`/api/forms?projectId=${projectId}`)
-            const projectForms = (forms || []).filter((f: any) => f.project_id === projectId)
-            if (projectForms.length > 0 && projectForms[0]?.slug) {
-              const derivedUrl = `${window.location.origin}/form/${projectForms[0].slug}`
-              setProjectData(prev => ({
-                ...prev,
-                step2: {
-                  ...prev.step2,
-                  formUrl: derivedUrl,
-                  formId: projectForms[0].id || prev.step2.formId || null,
-                }
-              }))
-            }
-          } catch { }
-        }
+        try {
+          const forms = await fetchJSON<any[]>(`/api/forms?projectId=${projectId}`)
+          const projectForms = (forms || []).filter((f: any) => f.project_id === projectId)
+          if (projectForms.length > 0 && projectForms[0]?.slug) {
+            const derivedUrl = `${window.location.origin}/form/${projectForms[0].slug}`
+            setProjectData(prev => ({
+              ...prev,
+              step2: {
+                ...prev.step2,
+                formUrl: prev.step2.formUrl || derivedUrl, // 이미 있으면 유지
+                formId: prev.step2.formId || projectForms[0].id || null,
+              }
+            }))
+          }
+        } catch { }
       } catch (e) {
         // no-op: 링크 최신화 실패는 무시 (표시만 영향)
       }
     }
+
+    // 초기 실행
     refreshFormLink()
+
+    // 폼 빌더에서 router.back()으로 돌아올 때:
+    // expandedStep/projectId가 같은 값이면 useEffect가 안 재실행되므로
+    // visibilitychange(탭 전환 복귀) 및 focus(창 복귀) 이벤트로 보완
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshFormLink()
+      }
+    }
+    const handleFocus = () => {
+      refreshFormLink()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [expandedStep, projectId])
 
   const connectGmail = async () => {

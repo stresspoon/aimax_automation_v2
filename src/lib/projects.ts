@@ -12,8 +12,11 @@ export interface ProjectData {
     generatedImages: string[]
   }
   step2: {
+    formId?: string | null
+    formUrl?: string | null
     sheetUrl: string
     isRunning: boolean
+    usingFormData?: boolean
     candidates: Array<{
       name: string
       email: string
@@ -119,8 +122,9 @@ export async function getCampaignIdByName(campaignName: string) {
   }
 
   // Find or create campaign
-  const campaigns = await fetchJSON<any[]>('/api/campaigns')
-  const existing = campaigns.find((c: any) => c.name === campaignName)
+  const campaignsResponse = await fetchJSON<any>('/api/campaigns')
+  const campaigns = campaignsResponse.data || campaignsResponse
+  const existing = (Array.isArray(campaigns) ? campaigns : []).find((c: any) => c.name === campaignName)
   
   if (existing) {
     return existing.id
