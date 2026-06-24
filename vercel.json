@@ -1,4 +1,18 @@
 {
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "header",
+          "key": "host",
+          "value": "aimax.ai.kr"
+        }
+      ],
+      "destination": "https://makefamily.kr/index.html",
+      "permanent": false
+    }
+  ],
   "functions": {
     "src/app/api/sns/scrape/route.ts": {
       "maxDuration": 60
